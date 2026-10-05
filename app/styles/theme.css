@@ -1,0 +1,28 @@
+/* FitFinder theme: Sky (light blue), chosen 2026-10-05. Values from the prototype's
+   .claude/design/styles/tokens.css :root[data-theme="sky"]. Used only by the three custom areas
+   (onboarding cards, dashboard banner, setup guide); everything else is plain Polaris. */
+:root {
+  --ff-p: #0284c7;
+  --ff-p-strong: #075985;
+  --ff-p-deep: #082f49;
+  --ff-p-mid: #0ea5e9;
+  --ff-p-400: #38bdf8;
+  --ff-p-soft: #e0f2fe;
+  --ff-p-softer: #f0f9ff;
+  --ff-p-softest: #f7fcff;
+  --ff-p-border: #bae6fd;
+  --ff-p-light: #7dd3fc;
+  --ff-a: #6366f1;
+  --ff-a-strong: #4f46e5;
+  --ff-a-soft: #e0e7ff;
+  --ff-a-softer: #eef2ff;
+  --ff-a-border: #c7d2fe;
+  --ff-a-light: #a5b4fc;
+  --ff-a-400: #818cf8;
+  --ff-s1: #7dd3fc;
+  --ff-glow1: rgba(56, 189, 248, 0.45);
+  --ff-glow2: rgba(129, 140, 248, 0.32);
+  --ff-glow3: rgba(45, 212, 191, 0.2);
+  --ff-wm: rgba(2, 132, 199, 0.06);
+  --ff-line: #e3e3e3;
+}

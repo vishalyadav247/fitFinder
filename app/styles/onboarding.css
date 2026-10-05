@@ -1,12 +1,6 @@
 /* Onboarding store type cards: one of the three custom, eye-catching areas (CLAUDE.md).
-   Ported from .claude/design/styles/components.css (.types/.type), admin-shell.css (.tile) and the
-   Graphite theme tokens in tokens.css. */
-.ff-onboarding {
-  --ff-p: #1f2937;
-  --ff-p-soft: #e5e7eb;
-  --ff-p-light: #9ca3af;
-  --ff-line: #e3e3e3;
-}
+   Ported from .claude/design/styles/components.css (.types/.type) and admin-shell.css (.tile).
+   Colours come from the Sky theme in theme.css (loaded by the app layout). */
 .ff-sec-title {
   margin: 0 0 12px;
   font-size: 14px;

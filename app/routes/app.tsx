@@ -1,4 +1,8 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import type {
+  HeadersFunction,
+  LinksFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import {
   Outlet,
   useLoaderData,
@@ -11,8 +15,12 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
+import theme from "../styles/theme.css?url";
 
 const ONBOARDING = "/app/onboarding";
+
+// Sky theme tokens for the custom areas (onboarding, dashboard banner, setup guide).
+export const links: LinksFunction = () => [{ rel: "stylesheet", href: theme }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
