@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FitFinder admin — UI prototype</title>
+<!-- Polaris web components (s-page, s-section, s-button, s-table, …). Needs an internet connection. -->
+<script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+<link rel="stylesheet" href="styles/tokens.css">
+<link rel="stylesheet" href="styles/admin-shell.css">
+<link rel="stylesheet" href="styles/components.css">
+<link rel="stylesheet" href="styles/dashboard-banner.css">
+<link rel="stylesheet" href="styles/setup-guide.css">
+<link rel="stylesheet" href="styles/fitment-data.css">
+<link rel="stylesheet" href="styles/storefront.css">
+<link rel="stylesheet" href="styles/responsive.css">
+</head>
+<body>
+<div class="topbar"><span class="store">BN</span><b>Your store</b><span style="color:#8A8A8A">/ Apps / FitFinder</span><label class="theme-pick"><span>Theme</span><select id="theme-select" aria-label="Colour theme"><option value="graphite">Graphite</option><option value="indigo">Indigo & teal</option><option value="emerald">Emerald</option><option value="plum">Plum & rose</option><option value="sunset">Sunset (orange)</option><option value="golden">Golden (yellow)</option><option value="coral">Coral & pink</option><option value="crimson">Crimson & rose</option><option value="teal">Teal & cyan</option><option value="sky">Sky (light blue)</option><option value="ocean">Blue & violet (previous)</option></select></label><span class="proto">Prototype · sample data</span></div>
+<nav class="mnav" id="mnav" aria-label="FitFinder"></nav>
+<div class="shell">
+  <aside class="side" id="side">
+    <p class="apps">Apps</p>
+    <div class="app"><span class="tile" style="background:linear-gradient(135deg,var(--p),var(--a))"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#FFF" stroke-width="2.4" stroke-linecap="round"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg></span>FitFinder</div>
+    <nav id="nav" aria-label="FitFinder" style="display:flex;flex-direction:column;gap:2px"></nav>
+  </aside>
+  <main id="view"></main>
+</div>
+<div id="cdn-note" hidden style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#7F1D1D;color:#FFF;padding:10px 16px;border-radius:10px">Polaris components didn't load. Connect to the internet and reload.</div>
+
+<!-- Classic scripts that share one global scope, loaded in this order. Works from file:// with no build step. -->
+<script src="scripts/core/theme.js"></script>
+<script src="scripts/core/icons.js"></script>
+<script src="scripts/data/store-types.js"></script>
+<script src="scripts/core/state.js"></script>
+<script src="scripts/core/fitment.js"></script>
+<script src="scripts/core/navigation.js"></script>
+<script src="scripts/core/shared-ui.js"></script>
+<script src="scripts/screens/onboarding.js"></script>
+<script src="scripts/screens/dashboard.js"></script>
+<script src="scripts/screens/search-setup.js"></script>
+<script src="scripts/screens/fitment-data.js"></script>
+<script src="scripts/screens/product-mapping.js"></script>
+<script src="scripts/screens/storefront.js"></script>
+<script src="scripts/screens/settings.js"></script>
+<script src="scripts/screens/plans.js"></script>
+<script src="scripts/app.js"></script>
+</body>
+</html>

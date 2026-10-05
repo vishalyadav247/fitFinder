@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledPlugins": {
+    "shopify-ai-toolkit@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install*)",
+      "Bash(npm ci*)",
+      "Bash(npm ls*)",
+      "Bash(npm test*)",
+      "Bash(npx prisma generate*)",
+      "Bash(npx prisma migrate dev*)",
+      "Bash(npx prisma migrate status*)",
+      "Bash(npx prisma validate*)",
+      "Bash(npx prisma format*)",
+      "Bash(npx prisma studio*)",
+      "Bash(npx tsc*)",
+      "Bash(npx eslint*)",
+      "Bash(npx prettier*)",
+      "Bash(npx vitest*)",
+      "Bash(npx playwright test*)",
+      "Bash(shopify app dev*)",
+      "Bash(shopify app build*)",
+      "Bash(shopify app info*)",
+      "Bash(shopify app generate*)",
+      "Bash(shopify app function*)",
+      "Bash(shopify app env show*)",
+      "Bash(shopify app config link*)",
+      "Bash(shopify theme check*)",
+      "Bash(shopify version*)",
+      "Bash(shopify app config validate*)",
+      "Bash(node *shopify-ai-toolkit*scripts/*.mjs*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git switch*)",
+      "Bash(git checkout -b*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git stash*)",
+      "Bash(node --check*)",
+      "Bash(node .claude/*)",
+      "Read(//c/Users/progr/Desktop/bilstein-nl/**)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(shopify app deploy*)",
+      "Bash(shopify app release*)",
+      "Bash(npm run deploy*)",
+      "Bash(shopify theme push*)",
+      "Bash(shopify theme publish*)",
+      "Bash(npx prisma migrate reset*)",
+      "Bash(npm publish*)",
+      "Edit(//c/Users/progr/Desktop/bilstein-nl/**)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.production)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\progr\\Desktop\\bilstein-nl"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.cjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.cjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-files.cjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-file.cjs\"",
+            "timeout": 90,
+            "statusMessage": "Formatting and linting"
+          }
+        ]
+      }
+    ]
+  }
+}

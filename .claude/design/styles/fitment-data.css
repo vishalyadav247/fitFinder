@@ -1,0 +1,4 @@
+/* Filter data page: bulk selection bar, add/edit row form grid, clean-up icon. */
+.bulk{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 16px;background:var(--p-softer);border-block:1px solid var(--p-soft)}
+.add-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.cu-ico{width:28px;height:28px;border-radius:8px}

@@ -1,0 +1,90 @@
+# Storefront
+
+**Prototype:** `design/scripts/screens/storefront.js` · Styles: `design/styles/storefront.css` · **Suggested route:** `/app/storefront`
+
+## Wording per store type
+Default texts use the store type's word for what it sells: Automotive "parts", Phones "accessories", Beauty and Something else "products" (e.g. button "Show parts" / "Show accessories" / "Show products", "See … that fit", "No … fit this selection yet."). Other fixed texts ("Reset", "Show all {n}", "Selected", "Add a {noun}", the hover hint) stay fixed for now and use the store type's noun; they can become editable later if needed.
+
+## Purpose
+Turn the search on in the live theme and set how the shopper-facing blocks look and behave, with a live preview.
+
+## Layout
+`s-page heading="Storefront"` · primary **Open theme editor**.
+
+1. *(When off)* `s-banner tone="critical"` would explain the search is hidden (not in the current prototype; recommended).
+2. **Theme integration** (`s-section padding="none"`, title "Theme integration" on top: Polaris heading size (14px) but bolder (750))
+   - Top row: `s-select` **Theme** (the store's themes, e.g. "Dawn (live theme)", "Refresh (draft)"; default the live theme) and, on the right on one line, **App embed** + On (success) / Off (critical) badge + `s-switch` (no description, no box).
+   - The App embed switch does **not** change the theme itself (Shopify doesn't allow apps to). It opens the theme editor of the selected theme on the App embeds panel with FitFinder ready to enable: `https://{shop}/admin/themes/{themeId}/editor?context=apps&activateAppId={api_key}/{embed_handle}`. Turning it off opens the same panel. When the merchant returns (window focus), re-read the embed status from the theme's `config/settings_data.json` and update the badge and switch. The prototype flips the switch straight away and shows the toast "Theme editor opened. App embed turned on (simulated)".
+   - Not the live theme → info `s-banner` "{theme} isn't your live theme" — "You can set FitFinder up here now. Shoppers see it once you publish this theme."
+   - `s-table` of what goes into the theme. **Type** is the Shopify theme type: **Section** (placed on a page by the merchant) or **App block** (sits inside an existing section).
+     | Feature | Type | Placement | Status | Action |
+     |---|---|---|---|---|
+     | Search section | Section | Home, collection, product or any other page | Added (success) / Not added | **View in editor** (tertiary, external icon) / **Add to theme** (opens the theme editor with the block inserted; disabled while the embed is off) |
+     | Fits badge | App block | Product page, inside the product info | 〃 | 〃 |
+     | Fitment table | App block | Product page, with the description and specification tabs | 〃 | 〃 |
+     | My Selection | App embed | Floating button on every page | 〃 | 〃 |
+   - No progress badge or intro line. Everything applies to the selected theme. **Open theme editor** (page primary action, external icon) opens the editor of the selected theme; **Add to theme** / **View in editor** deep-link to that block.
+3. Tabs: **Search widget** · **Fits badge** · **Fitment table** · **My Selection**.
+4. Each tab: preview header with **Desktop / Mobile** toggle, a mock browser window showing the storefront, then settings sections.
+
+### Search widget tab
+- Preview, titled with a green `s-badge tone="success"` **Live preview** (Desktop / Mobile): the widget as shoppers see it — real cascading `<select>`s, button, "Save to {name shoppers see}", Reset. Results show matched products with "✓ Fits your {noun}" and `[price]`. Every setting below updates the preview right away.
+- **Layout and style**
+  - `s-select` **Layout**: Horizontal (one row) / Vertical (stacked) — details "On phones the dropdowns always stack." · `s-select` **Corners**: Square / Rounded / Pill.
+  - `s-color-field` × 3: **Button colour**, **Background**, **Text colour** (heading, labels, links).
+  - `s-checkbox` **Show labels above the dropdowns** (off by default) — "Off: the field name is shown inside each dropdown instead."
+- **Text** and **Behaviour** sit side by side (Text left, about two thirds; Behaviour right).
+- **Text** (one column)
+  - **Search heading** (e.g. "Find parts for your vehicle"; the only place to set it) with `s-checkbox` **Show search heading** (on) right under it.
+  - **Button text** · **Save link text** (default "Save to My Selection"). Dropdown placeholders are set per field on Search setup.
+  - "Dropdowns and their placeholder text come from your search fields:" + field chips + **Edit fields** (→ Search setup).
+- **Behaviour** — only two `s-checkbox`es: **Show "{save link text}"** (on) and **Show a reset link** (on). The save link has its own setting, separate from the floating saved-selections button.
+  - Results always open on a filtered collection page (no choice shown).
+- Every preview (Search widget, Product page, My Selection) is titled with the same green `s-badge tone="success" icon="view"` **Live preview**.
+- Plain Polaris controls only (no custom segmented buttons or colour swatches). The Search widget preview has a Desktop / Mobile switch as two icon buttons (`icon="desktop"` / `icon="mobile"`; the selected one is secondary, the other tertiary); the Product page and My Selection previews look the same on both and have no switch. Previews show only FitFinder's part — no backdrop, padding, store bar or placeholder content (My Selection uses a small browser window to show the fixed position).
+
+### Fits badge tab and Fitment table tab (product page)
+- Two tabs, each with its settings on the left and its own preview on the right. No on/off here: both are app blocks, added or removed with **Add to theme** in Theme integration. No position setting: the merchant places the blocks in the theme editor.
+- Previews: green **Live preview** badge + a note. Badge preview ("All three states, as shoppers see them."): the three states stacked with small captions, in the order shoppers meet them (Before a selection · When it fits · When it doesn't fit). Table preview ("With sample rows."): a product with rows and a product with none.
+- **Fits badge** — "Tells shoppers on the product page whether it fits what they picked. Place it in the theme editor, usually above Add to cart."
+  - Settings in groups, separated by `s-divider`, so each option sits with the state it affects (in the order shoppers meet them):
+    - **Before a selection**: **Text** ("Select your {noun} to check if it fits").
+    - **When it fits**: **Text** (default "Fits your {noun}").
+    - **When it doesn't fit**: **Text** ("Doesn't fit your {noun}") · `s-checkbox` **Show a link to parts that fit** (on) · **Link text** ("See parts that fit"; links to the search results for the shopper's selection).
+    - Last: `s-checkbox` **Show the shopper's selection under the text** (on; applies to fits and doesn't fit; the example shown is the store's own first selection). One look only (no style choice): soft background — green when it fits, red when it doesn't, light blue (Polaris info) before a selection.
+- **Fitment table** — "Lists everything this product fits. It sits with your product page's description and specification tabs: drag it between them in the theme editor." Settings in groups separated by `s-divider`:
+  - **Where to show it** (first group): `s-select` **As its own block** (default; app block next to the product's description/specification rows) / **Inside your theme's tabs (Description, Specifications …)**.
+    - Inside tabs: the merchant adds a tab to their own product tabs section and pastes the code `[fitfinder-table]` as its content. The app embed script finds that code on product pages and replaces it with the live table, so the theme keeps its own tab/accordion layout (tabs on desktop, often an accordion on phones). The tab shows a 3-step box (open the tabs section · add a tab and paste the code, with a **Copy** button (toast "Copied [fitfinder-table]") · save) + "Needs the app embed" + **Open theme editor**. Show as / Title / Start expanded are hidden (the theme owns the tab's name and behaviour); Table style, Columns, Rows and "When a product has no rows" still apply. Preview: the table inside a tab bar (Description · Specifications · **Fits these {noun}s** · Reviews).
+    - Theme integration row then reads Type **Code in a theme tab**, Placement "Product page, inside your theme's tabs", Status **Code found** / **Code not found yet** (real app: scan the product template's settings for the code), Action **How to add** (opens this tab).
+    - Backend note: also write each product's fit list to a product metafield (`fitfinder.fits`) for developers and SEO; it is not offered in the UI.
+  - **Display:** `s-select` **Show as** (Collapsible row (matches your theme's tabs) / Open table) · **Title** (default "Fits these {noun}s") · `s-checkbox` **Start expanded** (collapsible only; on) · `s-select` **Table style** (Lines between rows (default) / Striped rows / Plain).
+  - **Columns:** "One column per search field, in the same order as Search setup." + an `s-checkbox` per search field (all on; the last one left on can't be turned off).
+  - **Rows:** `s-select` **Sort by** (Search field order (A–Z) / Newest {year field} first, when there is a year range field) · **Rows before "Show all"** (5 / 10 / All; longer lists end with "Show all {n}").
+  - **When a product has no rows:** Hide the table (default) / Show a text instead + **Text** (default "Fits all {noun}s"; "Useful for universal products.").
+  - Preview ("With sample rows."): "Product with rows" (a few sample rows so sorting, columns, limit and style are visible) and "Product with no rows" (nothing, or the text).
+  - Why its own row: Shopify doesn't let an app block go inside a theme's collapsible tab, so the block draws its own collapsible row styled like the theme's and the merchant drags it between the theme's rows.
+  - Alternative for merchants who want it inside an existing tab: FitFinder also writes each product's fit list to a product metafield (`fitfinder.fits`, rich text or JSON). Themes with dynamic sources can connect that metafield to their own collapsible tab.
+
+### My Selection tab (the saved-selections feature)
+- **Part of the app embed**, not a block: fixed to the shopper's browser window on every page (`position: fixed`). Nothing to place in the theme. In the Theme integration table (feature **My Selection**) it shows Type **App embed**, Placement "Floating button on every page", Status **Showing** / **Turned off** / **Needs app embed**, Action: an `s-switch` to turn it on/off (the only on/off control; disabled while the app embed is off) + **Settings** (opens this tab).
+- **Closed:** a fixed-size tab with an icon, the shopper's current selection (e.g. "2008 AUDI A6 C6 Avant (4F5)"; before anything is saved: the name) and a count badge (always upright, reads left to right; can be turned off). The icon is 24px and on the vertical tabs turns with the text. Long text is cut with "…" (full text in the tooltip). Side edges: vertical tab 46 × 190px, flush with the window edge (text reads bottom to top on the right, top to bottom on the left). Bottom corners: pill 220 × 46px. 14px semibold.
+- **Hover:** the tab keeps its size and position (no slide, no grow), only its shadow deepens, and a dark hint card slides in next to the tab: "SHOPPING FOR" (small green caps) · the current selection (bold, cut with …) · "2 saved · Click to switch or add". Before anything is saved: "{name}" · "Save your {noun} here" · "Click to add your first {noun}".
+- **Open (click):** the tab fades out and a 280px panel slides in from the same edge (0.35s ease-out). Close = a small rectangular tile on the panel's inner edge, in the middle (30 × 64px; on top for bottom positions), with an arrow pointing back to the window edge. Title = the name in capitals ("MY SELECTION"), one card per saved selection (year + first field in bold 15px, last field below in grey; trash icon on the right). The active one has a green border and a green "Selected" pill. Full-width **Add a {noun}** button: background = the text colour setting (dark by default), label always white. Close slides it back.
+- Layout: settings on the left, preview on the right. Preview: the green **Live preview** badge with "Hover the tab or click it to try it. Looks the same on desktop and mobile." next to it, then a small browser window with the tab pinned in the chosen position (real hover and click).
+- Section **My Selection** — "A floating button that stays in a corner of every page…". Embed off → warning banner "Turn on the app embed to show the button".
+- No on/off in this tab (it lives in Theme integration). When it is off: info banner "My Selection is turned off — Turn it on with its switch in Theme integration above. You can still set it up here."
+- Settings: **Name shoppers see** (default My Selection) · `s-select` **Position**: Right edge, middle (vertical tab, default) / Left edge, middle (vertical tab) / Bottom right / Bottom left · `s-select` **Icon**: Star / Heart / Bookmark / Clock (recent) / the store type icon (default, e.g. a car) / **Custom (upload your own)** / No icon. Custom shows an `s-drop-zone` "Upload an icon" + "SVG or PNG, square, at least 48 × 48 px, up to 100 KB. Shown at 24 px next to the name." and, once uploaded, "Icon uploaded." + **Remove** (real app: upload to Shopify Files with `stagedUploadsCreate` → `fileCreate`, save the URL) · `s-color-field` **Background colour** (default white) and **Text colour** (default #1A1A1A) · **Saved selections per shopper** (3 / 5 / 10) · `s-checkbox` **Show saved selection count** (on; the number bubble on the button) · `s-checkbox` "Ask shoppers to save their selection after a search".
+
+## Data / backend
+- Themes: GraphQL `themes(first: 20) { id name role }` (role MAIN = live). Embed status per theme: read `config/settings_data.json` of that theme (app embed block `disabled` flag); block status: scan its templates for the app blocks. Theme editor link: `https://{shop}/admin/themes/{id}/editor?context=apps` (embed) or `?template=index&addAppBlockId={api_key}/search&target=newAppsSection` (add a block).
+- `GET/PUT /api/storefront-settings` — one JSON document per shop (layout, colours, corners, texts, toggles, results destination, badge texts/position, garage settings).
+- App embed status / deep link: `https://{shop}/admin/themes/current/editor?context=apps&activateAppId={api_key}/{embed_handle}`.
+- Expose settings to the theme extension via a shop metafield (app-owned namespace) so blocks render without an extra request.
+
+## Theme app extension (real app)
+- App embed block: loads the script and garage state.
+- App blocks: `search` (added as its own section on any template), `fits-badge` and `fitment-table` (inside the product info section). The saved-selections floating button is rendered by the app embed (fixed position), so it works on every theme.
+- Storefront API via app proxy `/apps/fitfinder/*`: `options`, `results`, `fits` (see [data-model.md](data-model.md)).
+
+## Build notes
+Admin page: plain Polaris. The previews are custom HTML by nature (they show the storefront, not the admin).

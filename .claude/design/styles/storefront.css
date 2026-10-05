@@ -1,0 +1,135 @@
+/* Storefront page: the live storefront previews (search widget, product page, saved selections). */
+.pv-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.opt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start}
+.opt-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.opt-grid.one{grid-template-columns:minmax(0,1fr)}
+.sfw{background:var(--bg);border-radius:var(--r);padding:16px;box-shadow:0 0 0 1px #E5E5E5}
+.sfw-h{font-weight:750;font-size:15px;margin-bottom:10px;color:var(--t,#1A1A1A)}
+.sfw-l{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--t,#1A1A1A)}
+.sfw .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sfw.h .sfw-row{align-items:end}
+.sfw-row{display:grid;gap:8px}
+.sfw.h .sfw-row{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+.sfw.v .sfw-row{grid-template-columns:minmax(0,1fr)}
+.sfw select{width:100%;min-height:40px;padding:0 10px;border-radius:var(--rb);border:1px solid #CFCFCF;background:#FFFFFF;font:inherit;color:#1A1A1A}
+.sfw select:disabled{background:#F5F5F5;color:#A3A3A3}
+.sfw-go{min-height:40px;border:0;border-radius:var(--rb);background:var(--b);color:#FFFFFF;font-weight:700;cursor:pointer;padding:0 16px}
+.sfw-go:disabled{opacity:.45;cursor:not-allowed}
+.sfw-links{display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--t,#525252);opacity:.8}
+.sfw-links button{border:0;background:none;color:var(--b);font-weight:600;cursor:pointer;padding:0}
+.sfw-results{display:grid;gap:8px;margin-top:12px}
+.sfw-card{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:10px;background:#FFFFFF;box-shadow:0 0 0 1px #EAEAEA}
+.sfw-card div{display:flex;flex-direction:column}.sfw-card span:not(.thumb){font-size:12px;color:#15803D}
+.sfw-price{font-weight:700;color:#1A1A1A !important}
+.sfw-empty{font-size:13px;color:#737373}
+.thumb{width:40px;height:40px;border-radius:8px;background:repeating-linear-gradient(45deg,#E2E8F0,#E2E8F0 6px,#F1F5F9 6px,#F1F5F9 12px)}
+.fit{display:flex;flex-direction:column;padding:10px 12px;border-radius:10px;font-weight:700;font-size:13px}
+.fit small{font-weight:500;font-size:12px}
+.fit.ok{background:#DCFCE7;color:#14532D}.fit.no{background:#FEE2E2;color:#7F1D1D}.fit.ask{background:#EAF4FF;color:#00527C}
+.g-icon{width:24px;height:24px;object-fit:contain}
+.right-middle .left-middle 
+
+/* Product page: the theme's collapsible rows with the fitment table among them (or as an open table). */
+.acc-row{border-bottom:1px solid #E5E5E5}
+.acc-h{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;font-size:13px;font-weight:600;color:#1A1A1A}
+.acc-h i{font-style:normal;color:#737373}
+.acc-row table,.fit-open table{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px}
+.acc-row th,.acc-row td,.fit-open th,.fit-open td{text-align:left;padding:6px 8px;border-bottom:1px solid #F0F0F0}
+.acc-row th,.fit-open th{color:#737373;font-weight:600}
+.fit-open{padding:10px 0;border-bottom:1px solid #E5E5E5}.fit-open b{display:block;font-size:13px;margin-bottom:6px}
+
+/* Preview stage: only FitFinder's part, no backdrop or padding; mobile = phone width. */
+.pv-stage{margin-top:10px;transition:max-width .2s}
+.pv-stage.mobile{max-width:375px;margin-inline:auto}
+.pdp-parts{display:grid;gap:8px;max-width:520px}
+.pv-cap{margin:6px 0 0;font-size:11px;font-weight:600;color:#8A8A8A;text-transform:uppercase;letter-spacing:.04em}
+.pdp-parts .pv-cap:first-child{margin-top:0}
+.pdp-parts .acc-row,.pdp-parts .fit-open{background:#FFFFFF;border:1px solid #E5E5E5;border-radius:10px;padding:0 12px}
+
+/* My Selection preview: a small browser window; the button is pinned to the window like position:fixed on the store. */
+.mini-win{margin-top:10px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px #DADADA}
+.mw-bar{display:flex;align-items:center;gap:5px;padding:6px 10px;background:#F3F3F3;border-bottom:1px solid #E3E3E3}
+.mw-bar i{width:8px;height:8px;border-radius:999px;background:#D4D4D4}
+.mw-bar em{margin-left:8px;font-style:normal;font-size:11px;color:#8A8A8A;background:#FFFFFF;border-radius:5px;padding:1px 8px}
+.mw-body{position:relative;height:320px;background:#FFFFFF;overflow:hidden}
+.mw-body 
+/* My Selection. Fixed-size tab with the current selection (cut with … when long) and a count.
+   Hover: the tab stays as it is (only a deeper shadow) and a hint card slides in next to it.
+   Open: the panel slides in. */
+.ms{position:absolute;z-index:1}
+.ms-right-middle{right:0;top:50%;transform:translateY(-50%)}
+.ms-left-middle{left:0;top:50%;transform:translateY(-50%)}
+.ms-bottom-right{right:14px;bottom:14px}
+.ms-bottom-left{left:14px;bottom:14px}
+.ms-tab{display:flex;align-items:end;gap:12px;box-sizing:border-box;background:var(--ms-bg);color:var(--ms-fg);border:1px solid #D9D9D9;box-shadow:0 4px 16px rgba(0,0,0,.10);font-family:inherit;font-size:14px;font-weight:600;line-height:1.2;cursor:pointer;transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease,opacity .2s}
+.ms-tab svg,.ms-tab .g-icon{flex:none}
+.ms-tab span{flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-count{flex:none;writing-mode:horizontal-tb;font-style:normal;font-size:11px;font-weight:700;min-width:18px;height:18px;line-height:18px;text-align:center;border-radius:999px;background:var(--ms-fg);color:var(--ms-bg)}
+/* side edges: vertical tab, fixed 46 × 190px, flush with the edge */
+.ms-right-middle .ms-tab,.ms-left-middle .ms-tab{writing-mode:vertical-rl;width:46px;height:190px;padding:14px 10px}
+.ms-right-middle .ms-tab{transform:rotate(180deg);border-right:0;border-radius:0 14px 14px 0}
+.ms-right-middle .ms-count{transform:rotate(180deg)}
+/* the icon follows the text direction on the vertical tabs (turned like the letters), unlike the upright count */
+.ms-right-middle .ms-tab svg,.ms-right-middle .ms-tab .g-icon,.ms-left-middle .ms-tab svg,.ms-left-middle .ms-tab .g-icon{transform:rotate(90deg)}
+.ms-left-middle .ms-tab{border-left:0;border-radius:0 14px 14px 0}
+/* hover: the tab keeps its size and place (the hint card does the talking), only the shadow deepens */
+.ms .ms-tab:hover,.ms.is-hover .ms-tab{box-shadow:0 10px 26px rgba(0,0,0,.18)}
+/* bottom corners: fixed-width pill that lifts */
+.ms-bottom-right .ms-tab,.ms-bottom-left .ms-tab{width:220px;height:46px;padding:0 14px;border-radius:999px}
+/* hover hint: dark card that slides in beside the tab and tells the shopper what it is */
+.ms-hint{position:absolute;width:210px;padding:10px 12px;border-radius:12px;background:#1A1A1A;color:#FFFFFF;box-shadow:0 10px 28px rgba(0,0,0,.25);font-size:13px;line-height:1.35;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .35s cubic-bezier(.2,.8,.2,1)}
+.ms-hint b{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#A3E635}
+.ms-hint span{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0}
+.ms-hint small{display:block;color:#C7C7C7;font-size:12px}
+.ms-right-middle .ms-hint{right:56px;top:50%;transform:translate(10px,-50%)}
+.ms-left-middle .ms-hint{left:56px;top:50%;transform:translate(-10px,-50%)}
+.ms-bottom-right .ms-hint{right:0;bottom:58px;transform:translateY(8px)}
+.ms-bottom-left .ms-hint{left:0;bottom:58px;transform:translateY(8px)}
+.ms:hover .ms-hint,.ms.is-hover .ms-hint{opacity:1}
+.ms-right-middle:hover .ms-hint,.ms-right-middle.is-hover .ms-hint,.ms-left-middle:hover .ms-hint,.ms-left-middle.is-hover .ms-hint{transform:translate(0,-50%)}
+.ms-bottom-right:hover .ms-hint,.ms-bottom-right.is-hover .ms-hint,.ms-bottom-left:hover .ms-hint,.ms-bottom-left.is-hover .ms-hint{transform:none}
+.ms.is-open .ms-hint{opacity:0}
+.ms-panel{position:absolute;width:280px;padding:18px 18px 16px;background:#FFFFFF;color:#1A1A1A;border:1px solid #D9D9D9;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.14);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .25s}
+.ms-right-middle .ms-panel{right:-1px;top:50%;transform:translate(105%,-50%);border-radius:14px 0 0 14px}
+.ms-left-middle .ms-panel{left:-1px;top:50%;transform:translate(-105%,-50%);border-radius:0 14px 14px 0}
+.ms-bottom-right .ms-panel{right:0;bottom:0;transform:translateY(24px)}
+.ms-bottom-left .ms-panel{left:0;bottom:0;transform:translateY(24px)}
+.ms.is-open .ms-panel{opacity:1;pointer-events:auto}
+.ms-right-middle.is-open .ms-panel,.ms-left-middle.is-open .ms-panel{transform:translate(0,-50%)}
+.ms-bottom-right.is-open .ms-panel,.ms-bottom-left.is-open .ms-panel{transform:none}
+.ms.is-open .ms-tab{opacity:0;pointer-events:none}
+/* close handle: a small tile on the panel's inner edge, middle, with an arrow pointing back to the window edge */
+.ms-handle{position:absolute;display:flex;align-items:center;justify-content:center;background:#FFFFFF;color:#303030;border:1px solid #D9D9D9;cursor:pointer;padding:0;transition:background .2s,color .2s}
+.ms-handle:hover{background:#F3F3F3;color:#000000}
+.ms-right-middle .ms-handle{left:-30px;top:50%;transform:translateY(-50%);width:30px;height:64px;border-right:0;border-radius:10px 0 0 10px;box-shadow:-6px 0 12px rgba(0,0,0,.06)}
+.ms-left-middle .ms-handle{right:-30px;top:50%;transform:translateY(-50%);width:30px;height:64px;border-left:0;border-radius:0 10px 10px 0;box-shadow:6px 0 12px rgba(0,0,0,.06)}
+.ms-bottom-right .ms-handle,.ms-bottom-left .ms-handle{top:-26px;left:50%;transform:translateX(-50%);width:64px;height:26px;border-bottom:0;border-radius:10px 10px 0 0}
+.ms-title{margin:2px 0 14px;text-align:center;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.ms-item{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;margin-bottom:10px;border:1px solid #E3E3E3;border-radius:12px}
+.ms-item.on{border:2px solid #4CC21D}
+.ms-item b{display:block;font-size:15px}.ms-item small{display:block;font-size:13px;color:#8A8A8A;margin-top:4px}
+.ms-pill{position:absolute;top:-10px;right:12px;background:#4CC21D;color:#FFFFFF;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px}
+.ms-add{margin-top:4px;padding:11px;border-radius:8px;text-align:center;font-size:14px;font-weight:700}
+
+/* Product page preview: badge states stacked; "show all" under a long fitment table. */
+.fit .fit-link{text-decoration:underline;font-weight:600}
+.fit-more{margin:0 0 10px;font-size:12px;font-weight:600;text-decoration:underline;color:#303030}
+
+/* Group titles inside a settings section (e.g. When it fits / When it doesn't fit). */
+.grp-t{margin:0;font-size:13px;font-weight:650;color:#303030}
+
+/* Fitment table looks: lines (default) / striped / plain; and the no-rows states. */
+.ft-striped tr:nth-child(even) td{background:#F6F6F6}.ft-striped td,.ft-plain td,.ft-plain th{border-bottom:0 !important}
+.ft-plain th{border-bottom:1px solid #EBEBEB !important}
+.ft-empty{margin:0 0 10px;font-size:13px;color:#303030}
+.ft-hidden{margin:0;font-size:12px;color:#A3A3A3;font-style:italic}
+
+/* Fitment table inside the theme's own tabs (preview), and the 3-step instructions. */
+.th-tabs{border:1px solid #E5E5E5;border-radius:10px;background:#FFFFFF;overflow:hidden}
+.th-bar{display:flex;gap:18px;padding:0 12px;border-bottom:1px solid #E5E5E5;font-size:13px;color:#737373;overflow-x:auto}
+.th-bar span{padding:10px 0;white-space:nowrap}.th-bar span.on{color:#1A1A1A;font-weight:650;box-shadow:inset 0 -2px 0 #1A1A1A}
+.th-body{padding:4px 12px 2px}.th-body table{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px}
+.th-body th,.th-body td{text-align:left;padding:6px 8px;border-bottom:1px solid #F0F0F0}.th-body th{color:#737373;font-weight:600}
+.steps-ol{margin:0;padding-left:18px;display:grid;gap:8px;font-size:13px;color:#303030}
+.code-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.code-row code{padding:4px 10px;border-radius:6px;background:#FFFFFF;border:1px solid #DADADA;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace}

@@ -1,0 +1,36 @@
+/* Dashboard setup guide: custom, eye-catching. Everything else in the app should stay plain Polaris. */
+.guide{padding:18px 20px 20px;display:flex;flex-direction:column;gap:16px}
+.g-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center}
+.g-head h2{font-size:16px;font-weight:800}.g-head p{color:var(--muted)}
+.g-ring{position:relative;width:52px;height:52px}
+.g-ring span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:var(--p-strong)}
+.g-toggle{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:#FFFFFF;color:#4A4A4A;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.g-toggle:hover{background:#F5F5F5}
+/* Progress bar: one segment above each step card (same 8px gap). Same colours as the cards:
+   done = light Polaris green, in progress = light theme colour filled halfway, to do = grey. */
+.g-seg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.g-seg span{height:4px;border-radius:999px;background:#EBEBEB}
+.g-seg span.done{background:#95DBB4}
+.g-seg span.cur{background:linear-gradient(90deg,color-mix(in srgb,var(--p) 40%,#FFFFFF) 50%,#EBEBEB 50%)}
+.g-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.g-steps button{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:12px 10px;border-radius:12px;border:2px solid #E5E7EB;background:#FFFFFF;text-align:center;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.g-steps button:hover{border-color:var(--p-border)}
+.g-steps button.cur{border-color:var(--p)}
+.gs-ico{width:32px;height:32px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #D1D5DB;color:#9CA3AF;margin-bottom:4px}
+.g-steps .done .gs-ico{background:#CDFEE1;border-color:#B4FED2;color:#29845A}
+.g-steps .now .gs-ico{background:var(--p-soft);border-color:var(--p-border);color:var(--p)}
+.gs-status{font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em}
+.g-steps .done .gs-status{color:#29845A}.g-steps .now .gs-status{color:var(--p)}
+.gs-label{font-size:13px;font-weight:700;color:var(--ink)}
+.g-panel{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;padding:18px;box-sizing:border-box;border-radius:14px;background:linear-gradient(120deg,var(--p-softer) 0%,var(--p-softest) 55%,var(--a-softer) 100%);border:1px solid var(--p-soft)}
+.g-watermark{position:absolute;right:16%;top:50%;transform:translateY(-50%);color:var(--wm);pointer-events:none}
+.g-dot{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--a);box-shadow:0 0 0 3px var(--a-soft);margin-right:8px;vertical-align:1px}.g-dot.is-done{background:#29845A;box-shadow:0 0 0 3px #CDFEE1}
+.g-body{position:relative;display:flex;flex-direction:column;gap:4px}
+.g-body h3{font-size:16px;font-weight:700;color:#303030}
+.g-desc{color:var(--muted);max-width:560px;line-height:20px;height:40px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.g-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.g-nav{position:relative;display:flex;gap:6px}
+.g-nav button{width:32px;height:32px;border-radius:999px;border:1px solid var(--p-soft);background:#FFFFFF;color:var(--p);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.g-nav button:disabled{color:#CBD5E1;cursor:not-allowed}
+@media (max-width:700px){.g-steps{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.g-steps button{align-items:center;padding:8px 4px}.gs-status,.gs-label{display:none}.g-panel{grid-template-columns:minmax(0,1fr)}.g-desc{height:60px;-webkit-line-clamp:3}.g-panel > .tile,.g-watermark{display:none}.g-nav{position:absolute;top:14px;right:14px}}
+.g-body .sp-kicker{color:var(--muted);margin-bottom:8px}

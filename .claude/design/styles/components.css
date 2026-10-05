@@ -1,0 +1,85 @@
+/* Small shared pieces used on several screens (metric cards, onboarding cards, steppers, tabs, field rows, plans). */
+.metric-value{font-size:22px;line-height:28px;font-weight:700;color:#303030}
+.types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.type{display:flex;flex-direction:column;gap:8px;text-align:left;padding:18px;border-radius:14px;border:2px solid var(--line);background:#FFFFFF;cursor:pointer}
+.type:hover{border-color:var(--p-light)}
+.type[aria-checked="true"]{border-color:var(--p);box-shadow:0 0 0 4px var(--p-soft)}
+.type b{font-size:15px}
+.split{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:start}
+.widget{border-radius:14px;padding:18px;background:linear-gradient(160deg,var(--p-softer),var(--a-softer));display:flex;flex-direction:column;gap:10px}
+.widget h3{font-size:16px;font-weight:750}
+.chips{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center}
+.num-dot.n-plain{background:#F1F1F1;color:#303030;border:1px solid #E3E3E3}
+.num-dot{width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:#FFF;font-weight:750;margin-bottom:4px}
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+.price{margin:0;font-size:28px;line-height:36px;font-weight:750;color:#303030}
+.price span{font-size:13px;font-weight:500;color:#616161}
+/* Plans: usage meter */
+.meter{height:6px;border-radius:999px;background:#EBEBEB;overflow:hidden}.meter span{display:block;height:100%;border-radius:999px;background:#303030}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #E3E3E3;overflow-x:auto}
+.tabs button{min-height:40px;padding:0 14px;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;color:#616161;cursor:pointer;white-space:nowrap}
+.tabs button:hover{color:#303030;border-bottom-color:#CCCCCC}
+.tabs button[aria-selected="true"]{color:#303030;border-bottom-color:#303030}
+.tabs .count{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#E3E3E3;color:#303030;font-size:12px;margin-left:4px}
+.stepper.small .stp{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:1}
+.stepper.small .dot{width:30px;height:30px}
+/* Import stepper: three steps, centred in the card with room above. */
+.stepper.small{grid-template-columns:repeat(3,minmax(0,1fr));max-width:560px;width:100%;margin:12px auto 4px}
+.stepper.small li+li::before{top:14px}
+s-table-row[hidden]{display:none}
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.stepper li{position:relative;display:flex;justify-content:center}
+.stepper li+li::before{content:"";position:absolute;top:17px;right:50%;width:100%;height:3px;background:#E5E7EB;z-index:0}
+.stepper li.line-on::before{background:linear-gradient(90deg,var(--p),var(--p-400))}
+.stepper button{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;cursor:pointer;padding:0 4px;min-width:44px}
+.stepper .dot{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:750;background:#F3F4F6;color:#6B7280;border:3px solid #FFFFFF;box-shadow:0 0 0 1px #E5E7EB}
+.stepper .done .dot{background:var(--p);color:#FFFFFF;box-shadow:0 0 0 1px var(--p)}
+.stepper .cur .dot{background:#FFFFFF;color:var(--a-strong);box-shadow:0 0 0 3px var(--a)}
+.stepper .done.cur .dot{background:var(--p);color:#FFFFFF}
+.stepper .lab{font-size:12px;line-height:16px;color:var(--muted);text-align:center}
+.stepper .cur .lab{color:var(--ink);font-weight:700}
+.sp-kicker{font-size:12px;font-weight:700;color:var(--p);letter-spacing:.02em;text-transform:uppercase}
+.split{grid-template-columns:minmax(0,1fr) !important}
+@media (max-width:600px){.stepper .lab{display:none}.stepper .cur .lab{display:block}}
+
+/* Dashboard overview: four at-a-glance cards (label, number, one short line). Whole card is clickable. */
+.ov-title{margin:20px 0 10px}
+.ov-title h2{font-size:14px;font-weight:700;color:#303030}
+.ov{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.ov-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;height:100%;min-height:112px;padding:20px 16px;border:0;border-radius:12px;text-align:left;cursor:pointer;font:inherit;color:inherit;background:#FFFFFF;box-shadow:0 1px 0 rgba(26,26,26,.07),inset 0 0 0 1px rgba(26,26,26,.06);transition:box-shadow .15s}
+.ov-card:hover{box-shadow:0 2px 6px rgba(26,26,26,.08),inset 0 0 0 1px var(--p-border)}
+.ov-card:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.ov-card .metric-value{color:#303030}
+.ov-label{font-size:12px;color:#303030}
+.ov-value{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ov-card .metric-value{font-size:20px;line-height:26px}
+.ov-line{font-size:11.5px;line-height:16px;color:#8A8A8A;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-card:hover .ov-label{color:#303030}
+
+/* Toast: look-alike of the Shopify admin toast (real app: App Bridge shopify.toast.show). */
+.ff-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:10px 12px 10px 16px;border-radius:12px;background:#1A1A1A;color:#FFFFFF;font-size:13px;font-weight:550;box-shadow:0 8px 24px rgba(0,0,0,.24);animation:toastIn .2s ease-out}
+.ff-toast.is-error{background:#8E0B21}
+.ff-toast button{border:0;background:none;color:#B5B5B5;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.ff-toast button:hover{color:#FFFFFF}
+.ff-toast.out{opacity:0;transition:opacity .4s}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+
+/* Import mapping card (Search fields): file preview with a "Map column" select above each column (scrolls sideways). */
+.map-scroll{overflow-x:auto;border:1px solid #E3E3E3;border-radius:12px}
+.map-grid{border-collapse:collapse;min-width:100%;font-size:13px}
+.map-grid th{padding:8px;background:#F7F7F7;border-bottom:1px solid #E3E3E3;min-width:190px;text-align:left;font-weight:400}
+.map-grid td{padding:10px 12px;border-bottom:1px solid #EBEBEB;white-space:nowrap;color:#303030}
+.map-grid tbody tr:last-child td{border-bottom:0}
+.map-grid .mg-titles td{font-weight:600;background:#FAFAFA}
+.map-grid.no-titles .mg-titles td{font-weight:400;background:none}
+
+/* Section titles on every page: Polaris heading size, one step bolder (s-heading text lives in shadow DOM, so it can't be restyled). */
+.sec-title{margin:0;font-size:14px;line-height:20px;font-weight:750;color:#303030}
+.sec-title.sec-gap{margin-bottom:12px}
+
+/* Search setup fields: one grid template for the header and every row. */
+.fgrid{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) 150px 100px 116px;gap:12px;align-items:center;padding:8px 16px}
+.fhead{background:#F7F7F7;border-block:1px solid #EBEBEB;font-size:12px;font-weight:600;color:#616161;padding-block:6px}
+.frow{border-bottom:1px solid #EBEBEB}
+@media (max-width:760px){.fgrid{grid-template-columns:36px minmax(0,1fr) minmax(0,1fr)}.fhead span:nth-child(n+4){display:none}.frow>:nth-child(n+4){grid-column:2 / -1}}

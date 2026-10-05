@@ -1,0 +1,12 @@
+/* Phone and narrow-window layout. Loaded last. */
+@media (max-width:900px){
+  .ov{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .opt-grid,.opt-grid.three{grid-template-columns:minmax(0,1fr)}
+  .add-grid{grid-template-columns:minmax(0,1fr)}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .side{display:none}.mnav{display:flex}
+  .hero{grid-template-columns:minmax(0,1fr);padding:28px 22px;min-height:0}
+  .hero h1{font-size:27px;line-height:34px}
+  .types,.split,.plans{grid-template-columns:minmax(0,1fr)}
+}
