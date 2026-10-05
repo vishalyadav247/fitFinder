@@ -22,7 +22,7 @@ No live preview and no search heading here: both live on [Storefront](storefront
 ### Import (card on this page, 3 steps with the small stepper)
 Opened by **Import new file** in Import history, **Import CSV** on Filter data and the setup guide's "Import data" step. Footer: **Back** (steps 2–3) on the left; **Cancel import** + primary **Next** (steps 1–2) / **Start import** (step 3) on the right. Leaving the page cancels the import.
 
-1. **Upload file** — `s-drop-zone` (.csv / .csv.gz, up to 100 MB) · **Download a CSV template** · `s-choice-list` "What should this import do?": *Add and update rows* (recommended) / *Replace all rows* / *Delete the rows listed in this file* ("Removes rows that match the file exactly. Rows not in the file stay.").
+1. **Upload file** — `s-drop-zone` (.csv / .csv.gz, up to 100 MB) · **Download a CSV template** · `s-choice-list` "What should this import do?": *Add and update rows* (recommended; "New rows are added. Rows already in your data stay.") / *Replace all rows* / *Delete the rows listed in this file* ("Removes rows that match the file exactly. Rows not in the file stay.").
 2. **Map columns** (EasySearch-style column mapping)
    - "Map the columns in your file to your search fields (Make / Year / Model) and the Attachment." + subdued "Columns you don't map are ignored. The first rows of your file are shown below. We filled in the mapping from your last import."
    - `s-checkbox` **Column titles in the first row** (on by default; off = the first row is treated as data).
@@ -36,10 +36,18 @@ Opened by **Import new file** in Import history, **Import CSV** on Filter data a
 3. **Review and import** — "{file} · {import type}", counts and a warning banner that depend on the import type:
    | Import type | Counts | Banner | Start import button |
    |---|---|---|---|
-   | Add and update rows | Rows added · Rows updated · Unchanged · Errors | "Rows with errors are skipped. Everything else imports." + **Error report** | primary |
+   | Add and update rows | Rows added · Unchanged · Errors | "Rows with errors are skipped. Everything else imports." ("For example an empty required field, or a year that can't be read.") + **Error report** | primary |
    | Replace all rows | Current rows deleted · Rows imported · Errors | "All current rows are deleted first" — download a backup from Import history + **Error report** | red (critical) → confirmation modal "Replace all {n} rows?" |
    | Delete the rows listed in this file | Rows deleted · Not found · Rows left | "Only exact matches are deleted" — every mapped column must match + **Not found report** | red (critical) → confirmation modal "Delete the rows listed in this file?" |
    Finishing closes the card, saves the mapping for next time, adds the file to Import history and shows a toast ("Import finished" / "Rows deleted").
+
+   **No "Rows updated" count** (decided in M4): a filter row has no identity besides its content (field values, years and Attachment), so a changed row is a new row; the old one stays until it's deleted (Replace all, Delete listed rows, or Filter data). "Unchanged" = rows already in your data, including repeats within the file.
+   While the check run reads the file, step 3 shows a spinner and "Checking your file… {n} rows read"; while importing, "Importing… You can leave this page; the import keeps running." Reopening Search setup during a running import shows the card with its progress. If a step fails, step 3 shows a critical banner "The import stopped" with the reason (nothing is changed).
+   Reports are CSVs: Line, Problem, one column per field, Attachment. Error rows show what was in the file; Not found rows (delete) show the parsed row. The **Error report / Not found report** button shows only when there is something to report.
+   **Download a CSV template**: one column per field (a Year range as one "2015-2020" column) and "Attachment", no rows.
+   Error toasts (isError) in the card: "Choose a file to import." · "Choose a .csv or .csv.gz file." (also when a dropped file is refused) · "The file is larger than 100 MB." · "This file is empty." · "This file can't be read as a CSV." · "The upload couldn't start." · "The upload failed. Try again." · "The mapping couldn't be saved." · "The import couldn't start." · "The report couldn't be downloaded." · "An import is already running. Wait for it to finish." · "Something went wrong. Try again." A failed check run or import shows only the "The import stopped" banner with the reason (no toast); reasons include "The import stopped unexpectedly. Nothing was changed." (no progress for 3 minutes), "Your search fields changed. Map the columns again.", "This file has more than 2,000,000 rows. Split it into smaller files.", "This file is too large once unpacked. Split it into smaller files." and, for Replace all, "This file has no rows that can be imported, so Replace all rows would delete everything. Nothing was changed."
+   Import history: **Download** is disabled when the file is no longer kept; "The file couldn't be downloaded." if it fails. While an import runs, field changes on this page show "An import is running. Change your fields when it has finished."
+   Files: .csv or .csv.gz, up to 100 MB; comma, semicolon, tab or pipe separated; UTF-8 or Windows-1252. Plain .csv files over 1 MB are gzipped in the browser before upload; the Download in Import history returns the CSV as chosen. Year cells may be YYYY, MM/YY, MM/YYYY, DD-MM-YYYY, "/" or empty (no bound); a range column may be "2008-2011", "2016-" or "2016".
 
 ## Behaviour
 - Changing a field's type keeps the saved mapping sensible: one column becomes a one-column year range and back; a "to" column is dropped.
@@ -52,10 +60,9 @@ Opened by **Import new file** in Import history, **Import CSV** on Filter data a
 - Cascading on the storefront: each dropdown only offers values that exist for the choices above it.
 
 ## Data / backend
-- Import history: `GET /api/imports?limit=5` and `GET /api/imports/{id}/file` (signed download of the original upload). Keep the original file of the last 5 imports per shop in object storage; delete older files when a 6th import finishes.
+- Import history: the Search setup loader returns the 5 newest completed imports; `GET /api/imports/{id}/file` downloads the original upload (`?report=1` the report). Keep the original file of the last 5 imports per shop in object storage; delete older files when a 6th import finishes. Starting a new import cancels an unfinished one; Cancel import and leaving the page delete its file.
 - Fields: route loader/action of `/app/search-setup` (form `intent` = add / label / placeholder / type / required / move / delete, zod-validated); ordered list `{ id, label, placeholder, type, required, position }`. A placeholder is stored empty when it equals the default, so renaming a field updates its default placeholder. Limits: field name 60 characters, placeholder 80.
-- Import history and the import card are built in M4 (they need the import pipeline); until then the page shows only the fields card.
-- Import: `POST /api/imports` (upload; returns columns + first rows, mapping pre-filled from `import_mappings`) → `PUT /api/imports/{id}/mapping` → `GET /api/imports/{id}/preview` (counts, errors) → `POST /api/imports/{id}/run`. Background job with progress. Reuse the Bilstein NL streaming importer (50k-row batches, gzip).
+- Import (M4): `POST /api/imports` `upload-target` → browser PUTs the file (presigned R2 URL, or `/api/uploads` locally) → `POST /api/imports` `create` (reads the first rows; mapping pre-filled from `import_mappings`, then header names) → `POST /api/imports/{id}` `map` (queues the check run) → poll `GET /api/imports/{id}` → `POST /api/imports/{id}` `run` (queues the import) → poll. Both steps are pg-boss jobs; rows are staged in `import_rows` so the Review counts and the result match.
 
 ## Build notes
 Plain Polaris only (the preview table is a plain HTML table inside a scroll box because Polaris has no grid with a select in each header). Label changes must also update storefront labels (see [settings.md](settings.md)).

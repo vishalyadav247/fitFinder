@@ -1,0 +1,118 @@
+/* Import CSV card: the small 3-step stepper and the column-mapping preview table.
+   Ported from .claude/design/styles/components.css (.stepper.small, .map-scroll, .map-grid);
+   colours from the Sky theme (theme.css). */
+.ff-stepper {
+  list-style: none;
+  margin: 12px auto 4px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 560px;
+  width: 100%;
+}
+.ff-stepper li {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.ff-stepper li + li::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  right: 50%;
+  width: 100%;
+  height: 3px;
+  background: #e5e7eb;
+  z-index: 0;
+}
+.ff-stepper li.line-on::before {
+  background: linear-gradient(90deg, var(--ff-p), var(--ff-p-400));
+}
+.ff-stepper .stp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+.ff-stepper .dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 750;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 1px #e5e7eb;
+}
+.ff-stepper .done .dot {
+  background: var(--ff-p);
+  color: #ffffff;
+  box-shadow: 0 0 0 1px var(--ff-p);
+}
+.ff-stepper .cur .dot {
+  background: #ffffff;
+  color: var(--ff-a-strong);
+  box-shadow: 0 0 0 3px var(--ff-a);
+}
+.ff-stepper .lab {
+  font-size: 12px;
+  line-height: 16px;
+  color: #616161;
+  text-align: center;
+}
+.ff-stepper .cur .lab {
+  color: #303030;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .ff-stepper .lab {
+    display: none;
+  }
+  .ff-stepper .cur .lab {
+    display: block;
+  }
+}
+
+.ff-map-scroll {
+  overflow-x: auto;
+  border: 1px solid #e3e3e3;
+  border-radius: 12px;
+}
+.ff-map-grid {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 13px;
+}
+.ff-map-grid th {
+  padding: 8px;
+  background: #f7f7f7;
+  border-bottom: 1px solid #e3e3e3;
+  min-width: 190px;
+  text-align: left;
+  font-weight: 400;
+}
+.ff-map-grid td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #ebebeb;
+  white-space: nowrap;
+  color: #303030;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ff-map-grid tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ff-map-grid .mg-titles td {
+  font-weight: 600;
+  background: #fafafa;
+}
+.ff-map-grid.no-titles .mg-titles td {
+  font-weight: 400;
+  background: none;
+}

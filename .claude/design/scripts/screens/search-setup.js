@@ -88,7 +88,7 @@ function uploadStep() {
       <s-drop-zone label="Upload a .csv or .csv.gz file, up to 100 MB" accept=".csv,.gz"></s-drop-zone>
       <s-stack direction="inline" gap="small" alignItems="center"><s-text color="subdued">Not sure about the format?</s-text><s-button variant="tertiary" icon="download" data-act="export-template">Download a CSV template</s-button></s-stack>
       <s-choice-list label="What should this import do?" data-act="mode">
-        <s-choice value="upsert"${state.mode === 'upsert' ? ' selected' : ''}>Add and update rows (recommended)<s-text slot="details">New rows are added and changed rows are updated. Nothing else is touched.</s-text></s-choice>
+        <s-choice value="upsert"${state.mode === 'upsert' ? ' selected' : ''}>Add and update rows (recommended)<s-text slot="details">New rows are added. Rows already in your data stay.</s-text></s-choice>
         <s-choice value="replace"${state.mode === 'replace' ? ' selected' : ''}>Replace all rows<s-text slot="details">Deletes every current row first, then imports the file.</s-text></s-choice>
         <s-choice value="remove"${state.mode === 'remove' ? ' selected' : ''}>Delete the rows listed in this file<s-text slot="details">Removes rows that match the file exactly. Rows not in the file stay.</s-text></s-choice>
       </s-choice-list>
@@ -123,7 +123,7 @@ function reviewStep() {
   const mode = { upsert: 'Add and update rows', replace: 'Replace all rows', remove: 'Delete the rows listed in this file' }[state.mode] || 'Add and update rows';
   const counts = state.mode === 'remove' ? [['Rows deleted', '[deleted]'], ['Not found', '[not found]'], ['Rows left', '[left]']]
     : state.mode === 'replace' ? [['Current rows deleted', String(setup().rows.length)], ['Rows imported', '[imported]'], ['Errors', '[errors]']]
-    : [['Rows added', '[added]'], ['Rows updated', '[updated]'], ['Unchanged', '[same]'], ['Errors', '[errors]']];
+    : [['Rows added', '[added]'], ['Unchanged', '[same]'], ['Errors', '[errors]']]; // no "Rows updated": a row is identified by its content (M4)
   const note = (heading, text, report) => `<s-banner tone="warning" heading="${heading}"><s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center"><s-text>${text}</s-text><s-button variant="tertiary" icon="download">${report}</s-button></s-grid></s-banner>`;
   return `<s-stack gap="base">
       <s-text color="subdued">new-filter-data.csv · ${esc(mode)}</s-text>
@@ -133,6 +133,6 @@ function reviewStep() {
       </s-grid>
       ${state.mode === 'remove' ? note('Only exact matches are deleted', 'A row is deleted when every mapped column matches. Rows in the file with no match are listed in the report.', 'Not found report')
         : state.mode === 'replace' ? note('All current rows are deleted first', 'Download a backup from Import history if you may need them. Rows with errors are skipped.', 'Error report')
-        : note('Rows with errors are skipped. Everything else imports.', "For example an empty required field, or a SKU that isn't in your store.", 'Error report')}
+        : note('Rows with errors are skipped. Everything else imports.', "For example an empty required field, or a year that can't be read.", 'Error report')}
     </s-stack>`;
 }

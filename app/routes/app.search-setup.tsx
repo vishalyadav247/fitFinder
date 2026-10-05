@@ -1,13 +1,18 @@
-// Search setup: the fields shoppers pick. Spec: .claude/specs/search-setup.md
-// Prototype: .claude/design/scripts/screens/search-setup.js. Import history and the import card
-// arrive with the import pipeline in M4.
+// Search setup: the fields shoppers pick, Import history and the Import CSV card.
+// Spec: .claude/specs/search-setup.md · Prototype: .claude/design/scripts/screens/search-setup.js
 import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   LinksFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { data, useFetcher, useLoaderData, useNavigate } from "react-router";
+import {
+  data,
+  useFetcher,
+  useLoaderData,
+  useNavigate,
+  useRevalidator,
+} from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import type { SearchField } from "@prisma/client";
 
@@ -29,9 +34,21 @@ import {
   syncControls,
   type SyncableControl,
 } from "../services/search-fields";
+import prisma from "../db.server";
+import { currentJob, importHistory } from "../services/import/pipeline.server";
+import { jobView } from "../services/import/view.server";
+import { ImportCard } from "../components/import/ImportCard";
+import {
+  ImportHistory,
+  type HistoryItem,
+} from "../components/import/ImportHistory";
 import styles from "../styles/search-setup.css?url";
+import importStyles from "../styles/import.css?url";
 
-export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
+export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: styles },
+  { rel: "stylesheet", href: importStyles },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -39,8 +56,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const config = await getSearchConfig(shop.id);
   // The layout redirects too, but child loaders run in parallel with it.
   if (!config) throw redirect("/app/onboarding");
-  const fields = await listFields(shop.id);
-  return { storeType: config.storeType, fields };
+  const [fields, history, current, currentRows] = await Promise.all([
+    listFields(shop.id),
+    importHistory(shop.id),
+    currentJob(shop.id),
+    prisma.fitmentRow.count({ where: { shopId: shop.id } }),
+  ]);
+  const items: HistoryItem[] = history.map((j) => ({
+    id: j.id,
+    fileName: j.fileName,
+    finishedAt: j.finishedAt?.toISOString() ?? null,
+    mode: j.mode,
+    rows: j.totalRows,
+    hasFile: !!j.fileKey,
+  }));
+  // An import checking or running in the background reopens the card with its progress.
+  const active =
+    current && (current.status === "previewing" || current.status === "running")
+      ? jobView(current, fields)
+      : null;
+  return {
+    storeType: config.storeType,
+    fields,
+    history: items,
+    active,
+    currentRows,
+  };
 };
 
 type ActionResult = { ok: true; toast?: string } | { ok: false; error: string };
@@ -104,8 +145,17 @@ function useResultToast(result: ActionResult | undefined) {
 const DELETE_MODAL = "delete-field-modal";
 
 export default function SearchSetupPage() {
-  const { storeType, fields } = useLoaderData<typeof loader>();
+  const { storeType, fields, history, active, currentRows } =
+    useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
+  // The import card replaces Import history while open (spec).
+  const [importing, setImporting] = useState(active !== null);
+  const closeImport = (toast?: string) => {
+    setImporting(false);
+    if (toast) shopify.toast.show(toast);
+    revalidator.revalidate();
+  };
   const pageFetcher = useFetcher<typeof action>();
   const deleteFetcher = useFetcher<typeof action>();
   const [deleting, setDeleting] = useState<Field | null>(null);
@@ -184,6 +234,22 @@ export default function SearchSetupPage() {
             </s-stack>
           </s-box>
         </s-section>
+
+        {importing ? (
+          <ImportCard
+            fields={fields.map((f) => ({
+              id: f.id,
+              label: f.label,
+              type: f.type,
+              required: f.required,
+            }))}
+            currentRows={currentRows}
+            resume={active}
+            onClose={closeImport}
+          />
+        ) : (
+          <ImportHistory items={history} onImport={() => setImporting(true)} />
+        )}
       </s-stack>
 
       <s-modal
