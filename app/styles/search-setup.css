@@ -1,0 +1,39 @@
+/* Search setup field grid (.claude/design/styles/components.css .fgrid/.fhead/.frow, .sec-title).
+   A grid rather than s-table so the inputs get the space and the small columns stay narrow. */
+.ff-sec-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 750;
+  color: #303030;
+}
+.ff-fgrid {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 150px 100px 116px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 16px;
+}
+.ff-fhead {
+  background: #f7f7f7;
+  border-block: 1px solid #ebebeb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #616161;
+  padding-block: 6px;
+}
+.ff-frow {
+  border-bottom: 1px solid #ebebeb;
+}
+/* Phones: type, required and actions drop under the name. */
+@media (max-width: 760px) {
+  .ff-fgrid {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ff-fhead span:nth-child(n + 4) {
+    display: none;
+  }
+  .ff-frow > :nth-child(n + 4) {
+    grid-column: 2 / -1;
+  }
+}

@@ -36,7 +36,7 @@ Source of truth: `design/scripts/data/store-types.js`.
 - A shop without a store type is sent to onboarding from any app page; the `s-app-nav` menu is not rendered on this page.
 
 ## Data / backend
-- Implemented as the route action of `/app/onboarding` (form `{ storeType, replace }`, zod-validated) → creates `search_configs` + `search_fields` rows (see [data-model.md](data-model.md)); default placeholders are "Select {field label in lower case}".
+- Implemented as the route action of `/app/onboarding` (form `{ storeType, replace }`, zod-validated) → creates `search_configs` + `search_fields` rows (see [data-model.md](data-model.md)); placeholders are stored empty, meaning the default "Select {field label in lower case}".
 - The real app should not create sample rows.
 
 ## Build notes

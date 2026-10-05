@@ -43,12 +43,18 @@ Opened by **Import new file** in Import history, **Import CSV** on Filter data a
 
 ## Behaviour
 - Changing a field's type keeps the saved mapping sensible: one column becomes a one-column year range and back; a "to" column is dropped.
-- Deleting a field drops its columns from the saved mapping.
+- Only one field can be a **Year range** (filter rows hold one from–to range). Choosing it for a second field shows the error toast "Only one field can be a year range."
+- Changing the type converts the filter data: Year range → Dropdown writes each row's years as text ("2008-2011", "2016-" for open, "2016" for one year); Dropdown → Year range parses that text back. If any value isn't a year or year range (also: reversed ranges like "2011-2008"), the change is refused with "{n} filter rows have a {Field} value that isn't a year or year range. Fix or delete them first." (singular: "1 filter row has … Fix or delete it first.").
+- Edits save on change (no Save button, no toast); add and delete show toasts ("Field added. Map a column to it on your next import." / "Field deleted"). An emptied field name keeps the old name. The delete confirmation is `s-modal` "Delete the {Field} field?" — "Shoppers will no longer see the {Field} dropdown, and its values in your filter data won't be used. This can't be undone." — red **Delete field** + **Cancel**. The modal stays open (Delete field loading) until the delete succeeds; on failure it stays open and an error toast shows.
+- Other error toasts: "You can have up to 20 fields." (hard cap until plan limits, M9); "This field no longer exists."; "Set up your store first."; "This change took too long for the amount of filter data and was cancelled. Nothing was changed."; "That change couldn't be saved." / "… Try again.".
+- After every save, the inputs show what was saved (an emptied name shows the old name again, a cleared placeholder shows the default, a refused type change reverts), except the input that has focus.
+- Deleting a field drops its columns from the saved mapping and removes its values from the filter rows; rows that become identical are merged.
 - Cascading on the storefront: each dropdown only offers values that exist for the choices above it.
 
 ## Data / backend
 - Import history: `GET /api/imports?limit=5` and `GET /api/imports/{id}/file` (signed download of the original upload). Keep the original file of the last 5 imports per shop in object storage; delete older files when a 6th import finishes.
-- `GET/PUT /api/search-fields` — ordered list `{ id, label, type, required, position }`.
+- Fields: route loader/action of `/app/search-setup` (form `intent` = add / label / placeholder / type / required / move / delete, zod-validated); ordered list `{ id, label, placeholder, type, required, position }`. A placeholder is stored empty when it equals the default, so renaming a field updates its default placeholder. Limits: field name 60 characters, placeholder 80.
+- Import history and the import card are built in M4 (they need the import pipeline); until then the page shows only the fields card.
 - Import: `POST /api/imports` (upload; returns columns + first rows, mapping pre-filled from `import_mappings`) → `PUT /api/imports/{id}/mapping` → `GET /api/imports/{id}/preview` (counts, errors) → `POST /api/imports/{id}/run`. Background job with progress. Reuse the Bilstein NL streaming importer (50k-row batches, gzip).
 
 ## Build notes

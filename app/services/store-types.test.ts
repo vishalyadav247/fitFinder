@@ -25,7 +25,7 @@ describe("store type presets (match .claude/design/scripts/data/store-types.js)"
 });
 
 describe("buildSetup", () => {
-  it("creates ordered, required fields with default placeholders", () => {
+  it("creates ordered, required fields with default (empty) placeholders", () => {
     const { config, fields } = buildSetup("automotive");
     expect(config).toEqual({
       storeType: "automotive",
@@ -37,21 +37,21 @@ describe("buildSetup", () => {
       {
         position: 0,
         label: "Make",
-        placeholder: "Select make",
+        placeholder: "",
         type: "list",
         required: true,
       },
       {
         position: 1,
         label: "Year",
-        placeholder: "Select year",
+        placeholder: "",
         type: "year_range",
         required: true,
       },
       {
         position: 2,
         label: "Model",
-        placeholder: "Select model",
+        placeholder: "",
         type: "list",
         required: true,
       },

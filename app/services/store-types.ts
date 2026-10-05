@@ -105,7 +105,7 @@ export function buildSetup(storeType: StoreType) {
     fields: preset.fields.map((f, position) => ({
       position,
       label: f.label,
-      placeholder: defaultPlaceholder(f.label),
+      placeholder: "", // empty = "Select {label}" (placeholderFor), so renames update it
       type: f.type,
       required: true,
     })),
