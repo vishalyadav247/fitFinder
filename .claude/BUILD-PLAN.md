@@ -62,10 +62,10 @@ Start from `.claude/specs/data-model.md`. Additions and decisions:
 
 | Table | Columns (main) | Notes |
 | --- | --- | --- |
-| `shops` | id, domain (unique), installed_at, uninstalled_at, plan, trial_ends_at | Purge data 30 days after `uninstalled_at` |
-| `search_configs` | shop_id (PK), store_type, noun, things_word | Store type presets live in code (copy from `.claude/design/scripts/data/store-types.js`) |
+| `shops` | id, domain (unique), installed_at, uninstalled_at, last_auth_at, plan, trial_ends_at | Purge data 30 days after `uninstalled_at` |
+| `search_configs` | shop_id (PK), store_type, heading, noun, things_word | Store type presets live in code (copy from `.claude/design/scripts/data/store-types.js`) |
 | `search_fields` | id, shop_id, position, label, placeholder, type (`list`/`year_range`), required | Ordered; label/placeholder shown on the storefront |
-| `fitment_rows` | id, shop_id, values jsonb `{fieldId: value}`, year_from, year_to, attachment, row_hash (unique per shop), created_at | `attachment` = SKU, product URL/handle or collection URL/handle; `row_hash` = hash(values + attachment) for add/update and dedupe |
+| `fitment_rows` | id, shop_id, values jsonb `{fieldId: value}`, year_from, year_to, attachment, row_hash (unique per shop), created_at | `attachment` = SKU, product URL/handle or collection URL/handle; `row_hash` = hash(values + year_from/year_to + attachment) for add/update and dedupe |
 | `product_links` | shop_id, attachment, kind (`sku`/`product`/`collection`), product_id, variant_id, collection_id, method (`auto`/`manual`) | Unique (shop_id, attachment) |
 | `universal_products` | shop_id, product_id | Shown in every result |
 | `import_mappings` | shop_id, column_name, target (`field:{id}`, `field:{id}:from`, `:to`, `:range`, `attachment`, `skip`) | Pre-fills the next import |

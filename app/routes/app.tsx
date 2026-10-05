@@ -4,22 +4,37 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import { ensureShop } from "../models/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  // afterAuth only runs when a new session is stored; this covers shops whose session predates it.
+  await ensureShop(session.shop);
 
   // eslint-disable-next-line no-undef
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
+const homeRel = { rel: "home" } as Record<string, string>;
+
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
 
+  // Same items and order as the prototype (.claude/design/scripts/core/navigation.js).
+  // rel="home" is hidden from the menu: the app name in the sidebar opens the Dashboard.
   return (
     <AppProvider apiKey={apiKey}>
       <s-app-nav>
-        <s-link href="/app">Home</s-link>
-        <s-link href="/app/additional">Additional page</s-link>
+        {/* Documented App Bridge markup. polaris-types' s-link has no `rel`; app-bridge-types defines it for app-nav links. */}
+        <s-link href="/app" {...homeRel}>
+          Dashboard
+        </s-link>
+        <s-link href="/app/search-setup">Search setup</s-link>
+        <s-link href="/app/filter-data">Filter data</s-link>
+        <s-link href="/app/storefront">Storefront</s-link>
+        <s-link href="/app/product-mapping">Product mapping</s-link>
+        <s-link href="/app/settings">Settings</s-link>
+        <s-link href="/app/plans">Plans</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

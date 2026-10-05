@@ -1,4 +1,5 @@
 // App navigation. In the real app this is the App Bridge <s-app-nav> menu in the Shopify admin sidebar.
+// There, Dashboard is the rel="home" link: App Bridge hides it from the menu and the app name opens it.
 /* ---------- navigation ---------- */
 const NAV = [
   ['home','Dashboard','home','t-indigo'], ['fields','Search setup','fields','t-violet'], ['data','Filter data','table','t-teal'],

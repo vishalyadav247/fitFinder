@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "shops" ADD COLUMN     "last_auth_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

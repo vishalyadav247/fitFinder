@@ -1,6 +1,6 @@
 # Filter data
 
-**Prototype:** `design/scripts/screens/fitment-data.js` · Styles: `design/styles/fitment-data.css` · **Suggested route:** `/app/filter-data` (import flow at `/app/filter-data/import`)
+**Prototype:** `design/scripts/screens/fitment-data.js` · Styles: `design/styles/fitment-data.css` · **Suggested route:** `/app/filter-data` (Import CSV opens the import card in Search setup)
 
 ## Purpose
 Everything about the filter rows on one page, with no tabs: browse and edit rows, import a CSV, and export. There is no import history list.

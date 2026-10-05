@@ -1,34 +1,245 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// FitFinder data model. See .claude/BUILD-PLAN.md §3 and .claude/specs/data-model.md.
+// Every app table carries shopId and cascades on shop delete, so a shop purge is one delete.
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
+// Shopify session storage (@shopify/shopify-app-session-storage-prisma). Shape is fixed by the library.
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model Shop {
+  id            String    @id @default(cuid())
+  domain        String    @unique
+  installedAt   DateTime  @default(now()) @map("installed_at")
+  uninstalledAt DateTime? @map("uninstalled_at")
+  // Last token exchange or admin visit. An uninstall webhook triggered before this is stale
+  // (the shop has reinstalled since) and is ignored.
+  lastAuthAt    DateTime  @default(now()) @map("last_auth_at")
+  plan          String    @default("starter")
+  trialEndsAt   DateTime? @map("trial_ends_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  searchConfig       SearchConfig?
+  searchFields       SearchField[]
+  fitmentRows        FitmentRow[]
+  productLinks       ProductLink[]
+  universalProducts  UniversalProduct[]
+  importMappings     ImportMapping[]
+  importJobs         ImportJob[]
+  storefrontSettings StorefrontSettings?
+  themeStatuses      ThemeStatus[]
+
+  @@index([uninstalledAt])
+  @@map("shops")
+}
+
+enum StoreType {
+  automotive
+  phones
+  beauty
+  custom
+}
+
+model SearchConfig {
+  shopId     String    @id @map("shop_id")
+  storeType  StoreType @map("store_type")
+  heading    String
+  noun       String
+  thingsWord String    @map("things_word")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@map("search_configs")
+}
+
+enum FieldType {
+  list
+  year_range
+}
+
+model SearchField {
+  id          String    @id @default(cuid())
+  shopId      String    @map("shop_id")
+  position    Int
+  label       String
+  placeholder String    @default("")
+  type        FieldType @default(list)
+  required    Boolean   @default(true)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, position])
+  @@map("search_fields")
+}
+
+// Shops can hold 700k+ rows, hence BigInt ids and the GIN index on values.
+model FitmentRow {
+  id         BigInt   @id @default(autoincrement())
+  shopId     String   @map("shop_id")
+  // { [searchFieldId]: value } for list fields; year ranges live in yearFrom/yearTo.
+  // "values" is a reserved word in Postgres: quote it in raw SQL.
+  values     Json
+  yearFrom   Int?     @map("year_from")
+  // null = open range ("2016-")
+  yearTo     Int?     @map("year_to")
+  // SKU, product URL/handle or collection URL/handle
+  attachment String
+  // hash(values + years + attachment): upsert key and dedupe
+  rowHash    String   @map("row_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, rowHash])
+  @@index([shopId, attachment])
+  @@index([values(ops: JsonbPathOps)], type: Gin)
+  @@map("fitment_rows")
+}
+
+enum LinkKind {
+  sku
+  product
+  collection
+}
+
+enum LinkMethod {
+  auto
+  manual
+}
+
+model ProductLink {
+  id           String     @id @default(cuid())
+  shopId       String     @map("shop_id")
+  attachment   String
+  kind         LinkKind
+  productId    String?    @map("product_id")
+  variantId    String?    @map("variant_id")
+  collectionId String?    @map("collection_id")
+  method       LinkMethod @default(auto)
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, attachment])
+  @@index([shopId, productId])
+  @@map("product_links")
+}
+
+model UniversalProduct {
+  shopId    String   @map("shop_id")
+  productId String   @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, productId])
+  @@map("universal_products")
+}
+
+// Last saved column mapping; pre-fills step 2 of the next import.
+model ImportMapping {
+  shopId     String @map("shop_id")
+  columnName String @map("column_name")
+  // field:{id} | field:{id}:from | field:{id}:to | field:{id}:range | attachment | skip
+  target     String
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, columnName])
+  @@map("import_mappings")
+}
+
+enum ImportMode {
+  upsert
+  replace
+  delete
+}
+
+enum ImportStatus {
+  uploaded
+  previewing
+  ready
+  running
+  completed
+  failed
+}
+
+model ImportJob {
+  id             String       @id @default(cuid())
+  shopId         String       @map("shop_id")
+  fileName       String       @map("file_name")
+  // object storage key of the original upload; cleared when the file falls out of the last 5
+  fileKey        String?      @map("file_key")
+  mode           ImportMode   @default(upsert)
+  mapping        Json?
+  lookForSkus    Boolean      @default(true) @map("look_for_skus")
+  hasHeader      Boolean      @default(true) @map("has_header")
+  status         ImportStatus @default(uploaded)
+  added          Int          @default(0)
+  updated        Int          @default(0)
+  unchanged      Int          @default(0)
+  deleted        Int          @default(0)
+  notFound       Int          @default(0) @map("not_found")
+  errors         Int          @default(0)
+  errorReportKey String?      @map("error_report_key")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  finishedAt     DateTime?    @map("finished_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt])
+  @@map("import_jobs")
+}
+
+// Every Storefront-page setting (keys in .claude/specs/data-model.md); mirrored to an app metafield.
+model StorefrontSettings {
+  shopId    String   @id @map("shop_id")
+  settings  Json     @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@map("storefront_settings")
+}
+
+// Cache of what is added to each theme.
+model ThemeStatus {
+  shopId         String   @map("shop_id")
+  themeId        String   @map("theme_id")
+  embedOn        Boolean  @default(false) @map("embed_on")
+  blocks         Json     @default("{}")
+  tableCodeFound Boolean  @default(false) @map("table_code_found")
+  checkedAt      DateTime @default(now()) @map("checked_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, themeId])
+  @@map("theme_status")
 }

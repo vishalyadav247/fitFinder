@@ -6,16 +6,31 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { upsertShopOnInstall } from "./models/shop.server";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
-  apiVersion: ApiVersion.July26,
+  apiVersion: ApiVersion.October26,
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
+  hooks: {
+    // Runs after every token exchange (install, reinstall and ~hourly token renewal): must stay idempotent.
+    afterAuth: async ({ session }) => {
+      try {
+        await upsertShopOnInstall(session.shop);
+      } catch (error) {
+        console.error("afterAuth: shop upsert failed", {
+          shop: session.shop,
+          error,
+        });
+        throw error;
+      }
+    },
+  },
   future: {
     expiringOfflineAccessTokens: true,
   },
@@ -25,7 +40,7 @@ const shopify = shopifyApp({
 });
 
 export default shopify;
-export const apiVersion = ApiVersion.July26;
+export const apiVersion = ApiVersion.October26;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
 export const unauthenticated = shopify.unauthenticated;
