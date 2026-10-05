@@ -1,5 +1,10 @@
 // One file row → one staged filter row (or an error). Pure; used by the check run.
-import { cleanValue, parseYearRangeCell, yearsFromCells } from "./clean";
+import {
+  cleanValue,
+  parseYearRangeCell,
+  unescapeCell,
+  yearsFromCells,
+} from "./clean";
 import type { MapField, ResolvedTarget } from "./mapping";
 
 export interface StagedRow {
@@ -34,13 +39,13 @@ export function buildRow(
     if (!t) return;
     const cell = cells[col] ?? "";
     if (t.kind === "attachment") {
-      attachment = cleanValue(cell);
+      attachment = unescapeCell(cleanValue(cell));
       raw.Attachment = cell;
       return;
     }
     const label = fields.find((f) => f.id === t.fieldId)?.label ?? t.fieldId;
     if (t.kind === "list") {
-      const v = cleanValue(cell);
+      const v = unescapeCell(cleanValue(cell));
       if (v) values[t.fieldId] = v.slice(0, MAX_VALUE_LENGTH);
       raw[label] = cell;
       return;

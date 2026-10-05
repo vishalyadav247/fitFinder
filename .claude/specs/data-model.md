@@ -31,7 +31,7 @@ Implemented in `prisma/schema.prisma` (M1). Every app table has `shop_id` and ca
 | `storefront_settings` | `shop_id`, `settings` (jsonb) | Mirror to an app metafield for the theme |
 | `theme_status` | `shop_id`, `theme_id`, `embed_on`, `blocks` (jsonb), `table_code_found`, `checked_at` | Cache of what is added to each theme |
 
-Indexes: (`shop_id`, `attachment`); unique (`shop_id`, `row_hash`); GIN (`jsonb_path_ops`) on `values` for the cascading lookups (to be reworked per shop in M5, see PROGRESS.md). Shops can have 700k+ rows (Bilstein NL), so dropdown options should come from an index or a cached distinct-values table, not a full scan. `values` is a reserved word in Postgres: quote it (`"values"`) in raw SQL.
+Indexes: (`shop_id`, `attachment`); (`shop_id`, `id`) for Filter data paging and export (M5); unique (`shop_id`, `row_hash`); GIN (`jsonb_path_ops`) on `values` for the cascading lookups (to be reworked per shop in M5, see PROGRESS.md). Shops can have 700k+ rows (Bilstein NL), so dropdown options should come from an index or a cached distinct-values table, not a full scan. `values` is a reserved word in Postgres: quote it (`"values"`) in raw SQL.
 
 ## Admin API (session-token authenticated)
 | Method | Path | Used by |
@@ -40,8 +40,8 @@ Indexes: (`shop_id`, `attachment`); unique (`shop_id`, `row_hash`); GIN (`jsonb_
 | GET | `/api/dashboard` | Dashboard |
 | GET/PUT | `/api/search-fields` | Search setup · fields |
 | POST/GET/PUT | `/api/imports` (upload), `/api/imports/{id}/mapping`, `/api/imports/{id}/preview`, `/api/imports/{id}/run`, `/api/imports?limit=5`, `/api/imports/{id}/file` | Search setup · import card and Import history |
-| GET/POST/PUT/DELETE | `/api/fitment`, `/api/fitment/{id}`, `/api/fitment/all`, `/api/fitment/dedupe` | Filter data |
-| GET | `/api/fitment/export?scope=all|selected|unmatched&ids=` | Filter data · Export |
+| GET | `/api/fitment?q=&page=` (rows); add/edit/delete/delete-all/dedupe are intents of the `/app/filter-data` route action | Filter data |
+| POST | `/api/fitment/export` `{ scope: all|selected|unmatched, ids? }` | Filter data · Export |
 | POST/GET/PUT | `/api/links/check`, `/api/links/unlinked`, `/api/links/{attachment}`, `/api/products/without-fitment` | Product mapping |
 | GET/PUT | `/api/universal-products` | Product mapping |
 | GET/PUT | `/api/storefront-settings`, `/api/themes`, `/api/themes/{id}/status` | Storefront |

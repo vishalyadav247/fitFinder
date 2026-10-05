@@ -118,6 +118,8 @@ model FitmentRow {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@unique([shopId, rowHash])
+  // Filter data pages (newest first) and export batches (keyset by id) per shop.
+  @@index([shopId, id])
   @@index([shopId, attachment])
   @@index([values(ops: JsonbPathOps)], type: Gin)
   @@map("fitment_rows")

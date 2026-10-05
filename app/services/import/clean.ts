@@ -11,6 +11,14 @@ export function cleanValue(value: unknown): string {
     .trim();
 }
 
+/**
+ * Undoes the export's formula guard (csvCell): "'=SUM(A1)" → "=SUM(A1)". Only an apostrophe
+ * before a formula character is removed, so a Filter data export imports back unchanged.
+ */
+export function unescapeCell(value: string): string {
+  return /^'+[=+\-@]/.test(value) ? value.slice(1) : value;
+}
+
 // Two-digit years: up to (current year + HEADROOM) are 20xx, the rest 19xx.
 // "08/24" → 2024, "11/98" → 1998, "01/28" → 2028 while it's within the headroom.
 const PIVOT_HEADROOM = 5;

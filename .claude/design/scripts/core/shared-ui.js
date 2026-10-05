@@ -31,7 +31,7 @@ const S = {};
 // Rows that are exact copies (same field values and SKU) of an earlier row.
 function duplicateRows(sp) {
   const seen = new Set();
-  return sp.rows.filter((r) => { const k = JSON.stringify([sp.fields.map((f) => r.v[f.id]), r.part]); if (seen.has(k)) return true; seen.add(k); return false; });
+  return sp.rows.filter((r) => { const k = JSON.stringify([sp.fields.map((f) => r.v[f.id]), r.part]).toLowerCase().replace(/\s+/g, ''); if (seen.has(k)) return true; seen.add(k); return false; });
 }
 
 function confirmText(c) {
@@ -56,7 +56,7 @@ function confirmText(c) {
   if (c.kind === 'dedupe') {
     const n = duplicateRows(sp).length;
     if (!n) return { title: 'No duplicate rows', body: 'Every row is unique, so there is nothing to remove.', cta: null };
-    return { title: `Remove ${n} duplicate row${n === 1 ? '' : 's'}?`, body: `Rows that are exact copies of another row will be removed. One of each is kept. This can't be undone.`, cta: `Remove ${n} row${n === 1 ? '' : 's'}` };
+    return { title: `Remove ${n} duplicate row${n === 1 ? '' : 's'}?`, body: `Rows that are the same as another row apart from upper/lower case and spaces will be removed. One of each is kept. This can't be undone.`, cta: `Remove ${n} row${n === 1 ? '' : 's'}` };
   }
   if (c.kind === 'import-remove') {
     return { title: 'Delete the rows listed in this file?', body: "Rows in your filter data that match new-filter-data.csv exactly will be deleted. This can't be undone.", cta: 'Delete rows' };

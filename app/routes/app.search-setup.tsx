@@ -12,6 +12,7 @@ import {
   useLoaderData,
   useNavigate,
   useRevalidator,
+  useSearchParams,
 } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import type { SearchField } from "@prisma/client";
@@ -150,7 +151,22 @@ export default function SearchSetupPage() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   // The import card replaces Import history while open (spec).
-  const [importing, setImporting] = useState(active !== null);
+  // Filter data › Import CSV links here with ?import=1 to open the card.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [importing, setImporting] = useState(
+    active !== null || searchParams.get("import") === "1",
+  );
+  // Drop the flag once used, so a reload after closing the card doesn't reopen it.
+  useEffect(() => {
+    if (searchParams.get("import") !== "1") return;
+    setSearchParams(
+      (p) => {
+        p.delete("import");
+        return p;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
   const closeImport = (toast?: string) => {
     setImporting(false);
     if (toast) shopify.toast.show(toast);

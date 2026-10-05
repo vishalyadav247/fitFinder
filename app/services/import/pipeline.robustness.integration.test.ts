@@ -20,13 +20,13 @@ import {
   STALE_MS,
   cancelImport,
   createImport,
-  csvCell,
   runImport,
   runPreview,
   saveMapping,
   startRun,
   sweepStale,
 } from "./pipeline.server";
+import { csvCell } from "../fitment/rows";
 
 try {
   process.loadEnvFile(".env");

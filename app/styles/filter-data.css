@@ -1,0 +1,42 @@
+/* Filter data page (.claude/design/styles/fitment-data.css): selection bar, add/edit row grid,
+   clean-up icon tile. Section titles use .ff-sec-title. */
+.ff-sec-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 750;
+  color: #303030;
+}
+.ff-bulk {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--ff-p-softer);
+  border-block: 1px solid var(--ff-p-soft);
+}
+.ff-add-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .ff-add-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* .tile.t-slate from the prototype's admin-shell.css */
+.ff-cu-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f1f5f9;
+  color: #475569;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}

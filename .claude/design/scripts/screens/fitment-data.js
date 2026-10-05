@@ -84,7 +84,7 @@ function cleanupCard() {
     <s-stack direction="inline" gap="small" alignItems="center"><span class="tile t-slate cu-ico"><s-icon type="eraser" size="small"></s-icon></span><h2 class="sec-title">Clean up</h2></s-stack>
     <s-box paddingBlockStart="base">
     <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
-      <s-stack gap="none"><s-text type="strong">Remove duplicate rows</s-text><s-text color="subdued">Deletes rows that are exactly the same, keeping one of each.</s-text></s-stack>
+      <s-stack gap="none"><s-text type="strong">Remove duplicate rows</s-text><s-text color="subdued">Deletes rows that are the same apart from upper/lower case and spaces, keeping one of each.</s-text></s-stack>
       <s-stack alignItems="end"><s-button data-act="ask" data-confirm="dedupe">Remove duplicates</s-button></s-stack>
       <s-stack gap="none"><s-text type="strong">Delete all rows</s-text><s-text color="subdued">Removes every filter row. Products in Shopify are not changed.</s-text></s-stack>
       <s-stack alignItems="end"><s-button tone="critical" data-act="ask" data-confirm="wipe">Delete all rows</s-button></s-stack>

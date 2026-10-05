@@ -11,6 +11,7 @@ import type { ImportJob, ImportMode, SearchField } from "@prisma/client";
 import { Readable } from "node:stream";
 import prisma from "../../db.server";
 import { CURRENT, rowHashSql } from "../fitment/row-hash.server";
+import { csvCell } from "../fitment/rows";
 import { MAX_UPLOAD_BYTES, keyBelongsToShop, storage } from "../storage.server";
 import {
   CsvEncodingError,
@@ -589,13 +590,6 @@ async function countPreview(job: ImportJob) {
     rowsLeft: row.current - row.matched,
     errors: row.errors,
   };
-}
-
-/** CSV cell; text a spreadsheet would run as a formula gets a leading apostrophe. */
-export function csvCell(v: unknown): string {
-  let s = `${v ?? ""}`;
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /**
