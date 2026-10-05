@@ -23,7 +23,7 @@ Updated by `/build-milestone` after each milestone. The SessionStart hook loads 
 - 2026-10-05: app scaffolded with `shopify app init --template=reactRouter --flavor=typescript` and its files moved into the project root. The template is ESM (`"type": "module"`), so Claude hooks are `.cjs`.
 
 - 2026-10-05 stack decisions (agreed with the user):
-  - **Database:** PostgreSQL + Prisma. Local: Postgres in Docker (`docker run --name fitfinder-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16`). Production: managed Postgres (Neon or Supabase, EU region).
+  - **Database:** PostgreSQL + Prisma. Local: Postgres 16 in Docker, **already running** (container `fitfinder-db`, volume `fitfinder-pgdata`, database `fitfinder`; created with `docker run --name fitfinder-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fitfinder -p 5432:5432 -v fitfinder-pgdata:/var/lib/postgresql/data -d postgres:16`; restart with `docker start fitfinder-db`). Local `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fitfinder`. The user puts it in `.env` (Claude can't edit `.env`). Production: managed Postgres (Neon or Supabase, EU region).
   - **Job queue:** pg-boss on the same Postgres, so there is no Redis to host. Imports and re-linking run as pg-boss jobs.
   - **Dropdown cache:** Postgres distinct-values tables (no Redis).
   - **File storage:** Cloudflare R2 (S3-compatible, via `@aws-sdk/client-s3`) for import backups (last 5 per shop), error reports and exports. Local dev can use a folder behind the same interface.
