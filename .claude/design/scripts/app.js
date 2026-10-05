@@ -167,9 +167,9 @@ document.addEventListener('click', (e) => {
       sp.rows = tmp.rows.map((r) => { const v = {}; tmp.fields.forEach((tf, i) => { if (target[i]) v[target[i].id] = r.v[tf.id]; }); return { id: nid('r'), v, part: r.part, mapped: r.mapped }; });
       state.sel = []; state.flash = sp.rows.length + ' sample rows restored'; break;
     }
-    case 'map': { // real app: Shopify resource picker; every row with this attachment gets the chosen product
+    case 'map': { // real app: Shopify resource picker (collection picker for collection links); every row with this attachment gets the chosen product
       const part = el.dataset.part || (sp.rows.find((x) => x.id === el.dataset.id) || {}).part;
-      sp.rows.forEach((r) => { if (r.part === part) r.mapped = true; }); state.flash = part + ' linked to a product'; break;
+      sp.rows.forEach((r) => { if (r.part === part) r.mapped = true; }); state.flash = part + (/\/collections\//.test(part) && !/\/products\//.test(part) ? ' linked to a collection' : ' linked to a product'); break;
     }
     case 'relink': state.flash = 'Links checked. No new matches'; break;
     case 'loose-add': state.screen = 'data'; state.editing = null; state.prefillSku = el.dataset.sku; state.openModal = 'row-modal'; window.scrollTo(0, 0); break;

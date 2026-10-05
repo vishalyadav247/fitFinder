@@ -1,0 +1,8 @@
+/* Product mapping page. Section titles use .ff-sec-title (design README rule 1). */
+.ff-sec-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 750;
+  color: #303030;
+}

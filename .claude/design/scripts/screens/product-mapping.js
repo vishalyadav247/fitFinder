@@ -26,7 +26,7 @@ S.mapping = () => {
       ${groups.length ? `<s-table><s-table-header-row><s-table-header listSlot="primary">Attachment</s-table-header><s-table-header>Type</s-table-header><s-table-header>Fits</s-table-header><s-table-header format="numeric">Rows</s-table-header><s-table-header>Action</s-table-header></s-table-header-row>
         <s-table-body>${groups.map((g) => `<s-table-row><s-table-cell><s-text type="strong">${esc(g.part)}</s-text></s-table-cell><s-table-cell>${kind(g.part)}</s-table-cell>
           <s-table-cell><s-text color="subdued">${esc(fits(g.rows[0]))}${g.rows.length > 1 ? ` +${g.rows.length - 1} more` : ''}</s-text></s-table-cell><s-table-cell>${g.rows.length}</s-table-cell>
-          <s-table-cell><s-button data-act="map" data-id="${g.rows[0].id}" data-part="${esc(g.part)}">Choose product</s-button></s-table-cell></s-table-row>`).join('')}</s-table-body></s-table>`
+          <s-table-cell><s-button data-act="map" data-id="${g.rows[0].id}" data-part="${esc(g.part)}">${kind(g.part) === 'Collection link' ? 'Choose collection' : 'Choose product'}</s-button></s-table-cell></s-table-row>`).join('')}</s-table-body></s-table>`
         : '<s-box padding="base" paddingBlockStart="none"><s-banner tone="success" heading="Every row is linked to a product"></s-banner></s-box>'}
     </s-section>
 

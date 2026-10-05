@@ -135,7 +135,7 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
   }
 
   it("adds a row with the import's hash and refuses an exact copy", async () => {
-    expect(await add("Audi", "2008-2011", "A4", "SKU-1")).toEqual({ ok: true });
+    expect(await add("Audi", "2008-2011", "A4", "SKU-1")).toMatchObject({ ok: true });
     const [r] = await rows();
     expect(r.values).toEqual({ [make]: "Audi", [model]: "A4" });
     expect([r.yearFrom, r.yearTo, r.attachment]).toEqual([2008, 2011, "SKU-1"]);
@@ -177,7 +177,7 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
     // Saving a row unchanged is fine.
     await expect(
       saveRow(shopId, b.id, form("BMW", "2016-", "X5", "SKU-2")),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toMatchObject({ ok: true });
   });
 
   it("never touches another shop's rows", async () => {
@@ -296,7 +296,7 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
     // No heartbeat for an hour (updated_at is maintained by Prisma, so set it in SQL).
     await prisma.$executeRaw`
       UPDATE import_jobs SET updated_at = now() - interval '1 hour' WHERE id = ${job.id}`;
-    expect(await add("Audi", "2010", "A4", "SKU-1")).toEqual({ ok: true });
+    expect(await add("Audi", "2010", "A4", "SKU-1")).toMatchObject({ ok: true });
     expect(
       (await prisma.importJob.findUniqueOrThrow({ where: { id: job.id } }))
         .status,

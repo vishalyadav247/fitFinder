@@ -21,6 +21,11 @@ api_version = "2026-10"
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
+  # Product mapping (M6): keep the catalog cache and product links fresh.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products"
+  topics = [ "products/create", "products/update", "products/delete" ]
+
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]
 

@@ -5,12 +5,19 @@ const deleteRows = vi.fn();
 const deleteAllRows = vi.fn();
 const countDuplicates = vi.fn();
 const removeDuplicates = vi.fn();
+const relink = vi.fn<(shopId: string, o: unknown) => Promise<number>>(
+  async () => 0,
+);
 
 vi.mock("../db.server", () => ({ default: {} }));
 vi.mock("../shopify.server", () => ({
   authenticate: {
     admin: vi.fn(async () => ({ session: { shop: "demo.myshopify.com" } })),
   },
+}));
+vi.mock("../services/linking/relink.server", () => ({
+  relink,
+  isLockTimeout: () => false,
 }));
 vi.mock("../models/shop.server", () => ({
   ensureShop: vi.fn(async () => ({ id: "shop_1" })),
@@ -86,15 +93,25 @@ describe("filter data action", () => {
   });
 
   it("adds and edits rows for the session's shop with the spec toasts", async () => {
-    saveRow.mockResolvedValue({ ok: true });
+    saveRow.mockResolvedValue({ ok: true, attachment: "S" });
     const added = await post({ intent: "add", f1: "Audi", attachment: "S" });
+    // The saved row is linked right away (Product mapping › Add filter row).
+    expect(relink).toHaveBeenLastCalledWith("shop_1", {
+      attachments: ["S"],
+      lockTimeout: "3s",
+    });
     expect(saveRow).toHaveBeenLastCalledWith(
       "shop_1",
       null,
       expect.objectContaining({ f1: "Audi", attachment: "S" }),
     );
     expect(added.data).toEqual({ ok: true, toast: "Row added" });
+    saveRow.mockResolvedValue({ ok: true, attachment: "S", previous: "OLD" });
     const edited = await post({ intent: "edit", rowId: "42", attachment: "S" });
+    // The old SKU is relinked too (its product may have no filter data any more).
+    expect(relink.mock.lastCall?.[1]).toMatchObject({
+      attachments: ["S", "OLD"],
+    });
     expect(saveRow.mock.lastCall?.[1]).toBe(BigInt(42));
     expect(edited.data.toast).toBe("Row updated");
   });

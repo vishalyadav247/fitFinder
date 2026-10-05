@@ -53,6 +53,10 @@ model Shop {
   importJobs         ImportJob[]
   storefrontSettings StorefrontSettings?
   themeStatuses      ThemeStatus[]
+  catalogProducts    CatalogProduct[]
+  catalogVariants    CatalogVariant[]
+  catalogCollections CatalogCollection[]
+  catalogSync        CatalogSync?
 
   @@index([uninstalledAt])
   @@map("shops")
@@ -289,4 +293,88 @@ model ThemeStatus {
 
   @@id([shopId, themeId])
   @@map("theme_status")
+}
+
+// ---------------------------------------------------------------- linking (M6)
+// Copy of the store's products, variants and collections, so rows link to products in SQL
+// (specs/product-mapping.md). Filled by a bulk operation (Check links again, first visit) and kept
+// fresh by products/* webhooks. Ids are Admin GraphQL gids.
+
+model CatalogProduct {
+  shopId    String   @map("shop_id")
+  productId String   @map("product_id")
+  title     String
+  // lower case, as Shopify stores handles
+  handle    String
+  // ACTIVE | DRAFT | ARCHIVED (Admin GraphQL ProductStatus)
+  status    String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, productId])
+  @@index([shopId, handle])
+  @@index([shopId, title])
+  @@map("catalog_products")
+}
+
+model CatalogVariant {
+  shopId    String @map("shop_id")
+  variantId String @map("variant_id")
+  productId String @map("product_id")
+  sku       String @default("")
+  // lower(trim(sku)): attachments match SKUs regardless of case and outer spaces
+  skuKey    String @default("") @map("sku_key")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, variantId])
+  @@index([shopId, skuKey])
+  @@index([shopId, productId])
+  @@map("catalog_variants")
+}
+
+model CatalogCollection {
+  shopId       String @map("shop_id")
+  collectionId String @map("collection_id")
+  handle       String
+  title        String
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, collectionId])
+  @@index([shopId, handle])
+  @@map("catalog_collections")
+}
+
+enum LinkCheckStatus {
+  queued
+  running
+  completed
+  failed
+}
+
+// The shop's link check (pg-boss queue "links"): optional catalog sync, then matching.
+model CatalogSync {
+  shopId          String          @id @map("shop_id")
+  status          LinkCheckStatus @default(queued)
+  // true: reload the catalog from Shopify first; false: only match rows against the cache
+  fullSync        Boolean         @default(true) @map("full_sync")
+  // Each queued run carries this number; a worker only runs the run it was queued for.
+  attempt         Int             @default(0)
+  bulkOperationId String?         @map("bulk_operation_id")
+  newMatches      Int             @default(0) @map("new_matches")
+  error           String?
+  startedAt       DateTime        @default(now()) @map("started_at")
+  finishedAt      DateTime?       @map("finished_at")
+  // last successful catalog sync; null = the cache was never filled
+  syncedAt        DateTime?       @map("synced_at")
+  // A check asked for while one was running: run again when it ends (true = with catalog sync).
+  pendingFullSync Boolean?        @map("pending_full_sync")
+  // heartbeat while running
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@map("catalog_syncs")
 }

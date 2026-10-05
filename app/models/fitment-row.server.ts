@@ -273,7 +273,9 @@ function sqlState(error: unknown): string | null {
 }
 
 export type SaveRowResult =
-  { ok: true } | { ok: false; fieldErrors: Record<string, string> };
+  // previous: the edited row's attachment before the change (to relink it too)
+  | { ok: true; attachment: string; previous?: string }
+  | { ok: false; fieldErrors: Record<string, string> };
 
 /**
  * Adds a row (rowId null) or replaces an existing one with the form's values. The form is read
@@ -307,19 +309,23 @@ export async function saveRow(
         if (added.length === 0) {
           throw new FitmentRuleError("This row already exists.");
         }
-        return { ok: true as const };
+        return { ok: true as const, attachment };
       }
 
+      const before = await tx.fitmentRow.findFirst({
+        where: { id: rowId, shopId },
+        select: { attachment: true },
+      });
       const updated = await tx.$executeRaw`
         UPDATE fitment_rows f SET
           "values" = s."values", year_from = s.year_from, year_to = s.year_to,
           attachment = s.attachment, row_hash = ${rowHashSql(CURRENT, "s")}, updated_at = now()
         FROM (${content}) s
         WHERE f.id = ${rowId} AND f.shop_id = ${shopId}`;
-      if (updated === 0) {
+      if (updated === 0 || !before) {
         throw new FitmentRuleError("This row no longer exists.");
       }
-      return { ok: true as const };
+      return { ok: true as const, attachment, previous: before.attachment };
     });
   } catch (error) {
     if (sqlState(error) === "23505") {

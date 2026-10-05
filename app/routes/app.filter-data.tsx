@@ -7,7 +7,13 @@ import type {
   LinksFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { data, useFetcher, useLoaderData, useNavigate } from "react-router";
+import {
+  data,
+  useFetcher,
+  useLoaderData,
+  useNavigate,
+  useSearchParams,
+} from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -34,6 +40,8 @@ import {
   type RowField,
   type RowView,
 } from "../services/fitment/rows";
+import { MAX_ATTACHMENT_LENGTH } from "../services/import/transform";
+import { isLockTimeout, relink } from "../services/linking/relink.server";
 import { saveBlob } from "../components/import/client";
 import styles from "../styles/filter-data.css?url";
 
@@ -89,6 +97,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             { status: 400 },
           );
         }
+        // Link the row's SKU right away (Product mapping › Add filter row: "saving links it").
+        // An edit relinks the old SKU too. A long link check holding the lock isn't waited for:
+        // that check (or the next one) links the row.
+        const attachments = [
+          ...new Set([result.attachment, result.previous ?? result.attachment]),
+        ];
+        await relink(shop.id, { attachments, lockTimeout: "3s" }).catch(
+          (error) => {
+            if (!isLockTimeout(error)) {
+              console.error("filter-data: linking the saved row failed", {
+                shop: session.shop,
+                error,
+              });
+            }
+          },
+        );
         return data<ActionResult>({
           ok: true,
           toast: input.intent === "add" ? "Row added" : "Row updated",
@@ -265,12 +289,31 @@ export default function FilterDataPage() {
   const inputs = useRef<Record<string, { value: string } | null>>({});
   // Field errors of the last save; cleared when the modal opens again.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const openRowModal = (row: RowView | null) => {
+  // SKU for a new row, when Product mapping › Add filter row sent us here (?add=SKU).
+  const [prefillSku, setPrefillSku] = useState("");
+  const openRowModal = (row: RowView | null, sku = "") => {
     setEditing(row);
+    setPrefillSku(sku);
     setFieldErrors({});
     setRowFormKey((k) => k + 1);
     void shopify.modal.show(ROW_MODAL);
   };
+  const [searchParams, setSearchParams] = useSearchParams();
+  const addSku = searchParams.get("add");
+  useEffect(() => {
+    if (addSku === null) return;
+    openRowModal(null, addSku.slice(0, MAX_ATTACHMENT_LENGTH));
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("add");
+        return next;
+      },
+      { replace: true, preventScrollReset: true },
+    );
+    // Once per ?add= visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addSku]);
   const saveRowForm = () => {
     const form: Record<string, string> = editing
       ? { intent: "edit", rowId: editing.id }
@@ -703,7 +746,7 @@ export default function FilterDataPage() {
             ref={(el: unknown) => {
               inputs.current[ATTACHMENT_KEY] = el as { value: string } | null;
             }}
-            defaultValue={editing?.attachment ?? ""}
+            defaultValue={editing?.attachment ?? prefillSku}
             required
             error={fieldErrors[ATTACHMENT_KEY]}
           />
