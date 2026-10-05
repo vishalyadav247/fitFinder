@@ -89,6 +89,16 @@ export function listFields(shopId: string, db: Db = prisma) {
 }
 
 async function lockSetup(tx: Tx, shopId: string) {
+  // An import holds this lock while it writes (can take a couple of minutes on big files):
+  // say so instead of waiting.
+  const running = await tx.importJob.count({
+    where: { shopId, status: "running" },
+  });
+  if (running > 0) {
+    throw new FieldRuleError(
+      "An import is running. Change your fields when it has finished.",
+    );
+  }
   const rows = await tx.$queryRaw<unknown[]>`
     SELECT 1 FROM search_configs WHERE shop_id = ${shopId} FOR UPDATE`;
   if (rows.length === 0) throw new FieldRuleError("Set up your store first.");

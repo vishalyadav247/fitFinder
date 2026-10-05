@@ -31,3 +31,4 @@ database.sqlite
 .react-router/
 # Claude Code personal settings
 .claude/settings.local.json
+.data/

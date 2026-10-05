@@ -183,39 +183,84 @@ enum ImportMode {
 }
 
 enum ImportStatus {
-  uploaded
-  previewing
-  ready
-  running
+  uploaded // file stored, columns read; waiting for the mapping
+  previewing // check run: staging rows and counting (job)
+  ready // counts ready for Review
+  running // applying to fitment_rows (job)
   completed
   failed
+  cancelled
 }
 
 model ImportJob {
-  id             String       @id @default(cuid())
-  shopId         String       @map("shop_id")
-  fileName       String       @map("file_name")
+  id            String       @id @default(cuid())
+  shopId        String       @map("shop_id")
+  fileName      String       @map("file_name")
   // object storage key of the original upload; cleared when the file falls out of the last 5
-  fileKey        String?      @map("file_key")
-  mode           ImportMode   @default(upsert)
-  mapping        Json?
-  lookForSkus    Boolean      @default(true) @map("look_for_skus")
-  hasHeader      Boolean      @default(true) @map("has_header")
-  status         ImportStatus @default(uploaded)
-  added          Int          @default(0)
-  updated        Int          @default(0)
-  unchanged      Int          @default(0)
-  deleted        Int          @default(0)
-  notFound       Int          @default(0) @map("not_found")
-  errors         Int          @default(0)
-  errorReportKey String?      @map("error_report_key")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  finishedAt     DateTime?    @map("finished_at")
+  fileKey       String?      @map("file_key")
+  fileSize      BigInt?      @map("file_size")
+  mode          ImportMode   @default(upsert)
+  // { [columnIndex]: target }; target = field:{id} | field:{id}:from|to|range | attachment
+  mapping       Json?
+  // [{ name, samples: string[] }] read from the file at upload
+  columns       Json?
+  delimiter     String?
+  encoding      String?
+  lookForSkus   Boolean      @default(true) @map("look_for_skus")
+  hasHeader     Boolean      @default(true) @map("has_header")
+  status        ImportStatus @default(uploaded)
+  // Each queued step carries this number; a worker only runs the step it was queued for.
+  attempt       Int          @default(0)
+  // Set when a worker claims the queued step; null while it waits in the queue.
+  claimedAt     DateTime?    @map("claimed_at")
+  // progress of the running phase (rows read from the file)
+  processedRows Int          @default(0) @map("processed_rows")
+  totalRows     Int?         @map("total_rows")
+  // review and result counts
+  added         Int          @default(0)
+  unchanged     Int          @default(0)
+  imported      Int          @default(0)
+  deleted       Int          @default(0)
+  notFound      Int          @default(0) @map("not_found")
+  rowsLeft      Int          @default(0) @map("rows_left")
+  errors        Int          @default(0)
+  // error report (add / replace) or not-found report (delete), in object storage
+  reportKey     String?      @map("report_key")
+  failureReason String?      @map("failure_reason")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
+  finishedAt    DateTime?    @map("finished_at")
 
-  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  rows ImportRow[]
 
   @@index([shopId, createdAt])
+  @@index([shopId, status])
   @@map("import_jobs")
+}
+
+// Staging rows of an import: parsed once by the check run, then applied by the run, so the
+// Review counts and the result match exactly. Deleted when the job finishes or is cancelled.
+// Columns mirror fitment_rows ("values", year_from, year_to, attachment) so rowHashSql applies.
+model ImportRow {
+  id         BigInt  @id @default(autoincrement())
+  jobId      String  @map("job_id")
+  line       Int
+  values     Json    @default("{}")
+  yearFrom   Int?    @map("year_from")
+  yearTo     Int?    @map("year_to")
+  attachment String  @default("")
+  rowHash    String? @map("row_hash")
+  // why the row can not be imported; null = valid
+  error      String?
+  // the mapped cells as read, kept for error rows (report)
+  raw        Json?
+
+  job ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, rowHash])
+  @@index([jobId, id])
+  @@map("import_rows")
 }
 
 // Every Storefront-page setting (keys in .claude/specs/data-model.md); mirrored to an app metafield.
