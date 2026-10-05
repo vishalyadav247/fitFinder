@@ -111,7 +111,7 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 | # | Milestone | Done when |
 | --- | --- | --- |
 | M1 | Scaffold + auth + data model | App installs on a dev store; `shops` row created; Prisma schema migrated; nav matches the prototype (`s-app-nav`) |
-| M2 | Onboarding + store types | Choosing a type creates fields, wording (noun, products word) and sample rows exactly as `store-types.js`; "Change store type" confirms and replaces fields |
+| M2 | Onboarding + store types | Choosing a type creates fields and wording (noun, products word) exactly as `store-types.js` (no sample rows: specs/onboarding.md); "Change store type" confirms and replaces fields |
 | M3 | Search setup — fields | Inline field grid (name, placeholder, type, required, reorder, delete with confirm) saves on change; matches `search-setup.md` |
 | M4 | Import pipeline | 3-step import card works for all 3 modes on a 727k-row Bilstein file within agreed time; mapping remembered; review counts real; destructive modes confirm; history keeps 5 files with working downloads |
 | M5 | Filter data | Search, add/edit popup, delete (confirmed), bulk delete, export (all/selected/unlinked) round-trips through import unchanged; remove duplicates |

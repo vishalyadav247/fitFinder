@@ -6,8 +6,8 @@ Updated by `/build-milestone` after each milestone. The SessionStart hook loads 
 
 | # | Milestone | Status | Notes |
 | --- | --- | --- | --- |
-| M1 | Scaffold + auth + data model | code done, needs dev-store check | 2026-10-05. Postgres schema with all §3 tables (migrations `20261005111630_init` + `20261005112358_add_shop_last_auth_at`, applied locally); `shops` row via afterAuth + `ensureShop` in the app layout loader; uninstall stamps `uninstalled_at` only if `last_auth_at` (last token exchange/admin visit) is before `X-Shopify-Triggered-At`, so late deliveries after a reinstall are ignored; `s-app-nav` with the 7 prototype items + stub pages; template demo removed; scopes `read_products`; API 2026-10. typecheck, lint, 18 vitest tests (incl. Postgres integration: parallel installs, retried and first-late uninstall after reinstall, cascade on all 9 tables), build and `shopify app config validate` pass. Reviewers: spec PASS, Shopify verified, code blockers fixed. **Left:** install on a dev store (`npm run dev`) and confirm a `shops` row appears and the nav shows. |
-| M2 | Onboarding + store types | not started | |
+| M1 | Scaffold + auth + data model | done (committed b9f1d28); dev-store install still to confirm | 2026-10-05. Postgres schema with all §3 tables (migrations `20261005111630_init` + `20261005112358_add_shop_last_auth_at`, applied locally); `shops` row via afterAuth + `ensureShop` in the app layout loader; uninstall stamps `uninstalled_at` only if `last_auth_at` (last token exchange/admin visit) is before `X-Shopify-Triggered-At`, so late deliveries after a reinstall are ignored; `s-app-nav` with the 7 prototype items + stub pages; template demo removed; scopes `read_products`; API 2026-10. typecheck, lint, 18 vitest tests (incl. Postgres integration: parallel installs, retried and first-late uninstall after reinstall, cascade on all 9 tables), build and `shopify app config validate` pass. Reviewers: spec PASS, Shopify verified, code blockers fixed. **Left:** install on a dev store (`npm run dev`) and confirm a `shops` row appears and the nav shows. |
+| M2 | Onboarding + store types | code done, needs dev-store check | 2026-10-05. `/app/onboarding` (custom store-type cards, chips, Continue / Replace my setup + confirm `s-modal`, change-mode banner), presets in `app/services/store-types.ts`, `applyStoreType` in `app/models/search-config.server.ts` (race-safe: config written first in one batch transaction), layout redirects shops without config to onboarding and hides `s-app-nav` there, Search setup has **Change store type**. No sample rows (spec wins; BUILD-PLAN M2 updated). 41 vitest tests (presets, form schema, action 400/409/500/redirect, layout redirect, Postgres: create, refuse without replace, concurrent first runs, concurrent replaces, replace scoped to one shop keeping links + universal products). Reviewers: spec PASS, Shopify PASS, code blocker (race) fixed. **Left (dev store):** see M2 manual checks in Follow-ups. |
 | M3 | Search setup — fields | not started | |
 | M4 | Import pipeline | not started | |
 | M5 | Filter data | not started | |
@@ -30,6 +30,7 @@ Updated by `/build-milestone` after each milestone. The SessionStart hook loads 
   - **Hosting:** Fly.io, EU region (Amsterdam), using the template `Dockerfile`; a separate worker process runs the pg-boss jobs.
   - **Tests:** vitest for unit tests; validation with zod.
 - 2026-10-05 M1: replaced the template SQLite migration with a fresh Postgres `init` (never applied anywhere). `@shopify/app-bridge-types` added to tsconfig `types` (was only pulled in by the removed demo page). `s-link rel="home"` passed via a spread because polaris-types lacks `rel`. Dev Claude permissions for npm/npx prisma/vitest/config validate live in `.claude/settings.local.json`.
+- 2026-10-05 M2: onboarding is a route action (no `/api/setup`); default field placeholders "Select {label}"; replace deletes fields, filter rows and import mappings but keeps product links and universal products; zod schemas live in `.server.ts` modules to keep zod out of the client bundle (onboarding chunk 58 kB → 6 kB).
 - Build approach: one milestone per fresh Claude Code session (`/build-milestone`), committing after each milestone.
 
 ## Verified (Shopify docs)
@@ -42,8 +43,19 @@ Facts checked against shopify.dev, so they aren't re-researched. Format: `date �
 - 2026-10-05 · New public apps must use expiring offline access tokens (`future.expiringOfflineAccessTokens: true`, kept). (https://shopify.dev/changelog/posts/offline-access-tokens-now-support-expiry-and-refresh)
 - 2026-10-05 · Webhook headers include `X-Shopify-Triggered-At` (RFC 3339) and `X-Shopify-Event-Id`; `authenticate.webhook` returns `triggeredAt`. Used to ignore late `app/uninstalled` deliveries. (shopify.dev webhook delivery headers, via shopify-dev doc search; library: `authenticate/webhooks/types.d.ts`)
 - 2026-10-05 · GDPR webhooks go in the TOML with `compliance_topics = [...]` (not `topics`); required for App Store review. (https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance)
+- 2026-10-05 · App Home v1.0 · `s-modal`: open with `s-button commandFor="id"`, close with `command="--hide"` or `shopify.modal.hide(id)`; buttons in `slot="primary-action"` / `slot="secondary-actions"`; sizes small, small-100, base, large, large-100. Red primary = `variant="primary" tone="critical"`. (https://shopify.dev/docs/api/app-home/v1.0/web-components/overlays/modal)
+- 2026-10-05 · App Bridge · `shopify.toast.show(msg, { isError, duration, action, onAction, onDismiss })`. (https://shopify.dev/docs/api/app-home/v1.0/apis/user-interface-and-interactions/toast-api)
+- 2026-10-05 · shopify-app-react-router v3 · `redirect` from `authenticate.admin` keeps shop/host/embedded params for relative URLs; works from actions (fetcher follows) and thrown from loaders. (types.d.ts; helpers/redirect.js)
+- 2026-10-05 · App Home · No documented way to hide `s-app-nav`; removing the element is untested (manual check). Title-bar `s-button`s are documented with onClick/commandFor, not href. (https://shopify.dev/docs/api/app-home/v1.0/app-bridge-web-components/title-bar)
 
 ## Follow-ups
+
+- **M2 manual checks (dev store):** (1) first install opens onboarding with no app menu; (2) Search setup › Change store type navigates to onboarding (title-bar button uses onClick) and the app menu disappears there; if it stays, document it in specs/onboarding.md; (3) Replace my setup shows the confirm modal and lands on the Dashboard.
+- M4: replacing a store type deletes all filter rows inside the request. Before imports exist that is instant; in M4 move the row purge to a pg-boss job (batched deletes), refuse a replace while an import runs, and hide old rows from the storefront during the purge (e.g. a config generation the rows carry).
+- M3: child loaders must handle a missing search config (they run in parallel with the layout redirect); add a shared `requireSearchConfig` helper. Add `@@unique([shopId, position])` on search_fields (deferrable or planned with reordering).
+- M9: Settings › Store type **Change** entry point (specs/onboarding.md).
+- Shopify AI Toolkit `validate.mjs` fails locally (missing `typescript` in the plugin dir); tsc against @shopify/polaris-types is the check meanwhile.
+- Tests that sit next to routes break React Router route discovery: keep route tests in `app/tests/`.
 
 - M2: hide `s-app-nav` while onboarding (spec: no sidebar menu during onboarding); route to `/app/onboarding` when the shop has no `search_configs` row.
 - M8: add theme read scope(s) after verifying asset access.

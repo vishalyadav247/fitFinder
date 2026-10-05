@@ -36,7 +36,7 @@ Indexes: (`shop_id`, `attachment`); unique (`shop_id`, `row_hash`); GIN (`jsonb_
 ## Admin API (session-token authenticated)
 | Method | Path | Used by |
 |---|---|---|
-| POST | `/api/setup` | Onboarding, change store type |
+| POST | `/app/onboarding` (route action) | Onboarding, change store type |
 | GET | `/api/dashboard` | Dashboard |
 | GET/PUT | `/api/search-fields` | Search setup · fields |
 | POST/GET/PUT | `/api/imports` (upload), `/api/imports/{id}/mapping`, `/api/imports/{id}/preview`, `/api/imports/{id}/run`, `/api/imports?limit=5`, `/api/imports/{id}/file` | Search setup · import card and Import history |
