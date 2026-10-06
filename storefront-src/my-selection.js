@@ -57,6 +57,8 @@ export function initMySelection() {
   const box = document.createElement("div");
   box.className =
     "ff-ms ff-ms--" + pos + (pos.endsWith("-middle") ? " ff-ms--side" : "");
+  // Hidden until ff-embed.css (loaded without blocking the page) arrives and shows it.
+  box.style.visibility = "hidden";
   box.style.setProperty("--ff-ms-bg", s.savedBg);
   box.style.setProperty("--ff-ms-fg", s.savedText);
   document.body.appendChild(box);

@@ -246,17 +246,34 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     // a product link (handle) uses the product's first SKU; products without SKUs are counted
     await catalog.upsertProducts(
       shopId,
-      [{ ...product(6, ""), variants: [{ variantId: "gid://shopify/ProductVariant/6", sku: "" }] }],
+      [
+        {
+          ...product(6, ""),
+          variants: [{ variantId: "gid://shopify/ProductVariant/6", sku: "" }],
+        },
+      ],
       { replaceVariants: true },
     );
     await add(shopId, "AUDI", "2009", "A6", "/products/product-2");
     await add(shopId, "AUDI", "2009", "A6", "product-6");
     await relink(shopId);
     const s = await search();
-    const found = await q.fitSkus(s, await picks(`${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`), 100);
-    expect(found).toEqual({ skus: ["SKU-1", "SKU-2", "UNI"], products: 4, withoutSku: 1 });
+    const found = await q.fitSkus(
+      s,
+      await picks(`${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`),
+      100,
+    );
+    expect(found).toEqual({
+      skus: ["SKU-1", "SKU-2", "UNI"],
+      products: 4,
+      withoutSku: 1,
+    });
     // the limit cuts the list, not the counts
-    const one = await q.fitSkus(s, await picks(`${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`), 1);
+    const one = await q.fitSkus(
+      s,
+      await picks(`${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`),
+      1,
+    );
     expect(one.skus).toEqual(["SKU-1", "SKU-2"]);
     expect(one.products).toBe(4);
   });

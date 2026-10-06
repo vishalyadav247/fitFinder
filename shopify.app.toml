@@ -22,6 +22,11 @@ api_version = "2026-10"
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
+  # Mandatory compliance webhooks (M10). https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
   # Product mapping (M6): keep the catalog cache and product links fresh.
   [[webhooks.subscriptions]]
   uri = "/webhooks/products"

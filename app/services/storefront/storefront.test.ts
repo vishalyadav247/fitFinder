@@ -307,7 +307,11 @@ describe("results page (Liquid)", () => {
 
 describe("theme search plan", () => {
   it("searches the theme for the SKUs, one OR'ed phrase per SKU", () => {
-    const plan = searchPlan({ skus: ["47-116573", "35 217 480"], products: 2, withoutSku: 0 });
+    const plan = searchPlan({
+      skus: ["47-116573", "35 217 480"],
+      products: 2,
+      withoutSku: 0,
+    });
     expect(plan).toEqual({
       mode: "search",
       q: `${SKU_FIELD}:"47-116573" OR ${SKU_FIELD}:"35 217 480"`,
@@ -322,14 +326,25 @@ describe("theme search plan", () => {
   });
 
   it("uses FitFinder's page when nothing fits, nothing is searchable or the list is too long", () => {
-    expect(searchPlan({ skus: [], products: 0, withoutSku: 0 })).toEqual({ mode: "page", reason: "none" });
-    expect(searchPlan({ skus: [], products: 2, withoutSku: 2 })).toEqual({ mode: "page", reason: "unsearchable" });
+    expect(searchPlan({ skus: [], products: 0, withoutSku: 0 })).toEqual({
+      mode: "page",
+      reason: "none",
+    });
+    expect(searchPlan({ skus: [], products: 2, withoutSku: 2 })).toEqual({
+      mode: "page",
+      reason: "unsearchable",
+    });
     const many = Array.from({ length: MAX_SEARCH_SKUS + 1 }, (_, i) => `S${i}`);
-    expect(searchPlan({ skus: many, products: many.length, withoutSku: 0 })).toEqual({
+    expect(
+      searchPlan({ skus: many, products: many.length, withoutSku: 0 }),
+    ).toEqual({
       mode: "page",
       reason: "too-many",
     });
     const long = Array.from({ length: 50 }, (_, i) => `${"X".repeat(150)}${i}`);
-    expect(searchPlan({ skus: long, products: 50, withoutSku: 0 })).toEqual({ mode: "page", reason: "too-many" });
+    expect(searchPlan({ skus: long, products: 50, withoutSku: 0 })).toEqual({
+      mode: "page",
+      reason: "too-many",
+    });
   });
 });

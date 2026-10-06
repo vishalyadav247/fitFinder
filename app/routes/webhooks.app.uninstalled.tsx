@@ -1,10 +1,12 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { verifyWebhook } from "../services/webhook-verify.server";
 import db from "../db.server";
 import { getShopByDomain, markShopUninstalled } from "../models/shop.server";
 
+// Checked without the shop's session (webhook-verify.server.ts): the library would try to
+// refresh the expired offline token, which fails after an uninstall (500 on every retry).
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic, triggeredAt } = await authenticate.webhook(request);
+  const { shop, topic, triggeredAt } = await verifyWebhook(request);
 
   console.log(`Received ${topic} webhook for ${shop}`);
 

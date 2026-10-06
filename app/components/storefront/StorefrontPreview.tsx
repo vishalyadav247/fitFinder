@@ -2,7 +2,9 @@
 // (preview-doc.ts). Rebuilt shortly after a setting changes; the scripts' app proxy calls for
 // dropdown options and results go to /api/storefront-preview.
 import { useEffect, useRef, useState } from "react";
-import css from "../../../extensions/fitfinder-theme/assets/fitfinder.css?raw";
+import embedCss from "../../../extensions/fitfinder-theme/assets/ff-embed.css?raw";
+import searchCss from "../../../extensions/fitfinder-theme/assets/ff-search.css?raw";
+import productCss from "../../../extensions/fitfinder-theme/assets/ff-product.css?raw";
 import searchJs from "../../../extensions/fitfinder-theme/assets/ff-search.js?raw";
 import productJs from "../../../extensions/fitfinder-theme/assets/ff-product.js?raw";
 import embedJs from "../../../extensions/fitfinder-theme/assets/ff-embed.js?raw";
@@ -18,6 +20,14 @@ const SCRIPTS: Record<PreviewKind, string> = {
   badge: productJs,
   table: productJs,
   selection: embedJs,
+};
+
+// The stylesheets a page with that feature loads on the storefront (embed + block).
+const STYLES: Record<PreviewKind, string> = {
+  search: embedCss + searchCss,
+  badge: embedCss + productCss,
+  table: embedCss + productCss,
+  selection: embedCss,
 };
 
 const PATHS = new Set(["options", "results"]);
@@ -47,7 +57,7 @@ export function StorefrontPreview({
     previewDoc({
       kind,
       config,
-      css,
+      css: STYLES[kind],
       script: SCRIPTS[kind],
       sample,
       picks: picks?.current,

@@ -7,6 +7,7 @@
 // matches any pick (a part without an engine fits every engine). Every query is scoped by shop.
 import { Prisma, type FieldType } from "@prisma/client";
 import prisma from "../../db.server";
+import { withQuerySlot } from "./limits.server";
 import {
   picksBefore,
   picksKey,
@@ -29,14 +30,20 @@ export const MAX_TABLE_ROWS = 1000;
 export const RESULTS_PAGE_SIZE = 16; // Liquid all_products: 20 unique handles per page
 export const MAX_COLLECTIONS = 10;
 
-/** Reads with a statement timeout, so a pathological query can't hold a connection. */
+/**
+ * Reads with a statement timeout, so a pathological query can't hold a connection, and in one of
+ * the process's storefront query slots (limits.server.ts), so storefront traffic can't take every
+ * database connection.
+ */
 function timedRead<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `SET LOCAL statement_timeout = '${READ_TIMEOUT}'`,
-    );
-    return work(tx);
-  });
+  return withQuerySlot(() =>
+    prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SET LOCAL statement_timeout = '${READ_TIMEOUT}'`,
+      );
+      return work(tx);
+    }),
+  );
 }
 
 /** The installed shop's search setup, or null (unknown, uninstalled or not set up). */

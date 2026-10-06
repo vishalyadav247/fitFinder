@@ -49,9 +49,10 @@ Heading "Overview", then 4 small cards in one row (2 per row on phones), styled 
 Not on the dashboard on purpose: search field count (shown in the banner) and plan (Shopify billing page).
 
 ### Over the plan's limits
-When the shop's usage is over its plan (rows, linked products or search fields), a warning `s-banner` sits above the banner: "You're over your plan's limits" — "The {plan} plan allows {limits}. New rows, fields or links are refused until you upgrade or remove some." + **Compare plans** (→ Plans).
+When the shop's usage is over its plan (rows or linked products), a warning `s-banner` sits right under the banner (above the setup guide; it arrives with the streamed part, so it must not push the page down): "You're over your plan's limits" — "The {plan} plan allows {limits}. New rows or links are refused until you upgrade or remove some." + **Compare plans** (→ Plans).
 
 ## Data / backend
+The banner renders at once (store type, heading, field names; "{n} filter rows" fills in, "Filter rows" while loading or on error). The setup guide, overview and over-limit banner are **streamed** (React Router `<Await>`) because they need the Partner API, the live theme and counts over every row; a placeholder of about the same height (spinner) shows meanwhile, and an error shows "The overview couldn't be loaded" (critical banner). On a 727k-row shop the counts take 0.3–0.9 s each, in parallel (M10).
 The `/app` loader (no separate API): `dashboardFacts` in `app/services/dashboard.server.ts` — row count, distinct SKUs and unlinked SKUs (`rowCounts`), products without filter data, distinct values of the first three list fields, the live theme's status (theme files, same rules as Storefront; unknown when the theme can't be read: "—" and "Couldn't check your theme"), and the plan (`shopPlan`, Partner API). Step texts and cards are pure (`app/services/dashboard.ts`).
 - Step 5 texts: not chosen "Pick the plan that suits your catalog. Starter is free; paid plans start with a 14-day free trial."; on a trial "You are on the {Plan} trial, {n} days left. Change or cancel your plan any time."; otherwise "You are on the {Plan} plan. Change it any time as your catalog grows."
 - "Blocks added" counts the 4 Storefront features: Search section, Fits badge, Fitment table (block, or the code in theme tabs), My Selection (embed on and switched on).

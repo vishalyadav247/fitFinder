@@ -28,14 +28,18 @@ export async function coverage(
   const [row] = await prisma.$transaction(
     async (tx) => {
       await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '8s'");
+      // One hashed GROUP BY per field: 4× faster than count(DISTINCT …) (which sorts) on 727k
+      // rows (M10).
       return tx.$queryRaw<Record<string, number>[]>`
     SELECT ${Prisma.join(
       lists.map(
         (f, i) =>
-          Prisma.sql`count(DISTINCT f."values"->>${f.id})::int AS ${Prisma.raw(`c${i}`)}`,
+          Prisma.sql`(SELECT count(*) FROM (SELECT 1 FROM fitment_rows f
+            WHERE f.shop_id = ${shopId} AND f."values"->>${f.id} IS NOT NULL
+            GROUP BY f."values"->>${f.id}) g)::int
+            AS ${Prisma.raw(`c${i}`)}`,
       ),
-    )}
-    FROM fitment_rows f WHERE f.shop_id = ${shopId}`;
+    )}`;
     },
     { timeout: 10_000, maxWait: 10_000 },
   );

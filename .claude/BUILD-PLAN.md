@@ -50,7 +50,7 @@ productFinder/                   (project root: React Router template, TypeScrip
 │       ├── blocks/fitfinder-fits-badge.liquid     Fits badge (target: section, product)
 │       ├── blocks/fitfinder-fitment-table.liquid  Fitment table (target: section, product)
 │       ├── blocks/fitfinder-embed.liquid          App embed (target: body): loader, My Selection, [fitfinder-table] swap
-│       ├── assets/ff-search.js, ff-product.js, ff-embed.js, fitfinder.css (built from storefront-src/)
+│       ├── assets/ff-search.js/.css, ff-product.js/.css, ff-embed.js/.css (built from storefront-src/; the embed's stylesheet loads on every page, so it holds only My Selection and the save prompt)
 │       └── locales/en.default.json
 ├── prisma/schema.prisma
 └── shopify.app.toml
@@ -100,11 +100,13 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 - Theme status: list themes (GraphQL `themes`), read `config/settings_data.json` for the embed state and scan templates for our blocks / the code **(verify** asset read access and scopes). "Add to theme" / "View in editor" / app-embed switch = theme editor deep links (`/admin/themes/{id}/editor?context=apps&activateAppId={api_key}/fitfinder-embed` for the embed; `addAppBlockId={api_key}/{handle}&target=newAppsSection|mainSection` for blocks). Verified 2026-10-06: `read_themes`, `theme.files(filenames:)`; see PROGRESS.md.
 
 ### Billing
-- Shopify App Pricing plans: Starter (free), Growth, Pro; monthly + yearly. Plans page links to Shopify's hosted plan page. The active plan comes from the Partner API `activeSubscription` (verified 2026-10-06: App Pricing sends no billing webhooks), cached 5 min per shop and stored in `shops.plan`. Limits (rows, linked products, fields) enforced in import, row, field and link writes; over-limit → banner with upgrade link.
+- Shopify App Pricing plans: Starter (free), Growth, Pro; monthly + yearly. Plans page links to Shopify's hosted plan page. The active plan comes from the Partner API `activeSubscription` (verified 2026-10-06: App Pricing sends no billing webhooks), cached 5 min per shop and stored in `shops.plan`. Limits (rows, linked products; search fields are not limited by plan) enforced in import, row and link writes; over-limit → banner with upgrade link.
 
 ### Privacy and uninstall
-- `app/uninstalled`: mark shop, stop serving the proxy, schedule purge after 30 days.
-- GDPR webhooks `customers/data_request`, `customers/redact`, `shop/redact`: we hold no customer data (My Selection is in the shopper's browser); respond and log; `shop/redact` purges everything.
+- `app/uninstalled`: mark shop, stop serving the proxy; a daily pg-boss job (`purge-uninstalled`, 03:15 UTC) deletes shops uninstalled more than 30 days ago: storage folder, sessions, shop row (cascade).
+- Compliance webhooks (`/webhooks/compliance`, `compliance_topics` in the TOML) `customers/data_request`, `customers/redact`, `shop/redact`: we hold no customer data (My Selection is in the shopper's browser), so the customer topics answer 200; `shop/redact` (48 h after uninstall) marks the shop uninstalled if our uninstall webhook was missed, and the purge at uninstall + 30 days completes it within Shopify's 30 days.
+- App proxy: per-shop budget (100 requests/s, bursts of 300 → 429; `PROXY_SHOP_RATE`/`PROXY_SHOP_BURST`) and at most 8 storefront queries at once per process (`PROXY_MAX_QUERIES`; 3 s wait → 503). FitFinder's results page shows a short "busy" page instead of JSON.
+- `app/uninstalled` and the compliance topics check the webhook HMAC without loading the shop's session (the expired offline token can't be refreshed after an uninstall).
 
 ## 5. Milestones and acceptance criteria
 

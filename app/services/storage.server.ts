@@ -25,6 +25,8 @@ export interface Storage {
   /** Size in bytes, or null when the object doesn't exist. */
   size(key: string): Promise<number | null>;
   delete(key: string): Promise<void>;
+  /** Deletes every object whose key starts with `prefix` (a shop's folder). */
+  deletePrefix(prefix: string): Promise<void>;
 }
 
 const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\-/]*$/;
@@ -46,6 +48,9 @@ export function newUploadKey(shopId: string, fileName: string): string {
       .slice(-100) || "file.csv";
   return `imports/${shopId}/${crypto.randomUUID()}/${safeName}`;
 }
+
+/** Folder of every file of a shop (uploads, backups, reports). */
+export const shopPrefix = (shopId: string) => `imports/${shopId}/`;
 
 export function keyBelongsToShop(key: string, shopId: string): boolean {
   return (
@@ -93,6 +98,13 @@ class LocalStorage implements Storage {
 
   async delete(key: string) {
     await rm(this.file(key), { force: true });
+  }
+
+  async deletePrefix(prefix: string) {
+    await rm(this.file(prefix.replace(/\/+$/, "")), {
+      recursive: true,
+      force: true,
+    });
   }
 }
 
@@ -190,6 +202,43 @@ class R2Storage implements Storage {
     await client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: assertSafeKey(key) }),
     );
+  }
+
+  async deletePrefix(prefix: string) {
+    const [{ ListObjectsV2Command, DeleteObjectsCommand }, client] =
+      await Promise.all([this.sdk, this.client]);
+    const Prefix = assertSafeKey(prefix);
+    let token: string | undefined;
+    do {
+      // Up to 1,000 keys per page, which is also DeleteObjects' limit.
+      const page = await client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix,
+          ContinuationToken: token,
+        }),
+      );
+      const keys = (page.Contents ?? []).flatMap((o) =>
+        o.Key ? [{ Key: o.Key }] : [],
+      );
+      if (keys.length) {
+        const res = await client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: keys, Quiet: true },
+          }),
+        );
+        // Quiet mode lists only the keys that failed: any failure must stop the caller (the
+        // purge keeps the shop and tries again tomorrow).
+        if (res.Errors?.length) {
+          const first = res.Errors[0];
+          throw new Error(
+            `Storage delete failed for ${res.Errors.length} file(s) under ${Prefix}: ${first.Code ?? ""} ${first.Key ?? ""}`,
+          );
+        }
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
   }
 }
 

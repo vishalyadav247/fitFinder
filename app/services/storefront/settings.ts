@@ -285,9 +285,10 @@ export function parseSettingValue(
     ) {
       return null;
     }
-    return Object.fromEntries(
-      entries.filter(([, v]) => v === true),
-    ) as Record<string, boolean>;
+    return Object.fromEntries(entries.filter(([, v]) => v === true)) as Record<
+      string,
+      boolean
+    >;
   }
   if (typeof value !== typeof def) return null;
   if (typeof value === "boolean") return value;

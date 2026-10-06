@@ -225,17 +225,18 @@ export async function storedPlan(shopId: string, db: Db = prisma) {
  * The plan's "linked products": products a link with filter rows behind it points to, plus
  * universal products (one query, shared by the meter and every limit check). A link whose rows are
  * gone doesn't count: the merchant couldn't see or remove it. `exceptAttachment` leaves out that
- * attachment's own link (it is about to be replaced).
+ * attachment's own link (it is about to be replaced). Ids are compared byte-wise (COLLATE "C"):
+ * the UNION's de-duplication was 3× slower under the default collation (727k-row shop, M10).
  */
 export function linkedProductsSql(shopId: string, exceptAttachment?: string) {
   return Prisma.sql`
-    SELECT l.product_id FROM product_links l
+    SELECT l.product_id COLLATE "C" AS product_id FROM product_links l
     WHERE l.shop_id = ${shopId} AND l.product_id IS NOT NULL
       ${exceptAttachment === undefined ? Prisma.empty : Prisma.sql`AND l.attachment <> ${exceptAttachment}`}
       AND EXISTS (SELECT 1 FROM fitment_rows f
         WHERE f.shop_id = l.shop_id AND f.attachment = l.attachment)
     UNION
-    SELECT u.product_id FROM universal_products u WHERE u.shop_id = ${shopId}`;
+    SELECT u.product_id COLLATE "C" FROM universal_products u WHERE u.shop_id = ${shopId}`;
 }
 
 export async function linkedProductCount(shopId: string, db: Db = prisma) {

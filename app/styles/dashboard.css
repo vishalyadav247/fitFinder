@@ -572,3 +572,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Placeholder while the guide and overview stream in: about their height, so nothing jumps. */
+.ff-details-loading {
+  min-height: 460px;
+}
+.ff-details-loading s-section {
+  display: block;
+  padding-block: 40px;
+}

@@ -10,14 +10,18 @@ import {
   syncProduct,
   takePendingRun,
 } from "./linking/link-runs.server";
+import { purgeUninstalledShops } from "./purge.server";
 
 export const QUEUES = {
   importPreview: "import-preview",
   importRun: "import-run",
   links: "links",
   productSync: "product-sync",
+  purge: "purge-uninstalled",
 } as const;
 type ImportQueue = typeof QUEUES.importPreview | typeof QUEUES.importRun;
+
+export const PURGE_CRON = "15 3 * * *";
 
 // One import step can take a while on 700k rows; our own job row tracks state, so no retries.
 const QUEUE_OPTIONS = { retryLimit: 0, expireInSeconds: 60 * 60 };
@@ -176,6 +180,16 @@ export function startWorkers(): Promise<void> {
         { localConcurrency: 2 },
         async ([job]) => syncProduct(job.data.shopId, job.data.productId),
       );
+      // Uninstalled shops are deleted 30 days later (purge.server.ts). Once a day, at 03:15 UTC;
+      // pg-boss runs a schedule once across all processes.
+      await boss.work(QUEUES.purge, { localConcurrency: 1 }, async () => {
+        await purgeUninstalledShops();
+      });
+      await boss.schedule(QUEUES.purge, PURGE_CRON, null, {
+        tz: "UTC",
+        // A run missed while the app was down (e.g. a deploy at 03:15) still happens once.
+        missed: "once",
+      });
       // Jobs left behind by a crash or redeploy stop locking their shop.
       const sweep = () =>
         sweepStale().catch((error) =>

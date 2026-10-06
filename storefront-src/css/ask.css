@@ -1,0 +1,29 @@
+/* Results page: ask to save */
+.ff-ask {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eaf4ff;
+  color: #00527c;
+  font-size: 14px;
+}
+.ff-ask span {
+  flex: 1 1 auto;
+}
+.ff-ask button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  color: inherit;
+  padding: 4px;
+}
+.ff-ask__save {
+  text-decoration: underline;
+}
+

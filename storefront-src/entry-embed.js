@@ -28,10 +28,17 @@ function askOnSearchPage() {
   if (!box.firstChild) box.remove();
 }
 
-function need(flag, src) {
+/** A block brings its own script and stylesheet; without one, the embed adds both. */
+function need(flag, src, css) {
   if (typeof window[flag] === "function") return window[flag]();
   if (!src || window[flag]) return;
   window[flag] = "loading"; // its entry replaces this with its init function
+  if (css && !document.querySelector('link[href="' + css + '"]')) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = css;
+    document.head.appendChild(link);
+  }
   const script = document.createElement("script");
   script.src = src;
   script.async = true;
@@ -45,9 +52,17 @@ if (!window.__fitfinderEmbed) {
       initMySelection();
       askOnSearchPage();
       // Features without a block on this page: run their bundle (load it, or run it again).
-      if (markTableCode(el)) need("__fitfinderProduct", el.getAttribute("data-product-src"));
+      if (markTableCode(el)) need(
+          "__fitfinderProduct",
+          el.getAttribute("data-product-src"),
+          el.getAttribute("data-product-css"),
+        );
       if (document.querySelector("[data-ff-search]")) {
-        need("__fitfinderSearch", el.getAttribute("data-search-src"));
+        need(
+          "__fitfinderSearch",
+          el.getAttribute("data-search-src"),
+          el.getAttribute("data-search-css"),
+        );
       }
     });
   });

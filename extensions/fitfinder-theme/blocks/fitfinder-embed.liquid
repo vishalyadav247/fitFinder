@@ -5,8 +5,10 @@
 {%- endcomment -%}
 {%- assign ff = app.metafields.fitfinder.config.value -%}
 {%- if ff -%}
+  {%- comment -%} Not render-blocking: My Selection only shows once the (async) script has run. {%- endcomment -%}
+  <link rel="stylesheet" href="{{ 'ff-embed.css' | asset_url }}" media="print" onload="this.media='all'">
   <script type="application/json" data-ff-config>{{ ff | json }}</script>
-  <div hidden data-ff-embed data-search-src="{{ 'ff-search.js' | asset_url }}" data-product-src="{{ 'ff-product.js' | asset_url }}"{% if product and template.name == 'product' %} data-product="{{ product.id }}" data-collections="{{ product.collections | map: 'id' | join: ',' }}"{% endif %}></div>
+  <div hidden data-ff-embed data-search-src="{{ 'ff-search.js' | asset_url }}" data-search-css="{{ 'ff-search.css' | asset_url }}" data-product-src="{{ 'ff-product.js' | asset_url }}" data-product-css="{{ 'ff-product.css' | asset_url }}"{% if product and template.name == 'product' %} data-product="{{ product.id }}" data-collections="{{ product.collections | map: 'id' | join: ',' }}"{% endif %}></div>
 {%- endif -%}
 
 {% schema %}
@@ -14,7 +16,6 @@
   "name": "FitFinder",
   "target": "body",
   "javascript": "ff-embed.js",
-  "stylesheet": "fitfinder.css",
   "settings": []
 }
 {% endschema %}

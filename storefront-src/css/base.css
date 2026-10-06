@@ -1,0 +1,16 @@
+/* FitFinder storefront styles (specs/storefront.md; ported from .claude/design/styles/storefront.css). */
+.ff-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ff-note {
+  padding: 12px;
+  border: 1px dashed rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  font-size: 14px;
+}
+

@@ -17,7 +17,11 @@ const stubs = {
   },
 };
 for (const [key, value] of Object.entries(stubs)) {
-  Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+  Object.defineProperty(globalThis, key, {
+    value,
+    configurable: true,
+    writable: true,
+  });
 }
 
 const core = await import("../../storefront-src/core.js");
@@ -75,7 +79,10 @@ beforeAll(() => {
 beforeEach(() => {
   storage.clear();
   // the in-page copy core.js keeps when storage is blocked
-  Object.assign((globalThis as Record<string, unknown>).__fitfinderStore as object, { current: null, saved: [] });
+  Object.assign(
+    (globalThis as Record<string, unknown>).__fitfinderStore as object,
+    { current: null, saved: [] },
+  );
   events.length = 0;
 });
 
@@ -205,4 +212,22 @@ describe("built theme assets", () => {
       ).toBe(code);
     }
   }, 30_000);
+
+  it("ships current stylesheets; the one on every page stays small", async () => {
+    const { readFile } = await import("node:fs/promises");
+    for (const [name, parts] of Object.entries(
+      build.STYLES as Record<string, string[]>,
+    )) {
+      const code = await build.styles(parts);
+      expect(
+        await readFile(build.OUT + name, "utf8"),
+        `${name}: run npm run build:theme`,
+      ).toBe(code);
+    }
+    // ff-embed.css is render-blocking on every page (app embed): keep it lean.
+    const embed = await readFile(build.OUT + "ff-embed.css", "utf8");
+    expect(Buffer.byteLength(embed)).toBeLessThanOrEqual(8_000);
+    expect(embed).not.toContain(".ff-sfw");
+    expect(embed).not.toContain(".ff-ft");
+  });
 });

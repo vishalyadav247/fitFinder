@@ -59,8 +59,9 @@ const call = async (
   }
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  (await import("../services/storefront/limits.server")).resetLimits();
   appProxy.mockResolvedValue({});
   shopSearch.mockResolvedValue(search);
 });
@@ -208,10 +209,37 @@ describe("GET results", () => {
   });
 });
 
+describe("busy store", () => {
+  it("answers 429 to script calls over the shop's budget, and a page to shoppers", async () => {
+    const { resetLimits, takeToken } =
+      await import("../services/storefront/limits.server");
+    resetLimits();
+    fieldOptions.mockResolvedValue([]);
+    // Use up the shop's budget at once (a slow loop would refill it).
+    while (takeToken("demo.myshopify.com"));
+    const json = await call(options, "options", "field=make");
+    expect(json.status).toBe(429);
+    expect(json.headers.get("Retry-After")).toBe("1");
+    const page = await call(results, "results", "make=AUDI");
+    expect(page.status).toBe(200);
+    expect(page.headers.get("Content-Type")).toBe("application/liquid");
+    expect(await page.text()).toContain("The search is very busy right now");
+    resetLimits();
+  });
+});
+
 describe("GET search", () => {
   it("returns the theme search query for a full selection", async () => {
-    fitSkus.mockResolvedValue({ skus: ["A-1", "B-2"], products: 2, withoutSku: 0 });
-    const res = await call(searchRoute, "search", "make=AUDI&year=2008&model=A6");
+    fitSkus.mockResolvedValue({
+      skus: ["A-1", "B-2"],
+      products: 2,
+      withoutSku: 0,
+    });
+    const res = await call(
+      searchRoute,
+      "search",
+      "make=AUDI&year=2008&model=A6",
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       mode: "search",
@@ -228,7 +256,11 @@ describe("GET search", () => {
 
   it("falls back to FitFinder's page when nothing fits", async () => {
     fitSkus.mockResolvedValue({ skus: [], products: 0, withoutSku: 0 });
-    const res = await call(searchRoute, "search", "make=AUDI&year=2008&model=A6");
+    const res = await call(
+      searchRoute,
+      "search",
+      "make=AUDI&year=2008&model=A6",
+    );
     expect(await res.json()).toEqual({ mode: "page", reason: "none" });
   });
 

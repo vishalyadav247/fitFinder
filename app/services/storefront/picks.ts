@@ -56,9 +56,7 @@ export function picksBefore(
 
 /** Every required field has a pick (the search button's rule). */
 export function isComplete(picks: Picks, fields: PickField[]): boolean {
-  return (
-    picks.size > 0 && fields.every((f) => !f.required || picks.has(f.id))
-  );
+  return picks.size > 0 && fields.every((f) => !f.required || picks.has(f.id));
 }
 
 /** Stable text for cache keys. */
@@ -102,8 +100,12 @@ export function selectionLabel(
 }
 
 /** Query string of the picks (field order), for links back to the results. */
-export function picksQuery(fields: { id: string }[], picks: Picks): URLSearchParams {
+export function picksQuery(
+  fields: { id: string }[],
+  picks: Picks,
+): URLSearchParams {
   const q = new URLSearchParams();
-  for (const f of fields) if (picks.has(f.id)) q.set(f.id, String(picks.get(f.id)));
+  for (const f of fields)
+    if (picks.has(f.id)) q.set(f.id, String(picks.get(f.id)));
   return q;
 }

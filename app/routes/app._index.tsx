@@ -1,12 +1,13 @@
 // Dashboard: banner, setup guide and overview cards, from the shop's real state.
 // Spec: .claude/specs/dashboard.md · Prototype: .claude/design/scripts/screens/dashboard.js
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import { Await, useLoaderData, useNavigate } from "react-router";
 
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
+import prisma from "../db.server";
 import { shopPlan, usage } from "../services/billing.server";
 import {
   effectivePlan,
@@ -28,25 +29,51 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const config = await getSearchConfig(shop.id);
   // The layout redirects too, but child loaders run in parallel with it.
   if (!config) throw redirect("/app/onboarding");
+  const fields = await prisma.searchField.findMany({
+    where: { shopId: shop.id },
+    orderBy: { position: "asc" },
+    select: { label: true },
+  });
 
+  // The setup guide and overview need the plan (Partner API), the live theme (Admin API) and
+  // counts over every filter row: streamed in after the banner shows (seconds on a 700k-row shop).
   // Back from Shopify's plan page (welcome link): read the new plan right away.
   const force = new URL(request.url).searchParams.has("plan_handle");
-  const plan = await shopPlan(admin.graphql, shop.id, { force });
-  const facts = await dashboardFacts(admin.graphql, shop.id, plan);
-  if (!facts) throw redirect("/app/onboarding");
-  const used = await usage(shop.id, undefined, { rows: facts.rowCount });
-  const current = effectivePlan(plan.plan);
+  const details = (async () => {
+    const plan = await shopPlan(admin.graphql, shop.id, { force });
+    const facts = await dashboardFacts(admin.graphql, shop.id, plan);
+    if (!facts) throw new Error("FitFinder isn't set up for this store.");
+    const used = await usage(shop.id, undefined, { rows: facts.rowCount });
+    const current = effectivePlan(facts.plan);
+    return {
+      facts,
+      over: overLimits(used, current.limits).map(
+        (k) => `${formatLimit(current.limits[k])} ${LIMIT_LABEL[k]}`,
+      ),
+      planName: current.name,
+    };
+  })();
+  // Logged here; the page shows the error element.
+  details.catch((error) =>
+    console.error("dashboard: details failed", {
+      shop: session.shop,
+      // A thrown Response (e.g. an expired session) logs its status, not the object.
+      error: error instanceof Response ? `HTTP ${error.status}` : error,
+    }),
+  );
+
   return {
     shop: session.shop,
     storeType: config.storeType,
     heading: config.heading,
-    facts,
-    over: overLimits(used, current.limits).map(
-      (k) => `${formatLimit(current.limits[k])} ${LIMIT_LABEL[k]}`,
-    ),
-    planName: current.name,
+    noun: config.noun,
+    things: config.thingsWord,
+    fieldNames: fields.map((f) => f.label),
+    details,
   };
 };
+
+type Details = Awaited<Awaited<ReturnType<typeof loader>>["details"]>;
 
 /** "a", "a and b", "a, b and c". */
 const listText = (items: string[]) =>
@@ -60,56 +87,18 @@ const STATUS = (done: boolean, now: boolean) =>
 export default function DashboardPage() {
   const data = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const { facts } = data;
-  const trialEndsAt = facts.trialEndsAt ? new Date(facts.trialEndsAt) : null;
-  const steps = guideSteps({ ...facts, trialEndsAt });
-  const cards = overviewCards({ ...facts, trialEndsAt });
-  const doneCount = steps.filter((s) => s.done).length;
-  const firstOpen = steps.findIndex((s) => !s.done);
-  const [cur, setCur] = useState(Math.max(0, firstOpen));
   const preset = STORE_TYPES[data.storeType];
-
-  // The guide's collapsed state is kept per shop in this browser.
-  const closedKey = `fitfinder:guide-closed:${data.shop}`;
-  const [closed, setClosed] = useState<boolean | null>(null);
-  useEffect(() => {
-    try {
-      setClosed(localStorage.getItem(closedKey) === "1");
-    } catch {
-      // storage blocked: open
-    }
-  }, [closedKey]);
-  const toggle = () => {
-    const next = closed !== true;
-    setClosed(next);
-    try {
-      localStorage.setItem(closedKey, next ? "1" : "0");
-    } catch {
-      // storage blocked: this visit only
-    }
-  };
-
-  const step = steps[cur];
-  const fieldNames = facts.fields.map((f) => f.label);
-  const ring = (doneCount / 5) * 131.9;
+  const fieldNames = data.fieldNames;
+  const rowsLine = (
+    <Suspense fallback="Filter rows">
+      <Await resolve={data.details} errorElement="Filter rows">
+        {(d) => `${d.facts.rowCount.toLocaleString("en-US")} filter rows`}
+      </Await>
+    </Suspense>
+  );
 
   return (
     <s-page heading="Dashboard" inlineSize="base">
-      {data.over.length > 0 && (
-        <s-box paddingBlockEnd="base">
-          <s-banner tone="warning" heading="You're over your plan's limits">
-            The {data.planName} plan allows {listText(data.over)}. New rows or
-            links are refused until you upgrade or remove some.
-            <s-button
-              slot="secondary-actions"
-              onClick={() => navigate("/app/plans")}
-            >
-              Compare plans
-            </s-button>
-          </s-banner>
-        </s-box>
-      )}
-
       <section className="ff-hero">
         <div>
           <span className="ff-eyebrow">
@@ -117,9 +106,9 @@ export default function DashboardPage() {
           </span>
           <h1>{data.heading}</h1>
           <p className="ff-lead">
-            Shoppers pick their {facts.noun} by{" "}
+            Shoppers pick their {data.noun} by{" "}
             {fieldNames.map((l) => l.toLowerCase()).join(", ")} and only see{" "}
-            {facts.things} that fit. Fewer wrong orders, fewer returns.
+            {data.things} that fit. Fewer wrong orders, fewer returns.
           </p>
           <div className="ff-hero-actions">
             <button
@@ -145,17 +134,13 @@ export default function DashboardPage() {
               [
                 [
                   preset.icon,
-                  `Shopper picks their ${facts.noun}`,
+                  `Shopper picks their ${data.noun}`,
                   fieldNames.join(" › "),
                 ],
-                [
-                  "rows",
-                  "FitFinder matches",
-                  `${facts.rowCount.toLocaleString("en-US")} filter rows`,
-                ],
+                ["rows", "FitFinder matches", rowsLine],
                 [
                   "check",
-                  `Only ${facts.things} that fit`,
+                  `Only ${data.things} that fit`,
                   "Fewer wrong orders and returns",
                 ],
               ] as const
@@ -173,6 +158,92 @@ export default function DashboardPage() {
           </ol>
         </div>
       </section>
+
+      <Suspense fallback={<DetailsPlaceholder />}>
+        <Await
+          resolve={data.details}
+          errorElement={
+            <s-banner tone="critical" heading="The overview couldn't be loaded">
+              Reload the page to try again.
+            </s-banner>
+          }
+        >
+          {(details) => <DashboardDetails shop={data.shop} details={details} />}
+        </Await>
+      </Suspense>
+    </s-page>
+  );
+}
+
+/** Same height as the guide and overview, so nothing jumps when they arrive. */
+function DetailsPlaceholder() {
+  return (
+    <div className="ff-details-loading">
+      <s-section accessibilityLabel="Setup guide">
+        <s-stack alignItems="center" gap="small">
+          <s-spinner size="base" accessibilityLabel="Loading your setup" />
+        </s-stack>
+      </s-section>
+    </div>
+  );
+}
+
+function DashboardDetails({
+  shop,
+  details,
+}: {
+  shop: string;
+  details: Details;
+}) {
+  const navigate = useNavigate();
+  const data = details;
+  const facts = details.facts;
+  const trialEndsAt = facts.trialEndsAt ? new Date(facts.trialEndsAt) : null;
+  const steps = guideSteps({ ...facts, trialEndsAt });
+  const cards = overviewCards({ ...facts, trialEndsAt });
+  const doneCount = steps.filter((s) => s.done).length;
+  const firstOpen = steps.findIndex((s) => !s.done);
+  const [cur, setCur] = useState(Math.max(0, firstOpen));
+
+  // The guide's collapsed state is kept per shop in this browser.
+  const closedKey = `fitfinder:guide-closed:${shop}`;
+  const [closed, setClosed] = useState<boolean | null>(null);
+  useEffect(() => {
+    try {
+      setClosed(localStorage.getItem(closedKey) === "1");
+    } catch {
+      setClosed(false); // storage blocked: open
+    }
+  }, [closedKey]);
+  const toggle = () => {
+    const next = closed !== true;
+    setClosed(next);
+    try {
+      localStorage.setItem(closedKey, next ? "1" : "0");
+    } catch {
+      // storage blocked: this visit only
+    }
+  };
+
+  const step = steps[cur];
+  const ring = (doneCount / 5) * 131.9;
+
+  return (
+    <>
+      {data.over.length > 0 && (
+        <s-box paddingBlockEnd="base">
+          <s-banner tone="warning" heading="You're over your plan's limits">
+            The {data.planName} plan allows {listText(data.over)}. New rows or
+            links are refused until you upgrade or remove some.
+            <s-button
+              slot="secondary-actions"
+              onClick={() => navigate("/app/plans")}
+            >
+              Compare plans
+            </s-button>
+          </s-banner>
+        </s-box>
+      )}
 
       <s-section padding="none" accessibilityLabel="Setup guide">
         <div className="ff-guide">
@@ -354,6 +425,6 @@ export default function DashboardPage() {
           </button>
         ))}
       </div>
-    </s-page>
+    </>
   );
 }

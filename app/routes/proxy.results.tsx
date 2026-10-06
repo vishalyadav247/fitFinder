@@ -18,7 +18,30 @@ import { resultsLiquid } from "../services/storefront/results-page";
 
 const MAX_PAGE = 1000;
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+/**
+ * A shopper's page load, not a script call: when the store is over its request budget or no
+ * query slot frees up, show a short page in the theme instead of the JSON error.
+ */
+export const loader = async (args: LoaderFunctionArgs) => {
+  try {
+    return await page(args);
+  } catch (error) {
+    if (
+      error instanceof Response &&
+      (error.status === 429 || error.status === 503)
+    ) {
+      const busy = liquidPage(BUSY_PAGE);
+      busy.headers.set("Retry-After", error.headers.get("Retry-After") ?? "2");
+      return busy;
+    }
+    throw error;
+  }
+};
+
+export const BUSY_PAGE =
+  '<div class="page-width" style="padding:48px 0"><p>The search is very busy right now. Please try again in a moment.</p></div>';
+
+async function page({ request }: LoaderFunctionArgs) {
   const { search, params } = await proxyContext(request);
   const picks = parsePicks(params, search.fields);
   const pageText = params.get("page") ?? "1";
@@ -51,4 +74,4 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       pageHref,
     }),
   );
-};
+}
