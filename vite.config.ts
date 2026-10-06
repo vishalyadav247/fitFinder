@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -45,17 +46,19 @@ export default defineConfig({
     hmr: hmrConfig,
     fs: {
       // See https://vitejs.dev/config/server-options.html#server-fs-allow for more information
-      allow: ["app", "node_modules"],
+      // extensions: the Storefront previews import the theme extension assets (?raw).
+      allow: ["app", "node_modules", "extensions"],
     },
   },
-  plugins: [
-    reactRouter(),
-    tsconfigPaths(),
-  ],
+  plugins: [reactRouter(), tsconfigPaths()],
   build: {
     assetsInlineLimit: 0,
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
+  },
+  test: {
+    // The Postgres integration tests share one local database and run in parallel files.
+    testTimeout: 20_000,
   },
 }) satisfies UserConfig;

@@ -15,7 +15,7 @@ Items marked **(verify)** must be checked against current shopify.dev docs befor
 | Cache | Postgres distinct-values tables (decided; no Redis) | Dropdown options per shop and per field path |
 | File storage | **Cloudflare R2** (S3-compatible) (decided) | Original uploads of the last 5 imports per shop (backups), error reports, exports |
 | Storefront | **Theme app extension**: 3 app blocks + 1 app embed, vanilla JS (no jQuery), small CSS | Data via **app proxy** |
-| Billing | **Shopify Managed Pricing** (plans set in the Partner Dashboard) | Read the active subscription; enforce limits server-side |
+| Billing | **Shopify App Pricing** (formerly Managed Pricing; plans set in the Partner Dashboard) | Read the active subscription from the Partner API; enforce limits server-side |
 | Hosting | **Fly.io, EU region** with the template Dockerfile; managed Postgres (Neon or Supabase, EU) (decided) | Web process + worker process |
 
 ## 2. Repository layout (target)
@@ -100,7 +100,7 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 - Theme status: list themes (GraphQL `themes`), read `config/settings_data.json` for the embed state and scan templates for our blocks / the code **(verify** asset read access and scopes). "Add to theme" / "View in editor" / app-embed switch = theme editor deep links (`/admin/themes/{id}/editor?context=apps&activateAppId={api_key}/fitfinder-embed` for the embed; `addAppBlockId={api_key}/{handle}&target=newAppsSection|mainSection` for blocks). Verified 2026-10-06: `read_themes`, `theme.files(filenames:)`; see PROGRESS.md.
 
 ### Billing
-- Managed Pricing plans: Starter (free), Growth, Pro; monthly + yearly. Plans page links to Shopify's hosted plan page. `app_subscriptions/update` webhook updates `shops.plan`. Limits (rows, linked products, fields) enforced in import and field APIs; over-limit → banner with upgrade link.
+- Shopify App Pricing plans: Starter (free), Growth, Pro; monthly + yearly. Plans page links to Shopify's hosted plan page. The active plan comes from the Partner API `activeSubscription` (verified 2026-10-06: App Pricing sends no billing webhooks), cached 5 min per shop and stored in `shops.plan`. Limits (rows, linked products, fields) enforced in import, row, field and link writes; over-limit → banner with upgrade link.
 
 ### Privacy and uninstall
 - `app/uninstalled`: mark shop, stop serving the proxy, schedule purge after 30 days.
@@ -118,7 +118,7 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 | M6 | Linking + Product mapping | Auto-linking after import; unlinked list grouped by attachment; resource picker links; products without filter data; universal products |
 | M7 | Theme app extension | Search section, fits badge (3 states), fitment table (block + `[fitfinder-table]` in theme tabs), My Selection embed (4 positions, icons incl. custom upload, colours, count, hover hint, panel) all match the prototype on Dawn and one non-Dawn theme |
 | M8 | Storefront page | Theme picker + embed status per theme; feature table with Type / Placement / Status / Action and deep links; tab settings write to the metafield; previews match the storefront |
-| M9 | Dashboard, Settings, Plans | Setup guide steps reflect real state; overview counts real; Managed Pricing upgrade/downgrade works on a dev store; limits enforced |
+| M9 | Dashboard, Settings, Plans | Setup guide steps reflect real state; overview counts real; Shopify App Pricing upgrade/downgrade works on a dev store; limits enforced |
 | M10 | Compliance + performance | GDPR webhooks; purge job; storefront script within Built for Shopify thresholds (verify current limits); Lighthouse impact measured on Dawn |
 | M11 | Pilot + submission | Bilstein NL data live on a staging store; App Store listing, screenshots, privacy policy; submitted |
 

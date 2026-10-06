@@ -30,6 +30,8 @@ import {
   type ResolvedTarget,
 } from "./mapping";
 import { buildRow } from "./transform";
+import { overLimitMessage, storedPlan } from "../billing.server";
+import { limitMessage, limitsFor } from "../billing";
 
 export const KEEP_FILES = 5;
 const STAGE_BATCH = 10000;
@@ -769,8 +771,48 @@ async function applyRows(tx: Prisma.TransactionClient, job: ImportJob) {
         ORDER BY row_hash, line
         ON CONFLICT (shop_id, row_hash) DO NOTHING`;
 
+  // The plan's row limit. First a cheap estimate, so a file far over the limit fails before
+  // any rows are written (or deleted, for Replace)…
+  const plan = await storedPlan(job.shopId, tx);
+  const maxRows = limitsFor(plan).rows;
+  if (maxRows !== Infinity && job.mode !== "delete") {
+    const tooMany = () => {
+      throw new ImportError(
+        `Nothing was imported. ${limitMessage(plan, "rows")}`,
+      );
+    };
+    const [{ distinct, current }] = await tx.$queryRaw<
+      { distinct: number; current: number }[]
+    >`
+          SELECT (SELECT count(DISTINCT row_hash) FROM import_rows
+                  WHERE job_id = ${job.id} AND error IS NULL)::int AS distinct,
+                 (SELECT count(*) FROM fitment_rows WHERE shop_id = ${job.shopId})::int AS current`;
+    if (job.mode === "replace" && distinct > maxRows) tooMany();
+    if (job.mode === "upsert" && current + distinct > maxRows) {
+      const [{ fresh }] = await tx.$queryRaw<{ fresh: number }[]>`
+            SELECT count(DISTINCT i.row_hash)::int AS fresh FROM import_rows i
+            WHERE i.job_id = ${job.id} AND i.error IS NULL AND NOT EXISTS (
+              SELECT 1 FROM fitment_rows f
+              WHERE f.shop_id = ${job.shopId} AND f.row_hash = i.row_hash)`;
+      if (current + fresh > maxRows) tooMany();
+    }
+  }
+
+  // …then the exact count after the insert, inside this transaction: over the limit, nothing
+  // is kept (the whole import rolls back).
+  const checkRowLimit = async () => {
+    const over = await overLimitMessage(
+      job.shopId,
+      "rows",
+      () => tx.fitmentRow.count({ where: { shopId: job.shopId } }),
+      tx,
+    );
+    if (over) throw new ImportError(`Nothing was imported. ${over}`);
+  };
+
   if (job.mode === "upsert") {
     const added = await insertNew();
+    if (added > 0) await checkRowLimit();
     return { added, unchanged: valid - added, errors };
   }
   if (job.mode === "replace") {
@@ -779,6 +821,7 @@ async function applyRows(tx: Prisma.TransactionClient, job: ImportJob) {
       where: { shopId: job.shopId },
     });
     const imported = await insertNew();
+    await checkRowLimit();
     return { deleted: deleted.count, imported, errors };
   }
   // Count rows with no exact match before deleting the matches.

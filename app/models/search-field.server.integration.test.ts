@@ -63,6 +63,11 @@ describe.skipIf(!process.env.DATABASE_URL)("search fields (Postgres)", () => {
     await db.shop.deleteMany({ where: { domain: { in: [A, B] } } });
     shopA = (await upsertShopOnInstall(A, db)).id;
     shopB = (await upsertShopOnInstall(B, db)).id;
+    // Field rules, not plan limits (billing.integration.test.ts covers those).
+    await db.shop.updateMany({
+      where: { id: { in: [shopA, shopB] } },
+      data: { plan: "pro" },
+    });
     await applyStoreType(shopA, "automotive", { replace: false }, db);
     await applyStoreType(shopB, "automotive", { replace: false }, db);
   });

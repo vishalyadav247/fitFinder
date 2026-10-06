@@ -12,6 +12,10 @@ import {
   type AttachmentKind,
 } from "../services/linking/attachment";
 import { isLockTimeout, withLinkLock } from "../services/linking/relink.server";
+import {
+  linkedProductsSql,
+  overLimitMessage,
+} from "../services/billing.server";
 
 type Tx = Prisma.TransactionClient;
 
@@ -194,6 +198,16 @@ export async function productsWithoutData(
   });
 }
 
+/** How many products "Products without filter data" lists (Dashboard). */
+export async function productsWithoutDataCount(shopId: string) {
+  return timedRead(async (tx) => {
+    const [{ total }] = await tx.$queryRaw<{ total: number }[]>`
+      SELECT count(*)::int AS total FROM catalog_products p
+      WHERE ${withoutDataWhere(shopId)}`;
+    return total;
+  });
+}
+
 export async function universalProducts(
   shopId: string,
   page: number,
@@ -281,6 +295,25 @@ async function saveManualLink(
       : classified === "collection"
         ? "product"
         : classified;
+  if (target.type === "product") {
+    // Only a product that isn't linked or universal yet adds to the plan's linked products; a
+    // shop already over its limit can still relink to products it has.
+    const over = await overLimitMessage(
+      shopId,
+      "products",
+      async () => {
+        const [{ known, n }] = await tx.$queryRaw<
+          { known: boolean; n: number }[]
+        >`
+          WITH linked AS (${linkedProductsSql(shopId, attachment)})
+          SELECT EXISTS (SELECT 1 FROM linked WHERE product_id = ${target.productId}) AS known,
+                 (SELECT count(*) FROM linked)::int AS n`;
+        return known ? 0 : n + 1;
+      },
+      tx,
+    );
+    if (over) throw new LinkRuleError(over);
+  }
   const data = {
     kind,
     productId: target.type === "product" ? target.productId : null,
@@ -300,12 +333,46 @@ export async function addUniversal(
   shopId: string,
   productIds: string[],
 ): Promise<number> {
-  return prisma.$executeRaw`
-    INSERT INTO universal_products (shop_id, product_id)
-    SELECT ${shopId}, p.product_id FROM catalog_products p
+  const picked = Prisma.sql`SELECT p.product_id FROM catalog_products p
     WHERE p.shop_id = ${shopId} AND p.product_id = ANY(${productIds}::text[])
-      AND p.status <> 'DELETED'
-    ON CONFLICT (shop_id, product_id) DO NOTHING`;
+      AND p.status <> 'DELETED'`;
+  try {
+    // Under the link lock, so two adds (or an add and a manual link) can't pass the limit together.
+    return await withLinkLock(
+      shopId,
+      async (tx) => {
+        const over = await overLimitMessage(
+          shopId,
+          "products",
+          async () => {
+            const [{ before, after }] = await tx.$queryRaw<
+              { before: number; after: number }[]
+            >`
+              WITH linked AS (${linkedProductsSql(shopId)})
+              SELECT (SELECT count(*) FROM linked)::int AS before,
+                     (SELECT count(*) FROM (SELECT product_id FROM linked
+                       UNION ${picked}) x)::int AS after`;
+            // Products that are linked already add nothing.
+            return after > before ? after : 0;
+          },
+          tx,
+        );
+        if (over) throw new LinkRuleError(over);
+        return tx.$executeRaw`
+          INSERT INTO universal_products (shop_id, product_id)
+          SELECT ${shopId}, x.product_id FROM (${picked}) x
+          ON CONFLICT (shop_id, product_id) DO NOTHING`;
+      },
+      { lockTimeout: "5s" },
+    );
+  } catch (error) {
+    if (isLockTimeout(error)) {
+      throw new LinkRuleError(
+        "Links are being checked right now. Try again in a moment.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function removeUniversal(shopId: string, productId: string) {

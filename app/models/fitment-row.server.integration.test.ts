@@ -251,6 +251,7 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
       total: 4,
       unlinkedRows: 3,
       unlinkedSkus: 2,
+      skus: 3,
     });
     const page = await listRows(shopId, {});
     expect(page.rows.filter((r) => r.linked).map((r) => r.attachment)).toEqual([

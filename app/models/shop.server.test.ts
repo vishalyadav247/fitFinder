@@ -83,7 +83,12 @@ describe("upsertShopOnInstall", () => {
     await upsertShopOnInstall("demo.myshopify.com", db as never);
     expect(db.shop.updateMany).toHaveBeenCalledWith({
       where: { domain: "demo.myshopify.com", uninstalledAt: { not: null } },
-      data: { uninstalledAt: null, installedAt: expect.any(Date) },
+      data: {
+        uninstalledAt: null,
+        installedAt: expect.any(Date),
+        plan: "none",
+        trialEndsAt: null,
+      },
     });
   });
 });

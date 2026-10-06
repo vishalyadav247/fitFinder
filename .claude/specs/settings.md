@@ -8,7 +8,7 @@ App-wide settings that don't belong to one feature. There is no Labels or Transl
 ## Layout
 1. **Store type** — current type + "Sets the starting fields and wording. Fields stay fully editable." + **Change** (`icon="store"`, → onboarding in change mode).
 2. **Your data** — plain explanation, no actions: what we store (search fields, filter rows, product links, last 5 imported files, texts and settings); shoppers (My Selection lives in the shopper's browser; no names, emails or orders); backups (download the last 5 files from Search setup › Import history); if you uninstall (search disappears at once, data kept 30 days, then deleted); privacy requests (Shopify GDPR webhooks handled automatically). Products in Shopify are never changed.
-3. **Help** — **Contact support** · **Help center**.
+3. **Help** — **Contact support** (mailto `SUPPORT_EMAIL`) · **Help center** (`HELP_CENTER_URL`, new tab). Disabled until those are set in the environment.
 4. *(Prototype only)* **Reset this prototype** — Restore sample rows · Start over (confirms first).
 
 No notification settings: import results are shown during the import itself. No export here: Filter data has Export, and Import history has file backups.

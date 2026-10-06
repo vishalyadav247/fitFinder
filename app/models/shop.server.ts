@@ -37,11 +37,17 @@ export async function upsertShopOnInstall(
   // Only touches rows that were uninstalled, so installedAt keeps the original install time.
   await db.shop.updateMany({
     where: { domain: parsed, uninstalledAt: { not: null } },
-    data: { uninstalledAt: null, installedAt: now },
+    // A reinstall starts without a plan until the Partner API says otherwise.
+    data: {
+      uninstalledAt: null,
+      installedAt: now,
+      plan: "none",
+      trialEndsAt: null,
+    },
   });
   return db.shop.upsert({
     where: { domain: parsed },
-    create: { domain: parsed, installedAt: now, lastAuthAt: now },
+    create: { domain: parsed, installedAt: now, lastAuthAt: now, plan: "none" },
     update: { lastAuthAt: now },
   });
 }

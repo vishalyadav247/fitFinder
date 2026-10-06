@@ -26,3 +26,15 @@
   --ff-wm: rgba(2, 132, 199, 0.06);
   --ff-line: #e3e3e3;
 }
+
+/* Section titles: Polaris heading size, bolder (README rule 1). Used on every page. */
+.ff-sec-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 750;
+  color: #303030;
+}
+.ff-sec-gap {
+  margin-bottom: 12px;
+}

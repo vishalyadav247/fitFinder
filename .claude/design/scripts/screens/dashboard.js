@@ -9,7 +9,7 @@ S.home = () => {
     ['Import data', 'Import your filter data', sp.rows.length ? `${sp.rows.length} rows are in. Import your file again any time: new rows are added, changed rows are updated and nothing else is lost.` : 'Upload a CSV with your SKUs and the items they fit. Any column layout works, and you check the columns before importing.', 'import', 'Import data', 'upload'],
     ['Link products', 'Link SKUs to products', un ? `${un} SKU${un === 1 ? ' has' : 's have'} no product yet. Shoppers won't see ${un === 1 ? 'it' : 'them'} until ${un === 1 ? 'it is' : 'they are'} linked to a product in your store.` : `Every SKU is linked to a product, so shoppers can find all of your ${t.things || 'products'} in the search.`, 'mapping', 'Review links', 'link'],
     ['Go live', 'Add the search to your store', 'Add the search block to your home page and the fits badge to product pages in the theme editor. It only takes a few clicks.', 'store', 'Open storefront settings', 'store'],
-    ['Plan', 'Choose a plan', 'You are on the Growth trial. Pick the plan that suits your catalog to keep the search running on your store after the trial ends.', 'plans', 'Compare plans', 'plans']];
+    ['Plan', 'Choose a plan', 'Pick the plan that suits your catalog. Starter is free; paid plans start with a 14-day free trial.', 'plans', 'Compare plans', 'plans']];
   const doneCount = done.filter(Boolean).length;
   const cur = Number.isInteger(state.guide) ? state.guide : Math.max(0, done.indexOf(false));
   const [, title, desc, go, cta, ic] = steps[cur];
@@ -65,7 +65,9 @@ S.home = () => {
 // Dashboard "Overview": four at-a-glance cards. Label, one number, one short specific line. Nothing else.
 function overview(sp, un) {
   const c = sf();
-  const pct = sp.rows.length ? Math.round(((sp.rows.length - un) / sp.rows.length) * 100) : 0;
+  // Share of distinct SKUs that are linked (real app: rowCounts().skus / unlinkedSkus).
+  const skus = new Set(sp.rows.map((r) => r.part)), unSkus = new Set(sp.rows.filter((r) => !r.mapped).map((r) => r.part));
+  const pct = skus.size ? Math.round(((skus.size - unSkus.size) / skus.size) * 100) : 0;
   const plural = (label, n) => { const l = label.toLowerCase(); return n === 1 || /(series|species)$/.test(l) ? l : (/(s|x|ch|sh)$/.test(l) ? l + 'es' : /[^aeiou]y$/.test(l) ? l.slice(0, -1) + 'ies' : l + 's'); };
   const coverage = sp.fields.filter((f) => f.type === 'list').slice(0, 3)
     .map((f) => { const n = new Set(sp.rows.map((r) => r.v[f.id]).filter(Boolean)).size; return n + ' ' + plural(f.label, n); }).join(' · ');

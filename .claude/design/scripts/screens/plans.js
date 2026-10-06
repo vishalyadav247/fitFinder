@@ -1,10 +1,10 @@
 // Screen: Plans — current plan with usage, and the plans (Shopify Managed Pricing in the real app). Spec: .claude/specs/plans.md
 const PLANS = [
-  { key: 'starter', name: 'Starter', month: 0, limits: { rows: 5000, products: 50, fields: 3 }, sub: '50 products · 5,000 rows',
-    items: ['Search section and Fits badge', 'Up to 3 search fields', 'CSV import with column mapping'] },
-  { key: 'growth', name: 'Growth', month: 29, limits: { rows: 500000, products: 5000, fields: Infinity }, sub: '5,000 products · 500,000 rows',
-    items: ['Everything in Starter', 'Unlimited search fields', 'Fitment table (also inside your theme tabs)', 'My Selection floating button', 'Universal products', 'Import history with 5 backups'] },
-  { key: 'pro', name: 'Pro', month: 99, limits: { rows: Infinity, products: Infinity, fields: Infinity }, sub: 'Unlimited products and rows',
+  { key: 'starter', name: 'Starter', month: 0, limits: { rows: 5000, products: 50 }, sub: '50 products · 5,000 rows',
+    items: ['Search section and Fits badge', 'CSV import with column mapping'] },
+  { key: 'growth', name: 'Growth', month: 29, limits: { rows: 500000, products: 5000 }, sub: '5,000 products · 500,000 rows',
+    items: ['Everything in Starter', 'Fitment table (also inside your theme tabs)', 'My Selection floating button', 'Universal products', 'Import history with 5 backups'] },
+  { key: 'pro', name: 'Pro', month: 99, limits: { rows: Infinity, products: Infinity }, sub: 'Unlimited products and rows',
     items: ['Everything in Growth', 'Scheduled imports from a supplier feed', 'Search analytics', 'Priority support'] }
 ];
 
@@ -29,7 +29,6 @@ S.plans = () => {
     <s-stack gap="base">
       ${meter('Filter rows', sp.rows.length, current.limits.rows)}
       ${meter('Linked products', linked, current.limits.products)}
-      ${meter('Search fields', sp.fields.length, current.limits.fields)}
     </s-stack>
   </s-grid></s-section>
 

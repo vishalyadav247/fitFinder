@@ -8,6 +8,7 @@ vi.mock("../shopify.server", () => ({
   authenticate: {
     admin: vi.fn(async () => ({
       session: { shop: "demo.myshopify.com" },
+      admin: { graphql: vi.fn() },
       redirect: (url: string) =>
         new Response(null, { status: 302, headers: { Location: url } }),
     })),
@@ -16,6 +17,7 @@ vi.mock("../shopify.server", () => ({
 vi.mock("../models/shop.server", () => ({
   ensureShop: vi.fn(async () => ({ id: "shop_1" })),
 }));
+vi.mock("../services/billing.server", () => ({ shopPlan: vi.fn(async () => ({})) }));
 vi.mock("../models/search-config.server", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("../models/search-config.server")>();

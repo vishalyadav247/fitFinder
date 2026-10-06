@@ -16,6 +16,7 @@ import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
 import { publishStorefrontConfig } from "../services/storefront/sync.server";
+import { shopPlan } from "../services/billing.server";
 import theme from "../styles/theme.css?url";
 
 const ONBOARDING = "/app/onboarding";
@@ -43,6 +44,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: session.shop,
       error,
     });
+  }
+
+  // Limit checks read shops.plan: refresh it on any admin page (Partner API, cached 5 min).
+  // Not awaited: the page never waits on the Partner API; shopPlan logs its own failures.
+  if (!onOnboarding) {
+    shopPlan(admin.graphql, shop.id).catch((error) =>
+      console.error("billing: plan refresh failed", {
+        shop: session.shop,
+        error,
+      }),
+    );
   }
 
   // eslint-disable-next-line no-undef

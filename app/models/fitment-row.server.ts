@@ -13,6 +13,7 @@ import {
   type RowField,
   type RowView,
 } from "../services/fitment/rows";
+import { overLimitMessage } from "../services/billing.server";
 
 type Tx = Prisma.TransactionClient;
 
@@ -89,6 +90,8 @@ export interface RowCounts {
   unlinkedRows: number;
   /** Distinct attachments without a product link (the banner's "{n} SKUs"). */
   unlinkedSkus: number;
+  /** Distinct attachments (Dashboard: "{pct}% of SKUs linked"). */
+  skus: number;
 }
 
 /**
@@ -99,7 +102,8 @@ export async function rowCounts(shopId: string): Promise<RowCounts> {
   const [r] = await prisma.$queryRaw<RowCounts[]>`
     SELECT count(*)::int AS total,
            count(*) FILTER (WHERE p.attachment IS NULL)::int AS "unlinkedRows",
-           count(DISTINCT f.attachment) FILTER (WHERE p.attachment IS NULL)::int AS "unlinkedSkus"
+           count(DISTINCT f.attachment) FILTER (WHERE p.attachment IS NULL)::int AS "unlinkedSkus",
+           count(DISTINCT f.attachment)::int AS skus
     FROM fitment_rows f
     LEFT JOIN product_links p ON p.shop_id = f.shop_id AND p.attachment = f.attachment
     WHERE f.shop_id = ${shopId}`;
@@ -301,6 +305,13 @@ export async function saveRow(
         ${yearFrom}::int AS year_from, ${yearTo}::int AS year_to, ${attachment}::text AS attachment`;
 
       if (rowId === null) {
+        const over = await overLimitMessage(
+          shopId,
+          "rows",
+          async () => (await tx.fitmentRow.count({ where: { shopId } })) + 1,
+          tx,
+        );
+        if (over) throw new FitmentRuleError(over);
         const added = await tx.$queryRaw<{ id: bigint }[]>`
           INSERT INTO fitment_rows (shop_id, "values", year_from, year_to, attachment, row_hash, updated_at)
           SELECT ${shopId}, s."values", s.year_from, s.year_to, s.attachment, ${rowHashSql(CURRENT, "s")}, now()

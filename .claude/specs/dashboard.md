@@ -10,7 +10,7 @@ Home screen. Explains the app in one glance, guides setup to "live", and shows f
 
 ### 1. Banner (custom, eye-catching)
 - Deep navy → blue mesh gradient, soft sky/violet light, faint dot texture on the right.
-- Left: category chip (icon + store type), heading = the store's search heading (e.g. "Find parts for your vehicle"), one-line description built from the field names, buttons **Add search to your store** (→ Storefront) and **Edit search fields** (→ Search fields).
+- Left: category chip (icon + store type), heading = the store's search heading (e.g. "Find parts for your vehicle"), one-line description built from the field names, buttons **Add search to your store** (→ Storefront) and **Open search setup** (→ Search setup; wording from the prototype).
 - Right (300px): frosted-glass "How it works" panel — vertical timeline with 3 glowing outline icons:
   1. Shopper picks their {noun} — field names joined by ›
   2. FitFinder matches — `{rows} filter rows`
@@ -21,7 +21,7 @@ Home screen. Explains the app in one glance, guides setup to "live", and shows f
 ### 2. Setup guide (custom, eye-catching)
 - Header: progress ring (`{done}/5`, blue→violet stroke), title "Setup guide" (or "You're all set"), subtitle, collapse toggle (⌃/⌄).
 - Segmented bar: 5 segments (4px high, 8px gap, so each sits above its step card); light tones: done = soft green #95DBB4, in progress = light theme colour (theme colour mixed 40% with white) filled halfway, to do = #EBEBEB. No gradients.
-- 5 step cards in a row, content centred: soft round icon, status (DONE / IN PROGRESS / TO DO), name. Clicking a card selects it (blue border + light blue fill). Status always shows real progress; the selection only shows which step is being viewed.
+- 5 step cards in a row, content centred: soft round icon, status (DONE / IN PROGRESS / TO DO), name. Clicking a card selects it (blue border only). Status always shows real progress; the selection only shows which step is being viewed.
 - Detail panel: step title in dark text (#303030), weight 700.
 - Step cards: all white. Every card has a 2px border (#E5E7EB); the selected card only changes that border to the theme colour (no background change). Done steps use Polaris success green: icon #29845A on #CDFEE1, "DONE" in #29845A.
 - Detail panel (fixed height): small dot (theme accent; Polaris success green #29845A when done) before "STEP n · ABOUT x MIN" in muted grey text or "· COMPLETED", title, description (always exactly 2 lines reserved, clamped), primary CTA + "Next step", round ‹ › buttons, faint background icon.
@@ -48,9 +48,14 @@ Heading "Overview", then 4 small cards in one row (2 per row on phones), styled 
 
 Not on the dashboard on purpose: search field count (shown in the banner) and plan (Shopify billing page).
 
+### Over the plan's limits
+When the shop's usage is over its plan (rows, linked products or search fields), a warning `s-banner` sits above the banner: "You're over your plan's limits" — "The {plan} plan allows {limits}. New rows, fields or links are refused until you upgrade or remove some." + **Compare plans** (→ Plans).
+
 ## Data / backend
-`GET /api/dashboard` → `{ storeType, heading, noun, fields[], rowCount, unmatchedCount, productsWithoutFitment, lastImportAt, embedEnabled, blocks{search,fitsBadge,fitmentTable,garage}, planChosen }`. App embed status comes from the theme's `settings_data.json` (Admin API) or is checked on demand.
+The `/app` loader (no separate API): `dashboardFacts` in `app/services/dashboard.server.ts` — row count, distinct SKUs and unlinked SKUs (`rowCounts`), products without filter data, distinct values of the first three list fields, the live theme's status (theme files, same rules as Storefront; unknown when the theme can't be read: "—" and "Couldn't check your theme"), and the plan (`shopPlan`, Partner API). Step texts and cards are pure (`app/services/dashboard.ts`).
+- Step 5 texts: not chosen "Pick the plan that suits your catalog. Starter is free; paid plans start with a 14-day free trial."; on a trial "You are on the {Plan} trial, {n} days left. Change or cancel your plan any time."; otherwise "You are on the {Plan} plan. Change it any time as your catalog grows."
+- "Blocks added" counts the 4 Storefront features: Search section, Fits badge, Fitment table (block, or the code in theme tabs), My Selection (embed on and switched on).
 
 ## Build notes
 - Banner and setup guide are custom components; everything else uses Polaris.
-- Collapsed state of the guide should persist per shop (or per user).
+- The guide's collapsed state is kept per shop in the merchant's browser (localStorage).

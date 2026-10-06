@@ -1,0 +1,39 @@
+/* Plans page (.claude/design/styles: .meter, .plans, .price). Plain Polaris otherwise. */
+.ff-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: #ebebeb;
+  overflow: hidden;
+}
+.ff-meter span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #303030;
+}
+.ff-meter.is-over span {
+  background: #c70a24;
+}
+.ff-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.ff-price {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 750;
+  color: #303030;
+}
+.ff-price span {
+  font-size: 13px;
+  font-weight: 500;
+  color: #616161;
+}
+@media (max-width: 760px) {
+  .ff-plans {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

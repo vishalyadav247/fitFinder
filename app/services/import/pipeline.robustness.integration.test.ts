@@ -87,6 +87,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
       store.failDeletes = false;
       await prisma.shop.deleteMany({ where: { domain: DOMAIN } });
       shopId = (await upsertShopOnInstall(DOMAIN)).id;
+      // Big files, not plan limits (billing.integration.test.ts covers those).
+      await prisma.shop.update({
+        where: { id: shopId },
+        data: { plan: "pro" },
+      });
       await applyStoreType(shopId, "automotive", { replace: false });
     });
 

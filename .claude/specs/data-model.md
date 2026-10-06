@@ -55,4 +55,4 @@ Indexes: (`shop_id`, `attachment`); (`shop_id`, `id`) for Filter data paging and
 | `GET fits?product={id}&{fieldId}={value}…` | `fits` / `no-fit` for the product badge, plus fitment table rows |
 
 ## Webhooks
-`app/uninstalled`, `products/update`, `products/delete`, `app_subscriptions/update`, and the mandatory GDPR topics `customers/data_request`, `customers/redact`, `shop/redact`.
+`app/uninstalled`, `products/create|update|delete`, and the mandatory GDPR topics `customers/data_request`, `customers/redact`, `shop/redact`.
