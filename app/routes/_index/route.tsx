@@ -1,63 +1,45 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { redirect, Form, useActionData, useLoaderData } from "react-router";
-
-import { login } from "../../shopify.server";
-import { loginErrorMessage } from "./error.server";
+// The app URL opened outside the Shopify admin. App Store requirement 2.3.1: no shop-domain field;
+// the app is installed and opened from Shopify only. Links that carry ?shop= go into the app.
+import type { LoaderFunctionArgs } from "react-router";
+import { redirect } from "react-router";
 
 import styles from "./styles.module.css";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-
   if (url.searchParams.get("shop")) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
-
-  return { showForm: Boolean(login) };
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const errors = loginErrorMessage(await login(request));
-
-  return { errors };
+  return null;
 };
 
 export default function App() {
-  const { showForm } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const errors = actionData?.errors;
-
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>FitFinder</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          A &ldquo;find what fits&rdquo; search for your Shopify store: shoppers
+          pick their vehicle, phone or profile and only see the products that
+          fit.
         </p>
-        {showForm && (
-          <Form className={styles.form} method="post">
-            <label className={styles.label}>
-              <span>Shop domain</span>
-              <input className={styles.input} type="text" name="shop" />
-              <span>{errors?.shop ?? "e.g: my-shop-domain.myshopify.com"}</span>
-            </label>
-            <button className={styles.button} type="submit">
-              Log in
-            </button>
-          </Form>
-        )}
+        <p className={styles.text}>
+          Install FitFinder from the Shopify App Store, then open it from your
+          Shopify admin under Apps.
+        </p>
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Search by any fields</strong>. Make, year and model, or
+            brand and device, or anything your catalogue needs.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Import your fitment data</strong>. Upload a CSV in any
+            column layout and check the columns before importing.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Show it in your theme</strong>. A search section, a fits
+            badge and a fitment table on product pages, plus My Selection for
+            returning shoppers.
           </li>
         </ul>
       </div>
