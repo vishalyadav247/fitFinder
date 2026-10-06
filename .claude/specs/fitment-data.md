@@ -13,14 +13,14 @@ Everything about the filter rows on one page, with no tabs: browse and edit rows
 3. **Clean up** card (full width), heading with a small eraser icon (`s-icon type="eraser"` in a soft grey tile).
 
 ### Rows
-- `s-search-field` + **Add row**. The search runs on the server 300 ms after typing stops, across all field values, the years (as `2008-2011`) and the SKU; the table shows 50 rows per page, newest first, with `s-table` pagination (shops can have 700k+ rows).
+- `s-search-field` + **Add row**. The search runs on the server 300 ms after typing stops, across all field values, the years (as `2008-2011`) and the SKU; the table shows rows newest first, paged with the standard table footer (shops can have 700k+ rows).
 - **Add row** opens a modal (`s-modal id="row-modal"`, heading "Add row"): one `s-text-field` per search field in a 2-column grid (year range hint `2015-2020 or 2019-`) + SKU (required); primary **Add row**, secondary **Cancel**.
 - `s-table`: Select checkbox · one column per search field · SKU · Product (`Mapped` success / `Unmatched` warning badge) · actions: **Edit** (pencil) and **Delete** (critical).
 - **Edit** opens the same modal titled "Edit row", filled with the row's values; primary **Save changes**, secondary **Cancel**. If the row is linked, a note says changing the SKU unlinks it. Toast "Row updated".
 - Selecting rows shows a bar: "{n} selected", **Clear selection**, **Export selected** (opens the export modal with Selected rows chosen), **Delete selected** (critical, confirms first).
 - Add/edit follows the import's rules: values are cleaned like imported cells, the Year range is read like a range cell, the SKU and every required field must be filled. Problems show on the fields: "Enter {field}", "Enter a SKU", "Enter a year or a range like 2015-2020 or 2019-", "Use 255 characters or fewer". A row equal to another one is refused with an error toast ("This row already exists." / "Another row already has these values.").
 - Selection is kept across pages and searches, up to 5,000 rows ("You can select up to 5,000 rows at a time.").
-- Footer: "{n} rows" or "{x} of {n} rows match".
+- Footer: the standard table footer (see Product mapping): "Showing {from}–{to} of {n} rows" (while searching "… of {x} matching rows") · previous · "Page {x} of {y}" · next · **Rows per page** 10 / 25 / 50 (default 10; back to page 1). Deleting the last rows of the last page steps back a page.
 - Empty state: "No rows yet" + **Import CSV** (→ Search setup import card). The prototype also shows **Restore sample rows (prototype only)**; the app leaves it out.
 - **Clean up** card: **Remove duplicates**: rows that are the same as an older row apart from upper/lower case and spaces in the values and the SKU (same years); the oldest of each is kept (decided 2026-10-05: exact copies can't exist because rows are unique per shop by their content hash). Card text: "Deletes rows that are the same apart from upper/lower case and spaces, keeping one of each." The button counts first (loading), then opens the confirmation. **Delete all rows** (critical, confirms first; disabled when there are no rows).
 
@@ -49,7 +49,7 @@ Shopify toasts (App Bridge `shopify.toast.show`): "Row added", "Row updated", "R
 Error toasts: "Rows couldn't be loaded. Try again.", "This search took too long. Try a longer or more exact search.", "The export failed. Try again.", "An import is running. Try again when it has finished.", "Your filter data is being changed right now. Try again in a moment.".
 
 ## Data / backend (as built, M5)
-- `GET /api/fitment?q=&page=`: one page of 50 rows (+ `hasNextPage`, and `matching` when searching). Search reads time out after 8 s.
+- `GET /api/fitment?q=&page=&pageSize=`: one page (10 / 25 / 50 rows, default 10; other sizes are refused) (+ `hasNextPage`, and `matching` when searching). Search reads time out after 8 s.
 - Page loader: fields + counts (rows, rows with unlinked SKUs, unlinked SKUs). A row is linked when `product_links` has its attachment.
 - Route action on `/app/filter-data`, intents `add`, `edit` (`rowId`), `delete` (`ids` JSON, `single`), `delete-all`, `dedupe-count`, `dedupe`. Writes take the shop's setup lock (like field changes and imports) and are refused while an import runs.
 - Import: see [search-setup.md](search-setup.md).

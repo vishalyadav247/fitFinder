@@ -25,6 +25,9 @@
   --ff-glow3: rgba(45, 212, 191, 0.2);
   --ff-wm: rgba(2, 132, 199, 0.06);
   --ff-line: #e3e3e3;
+  /* Card lift shared by s-section hosts and the Dashboard overview cards. */
+  --ff-card-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -8px rgba(2, 132, 199, 0.16);
 }
 
 /* Section titles: Polaris heading size, bolder (README rule 1). Used on every page. */
@@ -37,4 +40,74 @@
 }
 .ff-sec-gap {
   margin-bottom: 12px;
+}
+
+/* Light polish (agreed 2026-10-06): a soft Sky-tinted page, lifted cards and icon chips next to
+   section titles. Cards stay Polaris s-section: only the host element is styled (its default
+   display is "contents"), never Polaris' internal --s-*-hash variables. Nested sections and
+   sections in modals keep the plain Polaris look. */
+body {
+  background: linear-gradient(
+      180deg,
+      var(--ff-p-softer) 0,
+      rgba(240, 249, 255, 0) 360px
+    )
+    no-repeat;
+}
+@media (min-width: 490px) {
+  s-section:not(s-section s-section, s-modal s-section) {
+    display: block;
+    border-radius: 12px;
+    box-shadow: var(--ff-card-shadow);
+  }
+}
+.ff-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ff-sec-ico {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--ff-p-soft);
+  color: var(--ff-p); /* the icon itself uses tone="info" */
+}
+
+/* Page title inside the page (PageHeader); the admin title bar shows only the app name. */
+.ff-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ff-page-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+  color: #303030;
+}
+.ff-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* TableFooter: rows per page, right-aligned. */
+.ff-tf-size {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ff-tf-select {
+  inline-size: 76px;
 }

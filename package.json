@@ -21,8 +21,9 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "test": "vitest run",
-    "perf:lighthouse": "node scripts/lighthouse-impact.mjs"
+    "test": "vitest run --project unit",
+    "perf:lighthouse": "node scripts/lighthouse-impact.mjs",
+    "test:e2e": "vitest run --project e2e"
   },
   "type": "module",
   "engines": {

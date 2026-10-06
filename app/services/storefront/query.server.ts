@@ -48,24 +48,24 @@ function timedRead<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
 
 /** The installed shop's search setup, or null (unknown, uninstalled or not set up). */
 export async function shopSearch(domain: string): Promise<ShopSearch | null> {
-  const shop = await prisma.shop.findUnique({
-    where: { domain },
-    select: {
-      id: true,
-      uninstalledAt: true,
-      searchConfig: { select: { dataVersion: true } },
-    },
-  });
-  if (!shop || shop.uninstalledAt || !shop.searchConfig) return null;
-  const fields = await prisma.searchField.findMany({
-    where: { shopId: shop.id },
-    orderBy: { position: "asc" },
-    select: { id: true, label: true, type: true, required: true },
-  });
+  // One statement (every proxy request runs it): Prisma's nested select took three.
+  const [shop] = await prisma.$queryRaw<
+    { id: string; data_version: number; fields: ShopSearch["fields"] }[]
+  >`
+    SELECT s.id, c.data_version,
+           coalesce(json_agg(json_build_object(
+             'id', f.id, 'label', f.label, 'type', f.type, 'required', f.required)
+             ORDER BY f.position, f.id) FILTER (WHERE f.id IS NOT NULL), '[]') AS fields
+    FROM shops s
+    JOIN search_configs c ON c.shop_id = s.id
+    LEFT JOIN search_fields f ON f.shop_id = s.id
+    WHERE s.domain = ${domain} AND s.uninstalled_at IS NULL
+    GROUP BY s.id, c.data_version`;
+  if (!shop) return null;
   return {
     shopId: shop.id,
-    dataVersion: shop.searchConfig.dataVersion,
-    fields,
+    dataVersion: shop.data_version,
+    fields: shop.fields,
   };
 }
 

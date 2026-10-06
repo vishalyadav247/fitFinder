@@ -171,6 +171,15 @@ export function importHistory(shopId: string) {
     where: { shopId, status: "completed" },
     orderBy: { finishedAt: "desc" },
     take: KEEP_FILES,
+    // What the history list shows; not the stored columns/mapping documents.
+    select: {
+      id: true,
+      fileName: true,
+      finishedAt: true,
+      mode: true,
+      totalRows: true,
+      fileKey: true,
+    },
   });
 }
 

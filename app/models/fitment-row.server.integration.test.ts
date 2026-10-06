@@ -135,7 +135,9 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
   }
 
   it("adds a row with the import's hash and refuses an exact copy", async () => {
-    expect(await add("Audi", "2008-2011", "A4", "SKU-1")).toMatchObject({ ok: true });
+    expect(await add("Audi", "2008-2011", "A4", "SKU-1")).toMatchObject({
+      ok: true,
+    });
     const [r] = await rows();
     expect(r.values).toEqual({ [make]: "Audi", [model]: "A4" });
     expect([r.yearFrom, r.yearTo, r.attachment]).toEqual([2008, 2011, "SKU-1"]);
@@ -225,6 +227,43 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
     expect((await listRows(shopId, { q: "_" })).matching).toBe(0);
   });
 
+  it("pages by id (newest first) with the link state of each row, searched or not", async () => {
+    for (let i = 0; i < 7; i++) {
+      await add(i % 2 ? "Audi" : "BMW", "2010", `M${i}`, `SKU-${i}`);
+    }
+    await add("Audi", "2010", "Other shop", "SKU-1", otherShopId);
+    await prisma.productLink.create({
+      data: {
+        shopId,
+        attachment: "SKU-3",
+        kind: "sku",
+        productId: "gid://shopify/Product/3",
+      },
+    });
+    const sku = (p: { rows: { attachment: string; linked: boolean }[] }) =>
+      p.rows.map((r) => `${r.attachment}${r.linked ? "*" : ""}`);
+
+    const second = await listRows(shopId, { page: 2, pageSize: 3 });
+    expect(sku(second)).toEqual(["SKU-3*", "SKU-2", "SKU-1"]);
+    expect(second.hasNextPage).toBe(true);
+    const last = await listRows(shopId, { page: 3, pageSize: 3 });
+    expect(sku(last)).toEqual(["SKU-0"]);
+    expect(last.hasNextPage).toBe(false);
+    const past = await listRows(shopId, { page: 9, pageSize: 3 });
+    expect(past.rows).toEqual([]);
+    expect(past.hasNextPage).toBe(false);
+
+    // Audi rows: SKU-5, SKU-3, SKU-1 (the other shop's Audi row is never listed).
+    const searched = await listRows(shopId, {
+      q: "audi",
+      page: 2,
+      pageSize: 2,
+    });
+    expect(sku(searched)).toEqual(["SKU-1"]);
+    expect(searched.matching).toBe(3);
+    expect(searched.hasNextPage).toBe(false);
+  });
+
   it("marks linked rows and counts unlinked SKUs", async () => {
     await add("Audi", "2010", "A4", "SKU-1");
     await add("Audi", "2011", "A4", "SKU-1");
@@ -297,7 +336,9 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
     // No heartbeat for an hour (updated_at is maintained by Prisma, so set it in SQL).
     await prisma.$executeRaw`
       UPDATE import_jobs SET updated_at = now() - interval '1 hour' WHERE id = ${job.id}`;
-    expect(await add("Audi", "2010", "A4", "SKU-1")).toMatchObject({ ok: true });
+    expect(await add("Audi", "2010", "A4", "SKU-1")).toMatchObject({
+      ok: true,
+    });
     expect(
       (await prisma.importJob.findUniqueOrThrow({ where: { id: job.id } }))
         .status,

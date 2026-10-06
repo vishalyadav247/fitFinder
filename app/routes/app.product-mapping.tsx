@@ -54,7 +54,15 @@ import {
   productLinkAttachment,
 } from "../services/linking/attachment";
 import { cellDisplay, type RowField } from "../services/fitment/rows";
+import { TableFooter } from "../components/TableFooter";
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  TABLE_PAGE_SIZES,
+  tablePageSize,
+} from "../components/table-paging";
 import styles from "../styles/product-mapping.css?url";
+import { SectionTitle } from "../components/SectionTitle";
+import { PageHeader } from "../components/PageHeader";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -68,6 +76,12 @@ const pageParam = (url: URL, key: string) => {
   const n = Number(url.searchParams.get(key) ?? 1);
   return Number.isInteger(n) && n >= 1 && n <= 100_000 ? n : 1;
 };
+
+// Rows per page of each table (?un= ?pn= ?xn=): the admin's table standard (table-paging.ts).
+const sizeParam = (url: URL, key: string) =>
+  tablePageSize(url.searchParams.get(key));
+
+type TableKey = "u" | "p" | "x";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -89,12 +103,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const url = new URL(request.url);
-  const [fields, counts, unlinked, withoutData, universal] = await Promise.all([
-    listRowFields(shop.id),
-    rowCounts(shop.id),
-    unlinkedGroups(shop.id, pageParam(url, "u")),
-    productsWithoutData(shop.id, pageParam(url, "p")),
-    universalProducts(shop.id, pageParam(url, "x")),
+  const read = {
+    u: (page: number) => unlinkedGroups(shop.id, page, sizeParam(url, "un")),
+    p: (page: number) =>
+      productsWithoutData(shop.id, page, sizeParam(url, "pn")),
+    x: (page: number) => universalProducts(shop.id, page, sizeParam(url, "xn")),
+  };
+  const [fields, counts, firstUnlinked, firstWithout, firstUniversal] =
+    await Promise.all([
+      listRowFields(shop.id),
+      rowCounts(shop.id),
+      read.u(pageParam(url, "u")),
+      read.p(pageParam(url, "p")),
+      read.x(pageParam(url, "x")),
+    ]);
+  // Past the last page (e.g. the last item of page 3 was just linked or removed): show the last
+  // page that has items instead of an empty list without paging.
+  const lastPage = async <
+    T extends { page: number; pageSize: number; items: unknown[] },
+  >(
+    list: T,
+    total: number,
+    again: (page: number) => Promise<T>,
+  ) =>
+    list.page > 1 && !list.items.length && total > 0
+      ? again(Math.ceil(total / list.pageSize))
+      : list;
+  const [unlinked, withoutData, universal] = await Promise.all([
+    lastPage(firstUnlinked, counts.unlinkedSkus, read.u),
+    lastPage(firstWithout, firstWithout.total, read.p),
+    lastPage(firstUniversal, firstUniversal.total, read.x),
   ]);
   return {
     noun: config.noun,
@@ -271,22 +309,43 @@ export default function ProductMappingPage() {
   const fetcher = useFetcher<MappingResult>();
   const busy = fetcher.state !== "idle";
   // The table being paged shows its loading state; the others stay as they are.
-  const [pagingKey, setPagingKey] = useState<"u" | "p" | "x" | null>(null);
-  const paging = (key: "u" | "p" | "x") =>
+  const [pagingKey, setPagingKey] = useState<TableKey | null>(null);
+  const paging = (key: TableKey) =>
     navigation.state === "loading" && pagingKey === key;
 
-  const goToPage = (key: "u" | "p" | "x", page: number) => {
+  /** One table's page; a new rows-per-page value starts again at page 1. */
+  const goToPage = (key: TableKey, page: number, size?: number) => {
     setPagingKey(key);
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         if (page <= 1) next.delete(key);
         else next.set(key, String(page));
+        if (size === DEFAULT_TABLE_PAGE_SIZE) next.delete(`${key}n`);
+        else if (size !== undefined) next.set(`${key}n`, String(size));
         return next;
       },
       { preventScrollReset: true },
     );
   };
+
+  const footer = (
+    key: TableKey,
+    list: { page: number; pageSize: number },
+    total: number,
+    what: string,
+  ) => (
+    <TableFooter
+      total={total}
+      page={list.page}
+      pageSize={list.pageSize}
+      pageSizes={TABLE_PAGE_SIZES}
+      noun={what}
+      disabled={paging(key)}
+      onPage={(page) => goToPage(key, page)}
+      onPageSize={(size) => goToPage(key, 1, size)}
+    />
+  );
 
   // ---- Check links again: wait for the run this page started, then toast its result. While a
   // check runs, only the small status endpoint is polled; the lists reload when it has ended.
@@ -400,25 +459,26 @@ export default function ProductMappingPage() {
     );
 
   return (
-    <s-page heading="Product mapping" inlineSize="base">
-      <s-button
-        slot="primary-action"
-        variant="primary"
-        icon="refresh"
-        loading={
-          checking || (busy && fetcher.formData?.get("intent") === "check")
-        }
-        onClick={() => submit({ intent: "check" })}
-      >
-        Check links again
-      </s-button>
+    <s-page inlineSize="base">
+      <PageHeader title="Product mapping">
+        <s-button
+          variant="primary"
+          icon="refresh"
+          loading={
+            checking || (busy && fetcher.formData?.get("intent") === "check")
+          }
+          onClick={() => submit({ intent: "check" })}
+        >
+          Check links again
+        </s-button>
+      </PageHeader>
 
       <s-stack gap="base">
         <s-section padding="none" accessibilityLabel="Unlinked rows">
           <s-box padding="base">
             <s-stack gap="small-100">
               <s-stack direction="inline" gap="small-200" alignItems="center">
-                <h2 className="ff-sec-title">Unlinked rows</h2>
+                <SectionTitle icon="link">Unlinked rows</SectionTitle>
                 {!firstLoad && (
                   <s-badge tone={unlinkedCount ? "warning" : "success"}>
                     {unlinkedCount.toLocaleString("en-US")} to link
@@ -437,45 +497,44 @@ export default function ProductMappingPage() {
               <s-text color="subdued">{notLoaded}</s-text>
             </s-box>
           ) : unlinked.items.length ? (
-            <s-table
-              paginate={unlinked.page > 1 || unlinked.hasNextPage}
-              loading={paging("u")}
-              hasPreviousPage={unlinked.page > 1}
-              hasNextPage={unlinked.hasNextPage}
-              onPreviousPage={() => goToPage("u", unlinked.page - 1)}
-              onNextPage={() => goToPage("u", unlinked.page + 1)}
-            >
-              <s-table-header-row>
-                <s-table-header listSlot="primary">Attachment</s-table-header>
-                <s-table-header>Type</s-table-header>
-                <s-table-header>Fits</s-table-header>
-                <s-table-header format="numeric">Rows</s-table-header>
-                <s-table-header>Action</s-table-header>
-              </s-table-header-row>
-              <s-table-body>
-                {unlinked.items.map((g) => (
-                  <s-table-row key={g.attachment}>
-                    <s-table-cell>
-                      <s-text type="strong">{g.attachment}</s-text>
-                    </s-table-cell>
-                    <s-table-cell>{kindLabel(g.kind)}</s-table-cell>
-                    <s-table-cell>
-                      <s-text color="subdued">{fitsText(fields, g)}</s-text>
-                    </s-table-cell>
-                    <s-table-cell>
-                      {g.rows.toLocaleString("en-US")}
-                    </s-table-cell>
-                    <s-table-cell>
-                      <s-button disabled={busy} onClick={() => void choose(g)}>
-                        {g.kind === "collection"
-                          ? "Choose collection"
-                          : "Choose product"}
-                      </s-button>
-                    </s-table-cell>
-                  </s-table-row>
-                ))}
-              </s-table-body>
-            </s-table>
+            <>
+              <s-table loading={paging("u")}>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Attachment</s-table-header>
+                  <s-table-header>Type</s-table-header>
+                  <s-table-header>Fits</s-table-header>
+                  <s-table-header format="numeric">Rows</s-table-header>
+                  <s-table-header>Action</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {unlinked.items.map((g) => (
+                    <s-table-row key={g.attachment}>
+                      <s-table-cell>
+                        <s-text type="strong">{g.attachment}</s-text>
+                      </s-table-cell>
+                      <s-table-cell>{kindLabel(g.kind)}</s-table-cell>
+                      <s-table-cell>
+                        <s-text color="subdued">{fitsText(fields, g)}</s-text>
+                      </s-table-cell>
+                      <s-table-cell>
+                        {g.rows.toLocaleString("en-US")}
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-button
+                          disabled={busy}
+                          onClick={() => void choose(g)}
+                        >
+                          {g.kind === "collection"
+                            ? "Choose collection"
+                            : "Choose product"}
+                        </s-button>
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+              {footer("u", unlinked, unlinkedCount, "attachments")}
+            </>
           ) : (
             <s-box padding="base" paddingBlockStart="none">
               <s-banner
@@ -493,7 +552,9 @@ export default function ProductMappingPage() {
           <s-box padding="base">
             <s-stack gap="small-100">
               <s-stack direction="inline" gap="small-200" alignItems="center">
-                <h2 className="ff-sec-title">Products without filter data</h2>
+                <SectionTitle icon="product">
+                  Products without filter data
+                </SectionTitle>
                 {!firstLoad && (
                   <s-badge tone={withoutData.total ? "warning" : "success"}>
                     {withoutData.total.toLocaleString("en-US")} products
@@ -512,49 +573,45 @@ export default function ProductMappingPage() {
               <s-text color="subdued">{notLoaded}</s-text>
             </s-box>
           ) : withoutData.items.length ? (
-            <s-table
-              paginate={withoutData.page > 1 || withoutData.hasNextPage}
-              loading={paging("p")}
-              hasPreviousPage={withoutData.page > 1}
-              hasNextPage={withoutData.hasNextPage}
-              onPreviousPage={() => goToPage("p", withoutData.page - 1)}
-              onNextPage={() => goToPage("p", withoutData.page + 1)}
-            >
-              <s-table-header-row>
-                <s-table-header listSlot="primary">Product</s-table-header>
-                <s-table-header>SKU</s-table-header>
-                <s-table-header>Action</s-table-header>
-              </s-table-header-row>
-              <s-table-body>
-                {withoutData.items.map((p) => (
-                  <s-table-row key={p.productId}>
-                    <s-table-cell>
-                      <s-text type="strong">{p.title}</s-text>
-                    </s-table-cell>
-                    <s-table-cell>{p.sku || "—"}</s-table-cell>
-                    <s-table-cell>
-                      <s-stack direction="inline" gap="small-200">
-                        <s-button onClick={() => addRow(p)}>
-                          Add filter row
-                        </s-button>
-                        <s-button
-                          variant="tertiary"
-                          disabled={busy}
-                          onClick={() =>
-                            submit({
-                              intent: "universal-mark",
-                              productId: p.productId,
-                            })
-                          }
-                        >
-                          Mark as universal
-                        </s-button>
-                      </s-stack>
-                    </s-table-cell>
-                  </s-table-row>
-                ))}
-              </s-table-body>
-            </s-table>
+            <>
+              <s-table loading={paging("p")}>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Product</s-table-header>
+                  <s-table-header>SKU</s-table-header>
+                  <s-table-header>Action</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {withoutData.items.map((p) => (
+                    <s-table-row key={p.productId}>
+                      <s-table-cell>
+                        <s-text type="strong">{p.title}</s-text>
+                      </s-table-cell>
+                      <s-table-cell>{p.sku || "—"}</s-table-cell>
+                      <s-table-cell>
+                        <s-stack direction="inline" gap="small-200">
+                          <s-button onClick={() => addRow(p)}>
+                            Add filter row
+                          </s-button>
+                          <s-button
+                            variant="tertiary"
+                            disabled={busy}
+                            onClick={() =>
+                              submit({
+                                intent: "universal-mark",
+                                productId: p.productId,
+                              })
+                            }
+                          >
+                            Mark as universal
+                          </s-button>
+                        </s-stack>
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+              {footer("p", withoutData, withoutData.total, "products")}
+            </>
           ) : (
             <s-box padding="base" paddingBlockStart="none">
               <s-banner
@@ -573,7 +630,7 @@ export default function ProductMappingPage() {
               alignItems="center"
             >
               <s-stack gap="small-100">
-                <h2 className="ff-sec-title">Universal products</h2>
+                <SectionTitle icon="globe">Universal products</SectionTitle>
                 <s-text color="subdued">
                   Shown in every search result, whatever the shopper picks. For
                   example tools, cleaning kits or cables.
@@ -589,46 +646,42 @@ export default function ProductMappingPage() {
             </s-grid>
           </s-box>
           {universal.items.length ? (
-            <s-table
-              paginate={universal.page > 1 || universal.hasNextPage}
-              loading={paging("x")}
-              hasPreviousPage={universal.page > 1}
-              hasNextPage={universal.hasNextPage}
-              onPreviousPage={() => goToPage("x", universal.page - 1)}
-              onNextPage={() => goToPage("x", universal.page + 1)}
-            >
-              <s-table-header-row>
-                <s-table-header listSlot="primary">Product</s-table-header>
-                <s-table-header>SKU</s-table-header>
-                <s-table-header>Action</s-table-header>
-              </s-table-header-row>
-              <s-table-body>
-                {universal.items.map((p) => (
-                  <s-table-row key={p.productId}>
-                    <s-table-cell>
-                      <s-text type="strong">
-                        {p.title || "Unknown product"}
-                      </s-text>
-                    </s-table-cell>
-                    <s-table-cell>{p.sku || "—"}</s-table-cell>
-                    <s-table-cell>
-                      <s-button
-                        variant="tertiary"
-                        disabled={busy}
-                        onClick={() =>
-                          submit({
-                            intent: "universal-remove",
-                            productId: p.productId,
-                          })
-                        }
-                      >
-                        Remove
-                      </s-button>
-                    </s-table-cell>
-                  </s-table-row>
-                ))}
-              </s-table-body>
-            </s-table>
+            <>
+              <s-table loading={paging("x")}>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Product</s-table-header>
+                  <s-table-header>SKU</s-table-header>
+                  <s-table-header>Action</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {universal.items.map((p) => (
+                    <s-table-row key={p.productId}>
+                      <s-table-cell>
+                        <s-text type="strong">
+                          {p.title || "Unknown product"}
+                        </s-text>
+                      </s-table-cell>
+                      <s-table-cell>{p.sku || "—"}</s-table-cell>
+                      <s-table-cell>
+                        <s-button
+                          variant="tertiary"
+                          disabled={busy}
+                          onClick={() =>
+                            submit({
+                              intent: "universal-remove",
+                              productId: p.productId,
+                            })
+                          }
+                        >
+                          Remove
+                        </s-button>
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+              {footer("x", universal, universal.total, "products")}
+            </>
           ) : (
             <s-box padding="base" paddingBlockStart="none">
               <s-text color="subdued">No universal products yet.</s-text>

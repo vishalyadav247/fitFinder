@@ -17,6 +17,8 @@ import {
   type Plan,
 } from "../services/billing";
 import styles from "../styles/plans.css?url";
+import { SectionTitle } from "../components/SectionTitle";
+import { PageHeader } from "../components/PageHeader";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -81,7 +83,8 @@ export default function PlansPage() {
     p.month === 0 ? "" : yearly ? " / year" : " / month";
 
   return (
-    <s-page heading="Plans" inlineSize="base">
+    <s-page inlineSize="base">
+      <PageHeader title="Plans" />
       <s-stack gap="base">
         {!data.connected && (
           <s-banner tone="warning" heading="Plans can't be changed here yet">
@@ -102,7 +105,9 @@ export default function PlansPage() {
           >
             <s-stack gap="small-200">
               <s-stack direction="inline" gap="small-200" alignItems="center">
-                <h2 className="ff-sec-title">Your plan: {current.name}</h2>
+                <SectionTitle icon="plan">
+                  Your plan: {current.name}
+                </SectionTitle>
                 {data.chosen && data.trialDays > 0 && (
                   <s-badge tone="info">
                     {`Free trial · ${data.trialDays} day${data.trialDays === 1 ? "" : "s"} left`}
@@ -155,45 +160,52 @@ export default function PlansPage() {
             const isCurrent = data.chosen && p === current;
             return (
               <s-section key={p.key} accessibilityLabel={p.name}>
-                <s-stack gap="base">
-                  <s-stack
-                    direction="inline"
-                    gap="small-200"
-                    alignItems="center"
-                  >
-                    <h2 className="ff-sec-title">{p.name}</h2>
-                    {isCurrent && (
-                      <s-badge tone="success">Current plan</s-badge>
-                    )}
-                  </s-stack>
-                  <p className="ff-price">
-                    {price(p)}
-                    <span>{per(p)}</span>
-                  </p>
-                  <s-text color="subdued">{p.sub}</s-text>
-                  <s-unordered-list>
-                    {p.items.map((x) => (
-                      <s-list-item key={x}>{x}</s-list-item>
-                    ))}
-                  </s-unordered-list>
-                  {isCurrent ? (
-                    <s-button disabled>Current plan</s-button>
-                  ) : (
-                    <s-button
-                      variant={
-                        i > currentIndex || !data.chosen ? "primary" : undefined
-                      }
-                      disabled={!data.connected || !data.planUrl}
-                      onClick={openPlans}
+                <div className="ff-plan">
+                  <s-stack gap="base">
+                    <s-stack
+                      direction="inline"
+                      gap="small-200"
+                      alignItems="center"
                     >
-                      {!data.chosen
-                        ? `Choose ${p.name}`
-                        : i > currentIndex
-                          ? `Upgrade to ${p.name}`
-                          : `Switch to ${p.name}`}
-                    </s-button>
-                  )}
-                </s-stack>
+                      <h2 className="ff-sec-title">{p.name}</h2>
+                      {isCurrent && (
+                        <s-badge tone="success">Current plan</s-badge>
+                      )}
+                    </s-stack>
+                    <p className="ff-price">
+                      {price(p)}
+                      <span>{per(p)}</span>
+                    </p>
+                    <s-text color="subdued">{p.sub}</s-text>
+                    <s-unordered-list>
+                      {p.items.map((x) => (
+                        <s-list-item key={x}>{x}</s-list-item>
+                      ))}
+                    </s-unordered-list>
+                  </s-stack>
+                  {/* Bottom of the card, so the buttons line up across plans. */}
+                  <div className="ff-plan-cta">
+                    {isCurrent ? (
+                      <s-button disabled>Current plan</s-button>
+                    ) : (
+                      <s-button
+                        variant={
+                          i > currentIndex || !data.chosen
+                            ? "primary"
+                            : undefined
+                        }
+                        disabled={!data.connected || !data.planUrl}
+                        onClick={openPlans}
+                      >
+                        {!data.chosen
+                          ? `Choose ${p.name}`
+                          : i > currentIndex
+                            ? `Upgrade to ${p.name}`
+                            : `Switch to ${p.name}`}
+                      </s-button>
+                    )}
+                  </div>
+                </div>
               </s-section>
             );
           })}

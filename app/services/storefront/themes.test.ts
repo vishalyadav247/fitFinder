@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeTheme,
   editorLinks,
+  isThemeAccessError,
   ourBlock,
   parseThemeJson,
   sortThemes,
@@ -174,5 +175,43 @@ describe("themes and links", () => {
     );
     expect(l.view("product.alt")).toBe(`${base}?template=product.alt`);
     expect(l.view("")).toBe(base);
+  });
+});
+
+describe("isThemeAccessError", () => {
+  it("finds ACCESS_DENIED in a GraphqlQueryError body", () => {
+    const error = Object.assign(
+      new Error(
+        "GraphQL Client: An error occurred while fetching from the API. Review 'graphQLErrors' for details.",
+      ),
+      {
+        body: {
+          errors: {
+            graphQLErrors: [
+              {
+                message: "Access denied for themes field.",
+                extensions: { code: "ACCESS_DENIED" },
+              },
+            ],
+          },
+        },
+      },
+    );
+    expect(isThemeAccessError(error)).toBe(true);
+  });
+
+  it("finds it in gqlData's own error message", () => {
+    expect(
+      isThemeAccessError(
+        new Error(
+          'Admin API error: [{"message":"Access denied for themes field. Required access: `read_themes` access scope.","extensions":{"code":"ACCESS_DENIED"}}]',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for other failures", () => {
+    expect(isThemeAccessError(new Error("fetch failed"))).toBe(false);
+    expect(isThemeAccessError(null)).toBe(false);
   });
 });

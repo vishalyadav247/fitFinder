@@ -1,34 +1,17 @@
 // One live preview of the Storefront page: an iframe with the real theme script and stylesheet
-// (preview-doc.ts). Rebuilt shortly after a setting changes; the scripts' app proxy calls for
-// dropdown options and results go to /api/storefront-preview.
+// (preview-doc.ts; the files come from the loader, see preview-assets.server.ts). Rebuilt shortly
+// after a setting changes; the scripts' app proxy calls for dropdown options and results go to
+// /api/storefront-preview.
 import { useEffect, useRef, useState } from "react";
-import embedCss from "../../../extensions/fitfinder-theme/assets/ff-embed.css?raw";
-import searchCss from "../../../extensions/fitfinder-theme/assets/ff-search.css?raw";
-import productCss from "../../../extensions/fitfinder-theme/assets/ff-product.css?raw";
-import searchJs from "../../../extensions/fitfinder-theme/assets/ff-search.js?raw";
-import productJs from "../../../extensions/fitfinder-theme/assets/ff-product.js?raw";
-import embedJs from "../../../extensions/fitfinder-theme/assets/ff-embed.js?raw";
 import type { StorefrontConfig } from "../../services/storefront/config";
 import {
+  previewCss,
   previewDoc,
+  previewScript,
+  type PreviewAssets,
   type PreviewKind,
   type PreviewSampleData,
 } from "./preview-doc";
-
-const SCRIPTS: Record<PreviewKind, string> = {
-  search: searchJs,
-  badge: productJs,
-  table: productJs,
-  selection: embedJs,
-};
-
-// The stylesheets a page with that feature loads on the storefront (embed + block).
-const STYLES: Record<PreviewKind, string> = {
-  search: embedCss + searchCss,
-  badge: embedCss + productCss,
-  table: embedCss + productCss,
-  selection: embedCss,
-};
 
 const PATHS = new Set(["options", "results"]);
 const REBUILD_MS = 150;
@@ -40,11 +23,14 @@ export function StorefrontPreview({
   kind,
   config,
   sample,
+  assets,
   title,
   picks,
   onPicks,
 }: {
   kind: PreviewKind;
+  /** The theme's scripts and stylesheets (loader data, preview-assets.server.ts). */
+  assets: PreviewAssets;
   config: StorefrontConfig;
   sample: PreviewSampleData;
   title: string;
@@ -57,8 +43,8 @@ export function StorefrontPreview({
     previewDoc({
       kind,
       config,
-      css: STYLES[kind],
-      script: SCRIPTS[kind],
+      css: previewCss(kind, assets),
+      script: previewScript(kind, assets),
       sample,
       picks: picks?.current,
     });

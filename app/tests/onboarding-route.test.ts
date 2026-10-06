@@ -17,7 +17,12 @@ vi.mock("../shopify.server", () => ({
 vi.mock("../models/shop.server", () => ({
   ensureShop: vi.fn(async () => ({ id: "shop_1" })),
 }));
-vi.mock("../services/billing.server", () => ({ shopPlan: vi.fn(async () => ({})) }));
+vi.mock("../services/billing.server", () => ({
+  shopPlan: vi.fn(async () => ({})),
+}));
+vi.mock("../services/storefront/sync.server", () => ({
+  publishStorefrontConfig: vi.fn(async () => false),
+}));
 vi.mock("../models/search-config.server", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("../models/search-config.server")>();

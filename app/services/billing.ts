@@ -53,12 +53,7 @@ export const PLANS: Plan[] = [
     month: 99,
     limits: { rows: Infinity, products: Infinity },
     sub: "Unlimited products and rows",
-    items: [
-      "Everything in Growth",
-      "Scheduled imports from a supplier feed",
-      "Search analytics",
-      "Priority support",
-    ],
+    items: ["Everything in Growth", "Priority support"],
   },
 ];
 

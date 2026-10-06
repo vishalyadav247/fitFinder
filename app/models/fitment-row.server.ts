@@ -17,6 +17,7 @@ import { overLimitMessage } from "../services/billing.server";
 
 type Tx = Prisma.TransactionClient;
 
+/** Rows per page when the caller doesn't say (Filter data sends its own, table-paging.ts). */
 export const PAGE_SIZE = 50;
 /** Most rows one bulk delete or "Selected rows" export takes. */
 export const MAX_QUERY = 100;
@@ -181,23 +182,33 @@ async function timedRead<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
 /** One page of rows, newest first, optionally filtered by a search query. */
 export async function listRows(
   shopId: string,
-  { q = "", page = 1 }: { q?: string; page?: number },
+  {
+    q = "",
+    page = 1,
+    pageSize = PAGE_SIZE,
+  }: { q?: string; page?: number; pageSize?: number },
 ): Promise<RowPage> {
   const query = q.trim().slice(0, MAX_QUERY);
   const filter = query
     ? Prisma.sql`AND ${searchText("f")} ILIKE ${likePattern(query)}`
     : Prisma.empty;
-  const offset = (page - 1) * PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
   // Each typed query scans the shop's rows; stop runaway scans (huge shops, a browser that
   // already moved on) instead of letting them load the shared database.
+  // The page's ids first (an array, so the rows are then fetched by id under any plan), then
+  // their link state: with a plain OFFSET every skipped row got its link lookup too (4 s for the
+  // last page of 727k rows, now 0.2 s).
   const [rows, matching] = await Promise.all([
     timedRead(
       (tx) => tx.$queryRaw<DbRow[]>`
         SELECT f.id, f."values", f.year_from, f.year_to, f.attachment, ${linkedSql("f")} AS linked
         FROM fitment_rows f
-        WHERE f.shop_id = ${shopId} ${filter}
-        ORDER BY f.id DESC
-        LIMIT ${PAGE_SIZE + 1} OFFSET ${offset}`,
+        WHERE f.shop_id = ${shopId} AND f.id = ANY(ARRAY(
+          SELECT f.id FROM fitment_rows f
+          WHERE f.shop_id = ${shopId} ${filter}
+          ORDER BY f.id DESC
+          LIMIT ${pageSize + 1} OFFSET ${offset}))
+        ORDER BY f.id DESC`,
     ),
     query
       ? timedRead(
@@ -208,9 +219,9 @@ export async function listRows(
       : Promise.resolve(null),
   ]);
   return {
-    rows: rows.slice(0, PAGE_SIZE).map(toView),
+    rows: rows.slice(0, pageSize).map(toView),
     page,
-    hasNextPage: rows.length > PAGE_SIZE,
+    hasNextPage: rows.length > pageSize,
     matching,
   };
 }

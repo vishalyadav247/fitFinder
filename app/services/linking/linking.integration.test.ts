@@ -278,6 +278,32 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
       ["Gamma", ""],
     ]);
     expect(without.total).toBe(2);
+    expect(without.hasNextPage).toBe(false);
+
+    // Paged: one per page, the total on every page, also past the last one.
+    const firstOfTwo = await mapping.productsWithoutData(shopId, 1, 1);
+    expect(firstOfTwo.items.map((p) => [p.title, p.sku])).toEqual([
+      ["Beta", "B"],
+    ]);
+    expect([firstOfTwo.total, firstOfTwo.hasNextPage]).toEqual([2, true]);
+    const secondOfTwo = await mapping.productsWithoutData(shopId, 2, 1);
+    expect(secondOfTwo.items.map((p) => [p.title, p.sku])).toEqual([
+      ["Gamma", ""],
+    ]);
+    expect([secondOfTwo.total, secondOfTwo.hasNextPage]).toEqual([2, false]);
+    const pastLast = await mapping.productsWithoutData(shopId, 5, 1);
+    expect([pastLast.items, pastLast.total]).toEqual([[], 2]);
+
+    const unlinkedSecond = await mapping.unlinkedGroups(shopId, 2, 1);
+    expect(
+      unlinkedSecond.items.map((g) => [
+        g.attachment,
+        g.rows,
+        g.first.values[make],
+      ]),
+    ).toEqual([["Y", 1, "Seat"]]);
+    expect(unlinkedSecond.hasNextPage).toBe(false);
+    expect((await mapping.unlinkedGroups(shopId, 3, 1)).items).toEqual([]);
 
     await mapping.addUniversal(shopId, [P(3)]);
     expect((await mapping.productsWithoutData(shopId, 1)).total).toBe(1);

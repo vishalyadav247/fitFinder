@@ -21,6 +21,8 @@ import {
   templateCsv,
   uploadAndCreate,
 } from "./client";
+import { SectionTitle } from "../SectionTitle";
+import { Icon } from "../Icon";
 
 type Mode = ImportJobView["mode"];
 
@@ -200,9 +202,9 @@ export function ImportCard({
   return (
     <div ref={cardRef}>
       <s-section accessibilityLabel="Import CSV">
-        <h2 className="ff-sec-title" style={{ marginBottom: 12 }}>
+        <SectionTitle icon="import" gap>
           Import CSV
-        </h2>
+        </SectionTitle>
         <s-stack gap="large">
           <ol className="ff-stepper" aria-label="Import steps">
             {STEPS.map((label, i) => {
@@ -222,7 +224,11 @@ export function ImportCard({
                 >
                   <span className="stp">
                     <span className="dot">
-                      {done ? <s-icon type="check" size="small" /> : i + 1}
+                      {done ? (
+                        <Icon name="check" size={16} stroke={2.6} />
+                      ) : (
+                        i + 1
+                      )}
                     </span>
                     <span className="lab">{label}</span>
                   </span>
@@ -235,6 +241,7 @@ export function ImportCard({
             <UploadStep
               mode={mode}
               setMode={setMode}
+              file={file}
               setFile={setFile}
               fields={fields}
               onRejected={() => toastError("Choose a .csv or .csv.gz file.")}
@@ -279,7 +286,13 @@ export function ImportCard({
                 Cancel import
               </s-button>
               {step < 3 ? (
-                <s-button variant="primary" loading={busy} onClick={next}>
+                <s-button
+                  variant="primary"
+                  loading={busy}
+                  // Step 1 needs a usable file first (the chosen file shows above).
+                  disabled={step === 1 && (!file || !!fileProblem(file))}
+                  onClick={next}
+                >
                   Next
                 </s-button>
               ) : destructive ? (
@@ -345,27 +358,38 @@ export function ImportCard({
 
 // ------------------------------------------------------------ step 1
 
+const fileSize = (bytes: number) =>
+  bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("en-US")} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
 function UploadStep({
   mode,
   setMode,
+  file,
   setFile,
   fields,
   onRejected,
 }: {
   mode: Mode;
   setMode: (m: Mode) => void;
+  file: File | null;
   setFile: (f: File | null) => void;
   fields: MapField[];
   onRejected: () => void;
 }) {
   return (
     <s-stack gap="base">
-      <s-drop-zone
-        label="Upload a .csv or .csv.gz file, up to 100 MB"
-        accept=".csv,.gz"
-        onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
-        onDropRejected={onRejected}
-      />
+      {file ? (
+        <ChosenFile file={file} onChange={() => setFile(null)} />
+      ) : (
+        <s-drop-zone
+          label="Upload a .csv or .csv.gz file, up to 100 MB"
+          accept=".csv,.gz"
+          onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
+          onDropRejected={onRejected}
+        />
+      )}
       <s-stack direction="inline" gap="small" alignItems="center">
         <s-text color="subdued">Not sure about the format?</s-text>
         <s-button
@@ -408,6 +432,27 @@ function UploadStep({
         </s-choice>
       </s-choice-list>
     </s-stack>
+  );
+}
+
+/** The file picked in step 1: name and size with a tick, or what's wrong with it. */
+function ChosenFile({ file, onChange }: { file: File; onChange: () => void }) {
+  const problem = fileProblem(file);
+  return (
+    <div className={problem ? "ff-file is-bad" : "ff-file"}>
+      <span className="ff-file__ico" aria-hidden="true">
+        {problem ? "!" : <Icon name="check" size={18} stroke={2.6} />}
+      </span>
+      <span className="ff-file__text">
+        <s-text type="strong">{file.name}</s-text>
+        <s-text color="subdued">
+          {problem ?? `${fileSize(file.size)} · Ready to import. Click Next.`}
+        </s-text>
+      </span>
+      <s-button icon="replace" onClick={onChange}>
+        Change file
+      </s-button>
+    </div>
   );
 }
 

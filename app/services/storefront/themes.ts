@@ -204,3 +204,20 @@ export function editorLinks(shop: string, themeId: string, apiKey: string) {
     product: q({ template: "product" }),
   };
 }
+
+/**
+ * The store hasn't granted read_themes (the scope was added after it installed the app). The
+ * Admin API client may throw a generic GraphqlQueryError with the ACCESS_DENIED details in its
+ * body, or gqlData throws its own error with them in the message: look at both.
+ */
+export function isThemeAccessError(error: unknown): boolean {
+  const parts = [String(error)];
+  try {
+    parts.push(
+      JSON.stringify((error as { body?: unknown } | null)?.body ?? ""),
+    );
+  } catch {
+    // circular body: the message alone decides
+  }
+  return /ACCESS_DENIED|read_themes/.test(parts.join(" "));
+}

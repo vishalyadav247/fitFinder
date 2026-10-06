@@ -9,7 +9,7 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: #303030;
+  background: linear-gradient(90deg, var(--ff-p-400), var(--ff-p));
 }
 .ff-meter.is-over span {
   background: #c70a24;
@@ -19,6 +19,20 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
+}
+/* Equal-height plan cards: as a grid, the s-section host stretches Polaris' card to its full
+   height; the button sits at the bottom of each card. */
+.ff-plans > s-section {
+  display: grid;
+}
+.ff-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+.ff-plan-cta {
+  margin-top: auto;
 }
 .ff-price {
   margin: 0;

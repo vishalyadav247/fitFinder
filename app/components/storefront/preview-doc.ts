@@ -157,11 +157,15 @@ export function bridge(init: BridgeInit) {
     }
   });
 
-  const report = () =>
-    parent.postMessage(
-      { ff: "height", h: document.documentElement.scrollHeight },
-      "*",
-    );
+  // The body's own height, not the document's scroll height: that one is never less than the
+  // iframe, so the preview could grow but never shrink back (e.g. mobile → desktop).
+  let last = -1;
+  const report = () => {
+    const h = Math.ceil(document.body.getBoundingClientRect().height);
+    if (h === last) return;
+    last = h;
+    parent.postMessage({ ff: "height", h }, "*");
+  };
   addEventListener("DOMContentLoaded", () => {
     report();
     if (typeof ResizeObserver === "function") {
@@ -187,6 +191,7 @@ const esc = (s: string) =>
 
 const HARNESS_CSS = `
 html,body{margin:0;background:transparent;color:#1a1a1a;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif}
+html{overflow:hidden}
 body{padding:2px}
 [hidden]{display:none!important}
 .pv-cap{margin:12px 0 6px;font-size:11px;font-weight:600;color:#8a8a8a;text-transform:uppercase;letter-spacing:.04em}
@@ -209,6 +214,30 @@ body{padding:2px}
 .pv-empty{margin:0;font-size:13px;color:#737373}
 body.pv-selection{height:100vh;padding:0;background:#fff;overflow:hidden}
 `;
+
+/** The theme extension's built files, each sent once (preview-assets.server.ts). */
+export interface PreviewAssets {
+  embedCss: string;
+  searchCss: string;
+  productCss: string;
+  searchJs: string;
+  productJs: string;
+  embedJs: string;
+}
+
+/** The script a page with that feature runs on the storefront. */
+export function previewScript(kind: PreviewKind, a: PreviewAssets): string {
+  if (kind === "search") return a.searchJs;
+  if (kind === "selection") return a.embedJs;
+  return a.productJs;
+}
+
+/** The stylesheets a page with that feature loads on the storefront (embed + block). */
+export function previewCss(kind: PreviewKind, a: PreviewAssets): string {
+  if (kind === "search") return a.embedCss + a.searchCss;
+  if (kind === "selection") return a.embedCss;
+  return a.embedCss + a.productCss;
+}
 
 export interface PreviewSampleData {
   rows: FitRow[];

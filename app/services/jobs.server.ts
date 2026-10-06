@@ -48,7 +48,8 @@ function connect(): Promise<PgBoss> {
     global.fitfinderBoss = (async () => {
       const boss = new PgBoss({
         connectionString: process.env.DATABASE_URL,
-        schema: "pgboss",
+        // PGBOSS_SCHEMA: the end-to-end tests use their own queues, apart from a running dev server.
+        schema: process.env.PGBOSS_SCHEMA || "pgboss",
         application_name: "fitfinder-jobs",
       });
       boss.on("error", (error) => console.error("pg-boss error", error));
@@ -180,23 +181,27 @@ export function startWorkers(): Promise<void> {
         { localConcurrency: 2 },
         async ([job]) => syncProduct(job.data.shopId, job.data.productId),
       );
-      // Uninstalled shops are deleted 30 days later (purge.server.ts). Once a day, at 03:15 UTC;
-      // pg-boss runs a schedule once across all processes.
-      await boss.work(QUEUES.purge, { localConcurrency: 1 }, async () => {
-        await purgeUninstalledShops();
-      });
-      await boss.schedule(QUEUES.purge, PURGE_CRON, null, {
-        tz: "UTC",
-        // A run missed while the app was down (e.g. a deploy at 03:15) still happens once.
-        missed: "once",
-      });
-      // Jobs left behind by a crash or redeploy stop locking their shop.
-      const sweep = () =>
-        sweepStale().catch((error) =>
-          console.error("stale import sweep failed", error),
-        );
-      await sweep();
-      setInterval(sweep, 60_000).unref();
+      // JOBS_SCHEDULES=false (end-to-end tests): no daily purge and no sweep of every shop's
+      // imports; those act on the whole database, not just the test's shops.
+      if (process.env.JOBS_SCHEDULES !== "false") {
+        // Uninstalled shops are deleted 30 days later (purge.server.ts). Once a day, at 03:15 UTC;
+        // pg-boss runs a schedule once across all processes.
+        await boss.work(QUEUES.purge, { localConcurrency: 1 }, async () => {
+          await purgeUninstalledShops();
+        });
+        await boss.schedule(QUEUES.purge, PURGE_CRON, null, {
+          tz: "UTC",
+          // A run missed while the app was down (e.g. a deploy at 03:15) still happens once.
+          missed: "once",
+        });
+        // Jobs left behind by a crash or redeploy stop locking their shop.
+        const sweep = () =>
+          sweepStale().catch((error) =>
+            console.error("stale import sweep failed", error),
+          );
+        await sweep();
+        setInterval(sweep, 60_000).unref();
+      }
       console.log("FitFinder job workers started");
     })();
     global.fitfinderWorkers.catch((error) => {

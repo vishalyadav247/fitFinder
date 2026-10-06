@@ -1,7 +1,11 @@
 // Filter data › rows table: one page of rows, optionally searched (specs/fitment-data.md).
-// GET /api/fitment?q=&page=  (session token; the admin fetches it as you type)
+// GET /api/fitment?q=&page=&pageSize=  (session token; the admin fetches it as you type)
 import type { LoaderFunctionArgs } from "react-router";
 import { z } from "zod";
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  TABLE_PAGE_SIZES,
+} from "../components/table-paging";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import {
@@ -13,6 +17,11 @@ import {
 const querySchema = z.object({
   q: z.string().max(MAX_QUERY).default(""),
   page: z.coerce.number().int().min(1).max(100_000).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .refine((n) => (TABLE_PAGE_SIZES as readonly number[]).includes(n))
+    .default(DEFAULT_TABLE_PAGE_SIZE),
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

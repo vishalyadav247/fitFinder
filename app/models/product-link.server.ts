@@ -102,6 +102,7 @@ export interface UnlinkedGroup {
 export interface Paged<T> {
   items: T[];
   page: number;
+  pageSize: number;
   hasNextPage: boolean;
 }
 
@@ -109,7 +110,10 @@ export interface Paged<T> {
 export async function unlinkedGroups(
   shopId: string,
   page: number,
+  pageSize: number = MAPPING_PAGE_SIZE,
 ): Promise<Paged<UnlinkedGroup>> {
+  // Each group's first row is fetched by id (LATERAL … LIMIT 1) for the page's groups only, under
+  // any plan: a prepared statement's generic plan merge-joined the whole table instead.
   const groups = await timedRead(
     (tx) => tx.$queryRaw<
       {
@@ -128,20 +132,24 @@ export async function unlinkedGroups(
         WHERE f.shop_id = ${shopId} AND p.attachment IS NULL
         GROUP BY f.attachment
         ORDER BY count(*) DESC, f.attachment
-        LIMIT ${MAPPING_PAGE_SIZE + 1} OFFSET ${(page - 1) * MAPPING_PAGE_SIZE}
+        LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize}
       ) g
-      JOIN fitment_rows f ON f.id = g.first_id AND f.shop_id = ${shopId}
+      CROSS JOIN LATERAL (
+        SELECT f."values", f.year_from, f.year_to FROM fitment_rows f
+        WHERE f.id = g.first_id AND f.shop_id = ${shopId}
+        LIMIT 1) f
       ORDER BY g.n DESC, g.attachment`,
   );
   return {
-    items: groups.slice(0, MAPPING_PAGE_SIZE).map((g) => ({
+    items: groups.slice(0, pageSize).map((g) => ({
       attachment: g.attachment,
       kind: classifyAttachment(g.attachment).kind,
       rows: g.n,
       first: { values: g.values, yearFrom: g.year_from, yearTo: g.year_to },
     })),
     page,
-    hasNextPage: groups.length > MAPPING_PAGE_SIZE,
+    pageSize,
+    hasNextPage: groups.length > pageSize,
   };
 }
 
@@ -176,26 +184,46 @@ const withoutDataWhere = (shopId: string) => Prisma.sql`
 export async function productsWithoutData(
   shopId: string,
   page: number,
+  pageSize: number = MAPPING_PAGE_SIZE,
 ): Promise<Paged<CatalogItem> & { total: number }> {
-  return timedRead(async (tx) => {
-    const [items, [{ total }]] = await Promise.all([
-      tx.$queryRaw<CatalogItem[]>`
-        SELECT p.product_id AS "productId", p.title, p.handle, ${firstSku} AS sku
-        FROM catalog_products p
-        WHERE ${withoutDataWhere(shopId)}
-        ORDER BY p.title, p.product_id
-        LIMIT ${MAPPING_PAGE_SIZE + 1} OFFSET ${(page - 1) * MAPPING_PAGE_SIZE}`,
-      tx.$queryRaw<{ total: number }[]>`
-        SELECT count(*)::int AS total FROM catalog_products p
-        WHERE ${withoutDataWhere(shopId)}`,
-    ]);
-    return {
-      items: items.slice(0, MAPPING_PAGE_SIZE),
-      page,
-      hasNextPage: items.length > MAPPING_PAGE_SIZE,
-      total,
-    };
-  });
+  // One pass for the page and the total: the products are found once (hash joins), then sorted
+  // and counted. A separate "ORDER BY title LIMIT" query probed every product's links one by one
+  // when few or none were left (2 s for 242k linked products, now 0.3 s). The total comes on a
+  // row of its own, so a page past the end still gets it.
+  const rows = await timedRead(
+    (tx) => tx.$queryRaw<
+      (Omit<CatalogItem, "productId"> & {
+        productId: string | null;
+        total: number;
+      })[]
+    >`
+      WITH w AS MATERIALIZED (
+        SELECT p.shop_id, p.product_id, p.title, p.handle FROM catalog_products p
+        WHERE ${withoutDataWhere(shopId)}),
+      pg AS (
+        SELECT * FROM w ORDER BY title, product_id
+        LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize})
+      SELECT p.product_id AS "productId", p.title, p.handle,
+             CASE WHEN p.product_id IS NULL THEN '' ELSE ${firstSku} END AS sku, t.total
+      FROM (SELECT count(*)::int AS total FROM w) t
+      LEFT JOIN pg p ON true
+      ORDER BY p.title, p.product_id`,
+  );
+  const items = rows
+    .filter((r) => r.productId !== null)
+    .map(({ productId, title, handle, sku }) => ({
+      productId: productId!,
+      title,
+      handle,
+      sku,
+    }));
+  return {
+    items: items.slice(0, pageSize),
+    page,
+    pageSize,
+    hasNextPage: items.length > pageSize,
+    total: rows[0]?.total ?? 0,
+  };
 }
 
 /** How many products "Products without filter data" lists (Dashboard). */
@@ -211,6 +239,7 @@ export async function productsWithoutDataCount(shopId: string) {
 export async function universalProducts(
   shopId: string,
   page: number,
+  pageSize: number = MAPPING_PAGE_SIZE,
 ): Promise<Paged<CatalogItem> & { total: number }> {
   const [items, total] = await Promise.all([
     prisma.$queryRaw<CatalogItem[]>`
@@ -221,13 +250,14 @@ export async function universalProducts(
       LEFT JOIN catalog_products p ON p.shop_id = u.shop_id AND p.product_id = u.product_id
       WHERE u.shop_id = ${shopId}
       ORDER BY u.created_at DESC, u.product_id
-      LIMIT ${MAPPING_PAGE_SIZE + 1} OFFSET ${(page - 1) * MAPPING_PAGE_SIZE}`,
+      LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize}`,
     prisma.universalProduct.count({ where: { shopId } }),
   ]);
   return {
-    items: items.slice(0, MAPPING_PAGE_SIZE),
+    items: items.slice(0, pageSize),
     page,
-    hasNextPage: items.length > MAPPING_PAGE_SIZE,
+    pageSize,
+    hasNextPage: items.length > pageSize,
     total,
   };
 }

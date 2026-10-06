@@ -44,6 +44,12 @@ import { MAX_ATTACHMENT_LENGTH } from "../services/import/transform";
 import { isLockTimeout, relink } from "../services/linking/relink.server";
 import { saveBlob } from "../components/import/client";
 import styles from "../styles/filter-data.css?url";
+import { PageHeader } from "../components/PageHeader";
+import { TableFooter } from "../components/TableFooter";
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  TABLE_PAGE_SIZES,
+} from "../components/table-paging";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -228,6 +234,7 @@ export default function FilterDataPage() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [rowsVersion, setRowsVersion] = useState(0);
   const [rows, setRows] = useState<RowPage | null>(null);
   const [rowsLoading, setRowsLoading] = useState(true);
@@ -241,7 +248,11 @@ export default function FilterDataPage() {
   useEffect(() => {
     const abort = new AbortController();
     setRowsLoading(true);
-    const params = new URLSearchParams({ q: query, page: String(page) });
+    const params = new URLSearchParams({
+      q: query,
+      page: String(page),
+      pageSize: String(pageSize),
+    });
     fetch(`/api/fitment?${params}`, { signal: abort.signal })
       .then(async (res) => {
         const body = (await res.json().catch(() => ({}))) as RowPage & {
@@ -258,8 +269,14 @@ export default function FilterDataPage() {
         shopify.toast.show(LOAD_FAILED, { isError: true });
       });
     return () => abort.abort();
-  }, [query, page, rowsVersion, shopify]);
+  }, [query, page, pageSize, rowsVersion, shopify]);
   const reloadRows = useCallback(() => setRowsVersion((v) => v + 1), []);
+  // Past the last page (its last rows were just deleted): step back to the last page with rows.
+  useEffect(() => {
+    if (rowsLoading || !rows || rows.rows.length || page <= 1) return;
+    const total = rows.matching ?? counts.total;
+    setPage(total > 0 ? Math.ceil(total / pageSize) : 1);
+  }, [rows, rowsLoading, page, pageSize, counts.total]);
 
   // ---- selection (kept across pages and searches)
   const [selected, setSelected] = useState<string[]>([]);
@@ -431,25 +448,21 @@ export default function FilterDataPage() {
 
   const confirmCopy = confirm ? confirmText(confirm, fields) : null;
   const searchPlaceholder = `Search ${fields.map((f) => f.label.toLowerCase()).join(", ")} or SKU`;
-  const footer =
-    rows?.matching !== null && rows?.matching !== undefined
-      ? `${rows.matching.toLocaleString("en-US")} of ${plural(counts.total, "row")} match`
-      : plural(counts.total, "row");
+  // While searching, the footer counts the matching rows ("Showing 1–10 of 37 matching rows").
+  const searching = rows?.matching !== null && rows?.matching !== undefined;
+  const tableTotal = searching ? rows!.matching! : counts.total;
 
   return (
-    <s-page heading="Filter data" inlineSize="base">
-      <s-button
-        slot="primary-action"
-        variant="primary"
-        icon="upload"
-        onClick={openImport}
-      >
-        Import CSV
-      </s-button>
-      {/* Title-bar buttons open modals through the Modal API (commandFor is documented for menus only). */}
-      <s-button slot="secondary-actions" onClick={() => openExport(null)}>
-        Export
-      </s-button>
+    <s-page inlineSize="base">
+      <PageHeader title="Filter data">
+        {/* These buttons open modals through the Modal API. */}
+        <s-button icon="export" onClick={() => openExport(null)}>
+          Export
+        </s-button>
+        <s-button variant="primary" icon="upload" onClick={openImport}>
+          Import CSV
+        </s-button>
+      </PageHeader>
 
       <s-stack gap="base">
         {counts.unlinkedSkus > 0 && (
@@ -540,14 +553,7 @@ export default function FilterDataPage() {
             </s-box>
           ) : (
             <>
-              <s-table
-                paginate
-                loading={rowsLoading}
-                hasPreviousPage={page > 1}
-                hasNextPage={!!rows?.hasNextPage}
-                onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
-                onNextPage={() => setPage((p) => p + 1)}
-              >
+              <s-table loading={rowsLoading}>
                 <s-table-header-row>
                   <s-table-header listSlot="inline">Select</s-table-header>
                   {fields.map((f, i) => (
@@ -612,9 +618,19 @@ export default function FilterDataPage() {
                   ))}
                 </s-table-body>
               </s-table>
-              <s-box padding="base">
-                <s-text color="subdued">{footer}</s-text>
-              </s-box>
+              <TableFooter
+                total={tableTotal}
+                page={page}
+                pageSize={pageSize}
+                pageSizes={TABLE_PAGE_SIZES}
+                noun={searching ? "matching rows" : "rows"}
+                disabled={rowsLoading}
+                onPage={setPage}
+                onPageSize={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
             </>
           )}
         </s-section>

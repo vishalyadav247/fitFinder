@@ -21,6 +21,7 @@ import {
 } from "../services/storefront/themes.server";
 import {
   editorLinks,
+  isThemeAccessError,
   TABLE_CODE,
   themeLabel,
   type BlockKey,
@@ -28,6 +29,7 @@ import {
   type ThemeStatusView,
 } from "../services/storefront/themes";
 import { previewSample } from "../services/storefront/preview.server";
+import { PREVIEW_ASSETS } from "../components/storefront/preview-assets.server";
 import { selectionLabel } from "../services/storefront/picks";
 import { STORE_TYPES } from "../services/store-types";
 import type {
@@ -39,6 +41,8 @@ import {
   StorefrontPreview,
 } from "../components/storefront/StorefrontPreview";
 import styles from "../styles/storefront.css?url";
+import { SectionTitle } from "../components/SectionTitle";
+import { PageHeader } from "../components/PageHeader";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -62,7 +66,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let themes: ThemeItem[] = [];
   let status: ThemeStatusView | null = null;
-  let themesError = false;
+  // "access": the store hasn't granted read_themes yet (scopes added after it installed the app).
+  let themesError: "access" | "other" | null = null;
   try {
     themes = await listThemes(admin.graphql);
     if (themes[0]) {
@@ -73,7 +78,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: session.shop,
       error,
     });
-    themesError = true;
+    themesError = isThemeAccessError(error) ? "access" : "other";
   }
 
   const config = (await loadStorefrontConfig(shop.id))!;
@@ -94,6 +99,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     themesError,
     publishFailed,
     sample,
+    previewAssets: PREVIEW_ASSETS,
     exampleLabel: first
       ? selectionLabel(fieldTypes, new Map(Object.entries(first)))
       : "",
@@ -400,6 +406,7 @@ export default function StorefrontPage() {
   ];
 
   const statusCell = (row: Row) => {
+    if (data.themesError) return <s-badge>Not checked</s-badge>;
     if (!themeId) return <s-text color="subdued">No theme</s-text>;
     if (!status) {
       return statusError ? (
@@ -489,16 +496,28 @@ export default function StorefrontPage() {
   const themeCard = (
     <s-section padding="none" accessibilityLabel="Theme integration">
       <s-box padding="base" paddingBlockEnd="none">
-        <h2 className="ff-sec-title">Theme integration</h2>
+        <SectionTitle icon="theme">Theme integration</SectionTitle>
       </s-box>
-      {data.themesError ? (
+      {data.themesError === "access" && (
         <s-box padding="base">
-          <s-banner tone="critical" heading="Your themes couldn't be read">
-            Reload the page to try again. If it keeps happening, open FitFinder
-            again from your apps list so it can ask for theme access.
+          <s-banner
+            tone="warning"
+            heading="FitFinder needs access to your themes"
+          >
+            FitFinder checks your themes to show whether its blocks and app
+            embed are added. Open FitFinder from your apps list and approve the
+            updated permissions, then come back to this page.
           </s-banner>
         </s-box>
-      ) : (
+      )}
+      {data.themesError === "other" && (
+        <s-box padding="base">
+          <s-banner tone="critical" heading="Your themes couldn't be read">
+            Reload the page to try again.
+          </s-banner>
+        </s-box>
+      )}
+      {!data.themesError && (
         <>
           <s-box padding="base">
             <s-grid
@@ -551,43 +570,40 @@ export default function StorefrontPage() {
               </s-stack>
             </s-grid>
           </s-box>
-          {theme && theme.role !== "MAIN" && (
-            <s-box paddingInline="base" paddingBlockEnd="base">
-              <s-banner
-                tone="info"
-                heading={`${theme.name} isn't your live theme`}
-              >
-                You can set FitFinder up here now. Shoppers see it once you
-                publish this theme.
-              </s-banner>
-            </s-box>
-          )}
-          <s-table>
-            <s-table-header-row>
-              <s-table-header listSlot="primary">Feature</s-table-header>
-              <s-table-header>Type</s-table-header>
-              <s-table-header>Placement</s-table-header>
-              <s-table-header>Status</s-table-header>
-              <s-table-header>Action</s-table-header>
-            </s-table-header-row>
-            <s-table-body>
-              {rows.map((row) => (
-                <s-table-row key={row.name}>
-                  <s-table-cell>
-                    <s-text type="strong">{row.name}</s-text>
-                  </s-table-cell>
-                  <s-table-cell>{row.type}</s-table-cell>
-                  <s-table-cell>
-                    <s-text color="subdued">{row.where}</s-text>
-                  </s-table-cell>
-                  <s-table-cell>{statusCell(row)}</s-table-cell>
-                  <s-table-cell>{actionCell(row)}</s-table-cell>
-                </s-table-row>
-              ))}
-            </s-table-body>
-          </s-table>
         </>
       )}
+      {!data.themesError && theme && theme.role !== "MAIN" && (
+        <s-box paddingInline="base" paddingBlockEnd="base">
+          <s-banner tone="info" heading={`${theme.name} isn't your live theme`}>
+            You can set FitFinder up here now. Shoppers see it once you publish
+            this theme.
+          </s-banner>
+        </s-box>
+      )}
+      <s-table>
+        <s-table-header-row>
+          <s-table-header listSlot="primary">Feature</s-table-header>
+          <s-table-header>Type</s-table-header>
+          <s-table-header>Placement</s-table-header>
+          <s-table-header>Status</s-table-header>
+          <s-table-header>Action</s-table-header>
+        </s-table-header-row>
+        <s-table-body>
+          {rows.map((row) => (
+            <s-table-row key={row.name}>
+              <s-table-cell>
+                <s-text type="strong">{row.name}</s-text>
+              </s-table-cell>
+              <s-table-cell>{row.type}</s-table-cell>
+              <s-table-cell>
+                <s-text color="subdued">{row.where}</s-text>
+              </s-table-cell>
+              <s-table-cell>{statusCell(row)}</s-table-cell>
+              <s-table-cell>{actionCell(row)}</s-table-cell>
+            </s-table-row>
+          ))}
+        </s-table-body>
+      </s-table>
     </s-section>
   );
 
@@ -631,13 +647,16 @@ export default function StorefrontPage() {
             title="Search widget preview"
             config={previewConfig}
             sample={sample}
+            assets={data.previewAssets}
             picks={picks}
             onPicks={onPicks}
           />
         </div>
       </s-section>
       <s-section accessibilityLabel="Layout and style">
-        <h2 className="ff-sec-title ff-sec-gap">Layout and style</h2>
+        <SectionTitle icon="paint-brush-flat" gap>
+          Layout and style
+        </SectionTitle>
         <div className="ff-opt-grid">
           <s-select
             label="Layout"
@@ -699,7 +718,9 @@ export default function StorefrontPage() {
         alignItems="start"
       >
         <s-section accessibilityLabel="Text">
-          <h2 className="ff-sec-title ff-sec-gap">Text</h2>
+          <SectionTitle icon="text" gap>
+            Text
+          </SectionTitle>
           <s-stack gap="base">
             <s-stack gap="small-200">
               <s-text-field
@@ -740,7 +761,9 @@ export default function StorefrontPage() {
           </s-stack>
         </s-section>
         <s-section accessibilityLabel="Behaviour">
-          <h2 className="ff-sec-title ff-sec-gap">Behaviour</h2>
+          <SectionTitle icon="settings" gap>
+            Behaviour
+          </SectionTitle>
           <s-stack gap="small">
             <s-checkbox
               label={`Show “${live.saveText}”`}
@@ -765,7 +788,9 @@ export default function StorefrontPage() {
       alignItems="start"
     >
       <s-section accessibilityLabel="Fits badge">
-        <h2 className="ff-sec-title ff-sec-gap">Fits badge</h2>
+        <SectionTitle icon="check-circle" gap>
+          Fits badge
+        </SectionTitle>
         <s-box paddingBlockEnd="base">
           <s-paragraph color="subdued">
             Tells shoppers on the product page whether it fits what they picked.
@@ -827,6 +852,7 @@ export default function StorefrontPage() {
           title="Fits badge preview"
           config={previewConfig}
           sample={sample}
+          assets={data.previewAssets}
         />
       </s-section>
     </s-grid>
@@ -839,7 +865,9 @@ export default function StorefrontPage() {
       alignItems="start"
     >
       <s-section accessibilityLabel="Fitment table">
-        <h2 className="ff-sec-title ff-sec-gap">Fitment table</h2>
+        <SectionTitle icon="table" gap>
+          Fitment table
+        </SectionTitle>
         <s-box paddingBlockEnd="base">
           <s-paragraph color="subdued">
             Lists everything this product fits.
@@ -996,31 +1024,43 @@ export default function StorefrontPage() {
           <s-divider />
           <s-stack gap="small-300">
             <p className="ff-grp-t">Rows</p>
-            <s-select
-              label="Sort by"
-              value={s.tableSort}
-              onChange={(e) =>
-                save("tableSort", valueOf(e) as StorefrontSettings["tableSort"])
-              }
+            <s-grid
+              gridTemplateColumns="minmax(0, 1fr) minmax(0, 1fr)"
+              gap="base"
+              alignItems="end"
             >
-              <s-option value="fields">Search field order (A–Z)</s-option>
-              {yearField && (
-                <s-option value="year">
-                  Newest {yearField.label.toLowerCase()} first
-                </s-option>
-              )}
-            </s-select>
-            <s-select
-              label="Rows before “Show all”"
-              value={s.tableRows}
-              onChange={(e) =>
-                save("tableRows", valueOf(e) as StorefrontSettings["tableRows"])
-              }
-            >
-              <s-option value="5">5</s-option>
-              <s-option value="10">10</s-option>
-              <s-option value="all">All</s-option>
-            </s-select>
+              <s-select
+                label="Sort by"
+                value={s.tableSort}
+                onChange={(e) =>
+                  save(
+                    "tableSort",
+                    valueOf(e) as StorefrontSettings["tableSort"],
+                  )
+                }
+              >
+                <s-option value="fields">Search field order (A–Z)</s-option>
+                {yearField && (
+                  <s-option value="year">
+                    Newest {yearField.label.toLowerCase()} first
+                  </s-option>
+                )}
+              </s-select>
+              <s-select
+                label="Rows before “Show all”"
+                value={s.tableRows}
+                onChange={(e) =>
+                  save(
+                    "tableRows",
+                    valueOf(e) as StorefrontSettings["tableRows"],
+                  )
+                }
+              >
+                <s-option value="5">5</s-option>
+                <s-option value="10">10</s-option>
+                <s-option value="all">All</s-option>
+              </s-select>
+            </s-grid>
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
@@ -1061,6 +1101,7 @@ export default function StorefrontPage() {
           title="Fitment table preview"
           config={previewConfig}
           sample={sample}
+          assets={data.previewAssets}
         />
       </s-section>
     </s-grid>
@@ -1074,7 +1115,9 @@ export default function StorefrontPage() {
       alignItems="start"
     >
       <s-section accessibilityLabel="My Selection">
-        <h2 className="ff-sec-title ff-sec-gap">My Selection</h2>
+        <SectionTitle icon="star" gap>
+          My Selection
+        </SectionTitle>
         <s-box paddingBlockEnd="base">
           <s-paragraph color="subdued">
             A floating button that stays in a corner of every page. Shoppers
@@ -1241,6 +1284,7 @@ export default function StorefrontPage() {
               title="My Selection preview"
               config={previewConfig}
               sample={sample}
+              assets={data.previewAssets}
             />
           ) : (
             <div style={{ height: SELECTION_HEIGHT }} />
@@ -1251,17 +1295,17 @@ export default function StorefrontPage() {
   );
 
   return (
-    <s-page heading="Storefront" inlineSize="base">
-      {/* Title-bar buttons are documented with onClick, not href. */}
-      <s-button
-        slot="primary-action"
-        variant="primary"
-        icon="external"
-        disabled={!themeId}
-        onClick={() => open(links.editor)}
-      >
-        Open theme editor
-      </s-button>
+    <s-page inlineSize="base">
+      <PageHeader title="Storefront">
+        <s-button
+          variant="primary"
+          icon="external"
+          disabled={!themeId}
+          onClick={() => open(links.editor)}
+        >
+          Open theme editor
+        </s-button>
+      </PageHeader>
       <s-stack gap="base">
         {publishFailed && (
           <s-banner

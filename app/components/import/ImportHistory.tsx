@@ -1,6 +1,7 @@
 // Import history (specs/search-setup.md): the last 5 files, newest first, each downloadable.
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { download } from "./client";
+import { SectionTitle } from "../SectionTitle";
 
 export interface HistoryItem {
   id: string;
@@ -44,7 +45,7 @@ export function ImportHistory({
       <s-box padding="base">
         <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
           <s-stack gap="small-100">
-            <h2 className="ff-sec-title">Import history</h2>
+            <SectionTitle icon="clock">Import history</SectionTitle>
             <s-text color="subdued">
               {has
                 ? "We keep your last 5 files, so you can download a backup any time. A new import removes the oldest one."

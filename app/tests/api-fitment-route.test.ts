@@ -39,6 +39,10 @@ describe("GET /api/fitment", () => {
       "page=abc",
       "page=1.5",
       `q=${"x".repeat(101)}`,
+      // Only the table standard's sizes (table-paging.ts).
+      "pageSize=100",
+      "pageSize=0",
+      "pageSize=abc",
     ]) {
       expect((await get(q)).status).toBe(400);
     }
@@ -54,7 +58,26 @@ describe("GET /api/fitment", () => {
     });
     const res = await get("q=audi&page=2");
     expect(res.status).toBe(200);
-    expect(listRows).toHaveBeenCalledWith("shop_1", { q: "audi", page: 2 });
+    expect(listRows).toHaveBeenCalledWith("shop_1", {
+      q: "audi",
+      page: 2,
+      pageSize: 10,
+    });
+  });
+
+  it("passes a chosen rows-per-page on", async () => {
+    listRows.mockResolvedValue({
+      rows: [],
+      page: 1,
+      hasNextPage: false,
+      matching: null,
+    });
+    expect((await get("pageSize=25")).status).toBe(200);
+    expect(listRows).toHaveBeenCalledWith("shop_1", {
+      q: "",
+      page: 1,
+      pageSize: 25,
+    });
   });
 
   it("returns a slow search's message as 409", async () => {

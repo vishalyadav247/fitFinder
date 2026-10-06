@@ -50,12 +50,12 @@ Before using any Shopify API, extension target, scope or deep-link format, check
   - After each edit: prettier and eslint `--fix` (inactive until `node_modules` exists); remaining lint errors are reported back.
   - On session start: loads `.claude/PROGRESS.md`.
 - **`.claude/PROGRESS.md`:** milestone status, decisions and verified Shopify facts. Update it at the end of every milestone.
-- Quality bar per change: typecheck, lint, unit tests (vitest) and build pass; every Prisma query is scoped by shop; input is validated (zod); long work runs in the job queue.
+- Quality bar per change: typecheck, lint, unit tests (`npm test`) and build pass, and `npm run test:e2e` (local Postgres) before a milestone is done; every Prisma query is scoped by shop; input is validated (zod); long work runs in the job queue.
 
 ## Rules (agreed with the product owner — do not undo)
 
 - **No AI features.** Matching, column mapping and linking are rule-based.
-- **Polaris first.** Plain Polaris on every screen. Only three custom, eye-catching areas: dashboard banner, setup guide, onboarding store-type cards.
+- **Polaris first.** Polaris components on every screen. Only three custom, eye-catching areas: dashboard banner, setup guide, onboarding store-type cards. Light polish everywhere else (agreed 2026-10-06, `app/styles/theme.css`): soft Sky-tinted page background, lifted top-level cards (shadow on the `s-section` host only, never Polaris' internal `--s-*-<hash>` variables), and an icon chip before section titles (`SectionTitle`; not on plan cards, onboarding or Filter data's Clean up, which has its own chip).
 - **Confirm every delete** (and destructive import modes) with an `s-modal`: red primary + Cancel. Never delete on one click.
 - **Notifications are toasts** (App Bridge `shopify.toast.show`); `s-banner` only for lasting states or warnings.
 - **Add/edit forms open in modals**; lists are compact rows with edit and delete icons.
@@ -63,6 +63,8 @@ Before using any Shopify API, extension target, scope or deep-link format, check
 - **Single on/off control per feature.** Theme blocks are added or removed in the theme editor (Add to theme / View in editor); My Selection's on/off lives in the Theme integration table only.
 - **No Labels, Translations, Notifications or data-retention settings** in the MVP.
 - Narrow pages (`s-page inlineSize="base"`); section titles use the bolder heading style (see `.claude/design/README.md`).
+- **Paged tables share one standard** (`app/components/table-paging.ts` + `TableFooter`): 10 rows by default, 10 / 25 / 50 to choose from, "Showing x–y of n" left, pager centred, rows per page right. Product mapping and Filter data use it; new paged tables must too.
+- **Page title inside the page** (agreed 2026-10-06): the admin title bar shows only the app name and its ⋯ menu. `s-page` gets no `heading` and no `primary-action` / `secondary-actions` buttons; the page starts with `PageHeader` (title left, actions right: secondary first, primary last). Where a spec says `s-page heading="X"` · primary **A** · secondary **B**, read it as that header.
 
 ## Working conventions
 

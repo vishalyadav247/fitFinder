@@ -74,11 +74,13 @@ async function liveTheme(gql: AdminGraphql, shopId: string) {
 export async function dashboardFacts(
   gql: AdminGraphql,
   shopId: string,
-  plan: PlanState,
+  /** May still be loading (Partner API): the counts don't wait for it. */
+  planState: PlanState | Promise<PlanState>,
 ): Promise<DashboardFacts | null> {
   const config = await loadStorefrontConfig(shopId);
   if (!config) return null;
-  const [counts, withoutData, cov, theme] = await Promise.all([
+  const [plan, counts, withoutData, cov, theme] = await Promise.all([
+    planState,
     rowCounts(shopId),
     productsWithoutDataCount(shopId),
     coverage(shopId, config.fields).catch((error) => {

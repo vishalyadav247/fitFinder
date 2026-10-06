@@ -127,7 +127,8 @@ model FitmentRow {
   @@unique([shopId, rowHash])
   // Filter data pages (newest first) and export batches (keyset by id) per shop.
   @@index([shopId, id])
-  @@index([shopId, attachment])
+  // Covering for the unlinked groups on Product mapping (GROUP BY attachment, min(id)).
+  @@index([shopId, attachment, id])
   @@index([values(ops: JsonbPathOps)], type: Gin)
   @@map("fitment_rows")
 }
@@ -158,6 +159,8 @@ model ProductLink {
 
   @@unique([shopId, attachment])
   @@index([shopId, productId])
+  // Storefront fits: links of a product OR of its collections (one bitmap OR, no table scan).
+  @@index([shopId, collectionId])
   @@map("product_links")
 }
 

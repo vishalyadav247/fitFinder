@@ -321,6 +321,24 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     ).toBe(0);
   });
 
+  it("loads the shop's search setup in field order", async () => {
+    const fields = await prisma.searchField.findMany({
+      where: { shopId },
+      orderBy: { position: "asc" },
+      select: { id: true, label: true, type: true, required: true },
+    });
+    expect(await q.shopSearch(DOMAIN)).toEqual({
+      shopId,
+      dataVersion: await version(),
+      fields,
+    });
+    // A shop without fields still has a (blank) search; one not set up has none.
+    await prisma.searchField.deleteMany({ where: { shopId: otherId } });
+    expect((await q.shopSearch(OTHER))?.fields).toEqual([]);
+    await prisma.searchConfig.delete({ where: { shopId: otherId } });
+    expect(await q.shopSearch(OTHER)).toBeNull();
+  });
+
   it("ignores uninstalled shops", async () => {
     await prisma.shop.update({
       where: { id: shopId },

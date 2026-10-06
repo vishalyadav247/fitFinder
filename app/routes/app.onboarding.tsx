@@ -25,6 +25,7 @@ import {
   type StoreIcon,
 } from "../services/store-types";
 import styles from "../styles/onboarding.css?url";
+import { PageHeader } from "../components/PageHeader";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -144,7 +145,8 @@ export default function Onboarding() {
   };
 
   return (
-    <s-page heading="Welcome to FitFinder" inlineSize="base">
+    <s-page inlineSize="base">
+      <PageHeader title="Welcome to FitFinder" />
       <div className="ff-onboarding">
         <s-stack gap="base">
           {changing && (

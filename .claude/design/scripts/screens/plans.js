@@ -5,7 +5,7 @@ const PLANS = [
   { key: 'growth', name: 'Growth', month: 29, limits: { rows: 500000, products: 5000 }, sub: '5,000 products · 500,000 rows',
     items: ['Everything in Starter', 'Fitment table (also inside your theme tabs)', 'My Selection floating button', 'Universal products', 'Import history with 5 backups'] },
   { key: 'pro', name: 'Pro', month: 99, limits: { rows: Infinity, products: Infinity }, sub: 'Unlimited products and rows',
-    items: ['Everything in Growth', 'Scheduled imports from a supplier feed', 'Search analytics', 'Priority support'] }
+    items: ['Everything in Growth', 'Priority support'] }
 ];
 
 S.plans = () => {

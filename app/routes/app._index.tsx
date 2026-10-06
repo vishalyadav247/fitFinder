@@ -8,7 +8,7 @@ import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
 import prisma from "../db.server";
-import { shopPlan, usage } from "../services/billing.server";
+import { linkedProductCount, shopPlan } from "../services/billing.server";
 import {
   effectivePlan,
   formatLimit,
@@ -20,6 +20,7 @@ import { guideSteps, overviewCards } from "../services/dashboard";
 import { STORE_TYPES } from "../services/store-types";
 import { Icon } from "../components/Icon";
 import styles from "../styles/dashboard.css?url";
+import { SectionTitle } from "../components/SectionTitle";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -40,10 +41,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Back from Shopify's plan page (welcome link): read the new plan right away.
   const force = new URL(request.url).searchParams.has("plan_handle");
   const details = (async () => {
-    const plan = await shopPlan(admin.graphql, shop.id, { force });
-    const facts = await dashboardFacts(admin.graphql, shop.id, plan);
+    // The plan read (Partner API), the counts and the plan meter's count run side by side.
+    const plan = shopPlan(admin.graphql, shop.id, { force });
+    // Awaited by dashboardFacts; this only keeps a failure from going unhandled if it stops early.
+    plan.catch(() => {});
+    const [facts, products] = await Promise.all([
+      dashboardFacts(admin.graphql, shop.id, plan),
+      linkedProductCount(shop.id),
+    ]);
     if (!facts) throw new Error("FitFinder isn't set up for this store.");
-    const used = await usage(shop.id, undefined, { rows: facts.rowCount });
+    const used = { rows: facts.rowCount, products };
     const current = effectivePlan(facts.plan);
     return {
       facts,
@@ -98,7 +105,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <s-page heading="Dashboard" inlineSize="base">
+    <s-page inlineSize="base">
       <section className="ff-hero">
         <div>
           <span className="ff-eyebrow">
@@ -406,7 +413,7 @@ function DashboardDetails({
       </s-section>
 
       <div className="ff-ov-title">
-        <h2>Overview</h2>
+        <SectionTitle icon="chart-vertical">Overview</SectionTitle>
       </div>
       <div className="ff-ov">
         {cards.map((c) => (

@@ -45,6 +45,8 @@ import {
 } from "../components/import/ImportHistory";
 import styles from "../styles/search-setup.css?url";
 import importStyles from "../styles/import.css?url";
+import { SectionTitle } from "../components/SectionTitle";
+import { PageHeader } from "../components/PageHeader";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: styles },
@@ -196,21 +198,18 @@ export default function SearchSetupPage() {
   };
 
   return (
-    <s-page heading="Search setup" inlineSize="base">
-      {/* Title-bar buttons are documented with onClick, not href. */}
-      <s-button
-        slot="secondary-actions"
-        icon="store"
-        onClick={() => navigate("/app/onboarding")}
-      >
-        Change store type
-      </s-button>
+    <s-page inlineSize="base">
+      <PageHeader title="Search setup">
+        <s-button icon="store" onClick={() => navigate("/app/onboarding")}>
+          Change store type
+        </s-button>
+      </PageHeader>
 
       <s-stack gap="base">
         <s-section padding="none" accessibilityLabel="Fields shoppers pick">
           <s-box padding="base">
             <s-stack gap="small-100">
-              <h2 className="ff-sec-title">Fields shoppers pick</h2>
+              <SectionTitle icon="filter">Fields shoppers pick</SectionTitle>
               <s-text color="subdued">
                 {STORE_TYPES[storeType].label} · Shoppers pick these in this
                 order. When you import a CSV, you choose which column fills each

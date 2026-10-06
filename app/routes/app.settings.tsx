@@ -7,6 +7,8 @@ import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
 import { STORE_TYPES } from "../services/store-types";
+import { SectionTitle } from "../components/SectionTitle";
+import { PageHeader } from "../components/PageHeader";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -26,10 +28,13 @@ export default function SettingsPage() {
   const navigate = useNavigate();
 
   return (
-    <s-page heading="Settings" inlineSize="base">
+    <s-page inlineSize="base">
+      <PageHeader title="Settings" />
       <s-stack gap="base">
         <s-section accessibilityLabel="Store type">
-          <h2 className="ff-sec-title ff-sec-gap">Store type</h2>
+          <SectionTitle icon="store" gap>
+            Store type
+          </SectionTitle>
           <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
             <s-stack gap="none">
               <s-text type="strong">{data.storeTypeLabel}</s-text>
@@ -45,7 +50,9 @@ export default function SettingsPage() {
         </s-section>
 
         <s-section accessibilityLabel="Your data">
-          <h2 className="ff-sec-title ff-sec-gap">Your data</h2>
+          <SectionTitle icon="database" gap>
+            Your data
+          </SectionTitle>
           <s-stack gap="small-300">
             <s-text>
               FitFinder only stores what it needs to run your search. Your
@@ -82,7 +89,9 @@ export default function SettingsPage() {
         </s-section>
 
         <s-section accessibilityLabel="Help">
-          <h2 className="ff-sec-title ff-sec-gap">Help</h2>
+          <SectionTitle icon="question-circle" gap>
+            Help
+          </SectionTitle>
           <s-stack direction="inline" gap="small-200">
             <s-button
               icon="email"
