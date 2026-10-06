@@ -100,7 +100,8 @@ async function lockSetup(tx: Tx, shopId: string) {
     );
   }
   const rows = await tx.$queryRaw<unknown[]>`
-    SELECT 1 FROM search_configs WHERE shop_id = ${shopId} FOR UPDATE`;
+    UPDATE search_configs SET data_version = data_version + 1
+        WHERE shop_id = ${shopId} RETURNING 1`;
   if (rows.length === 0) throw new FieldRuleError("Set up your store first.");
 }
 

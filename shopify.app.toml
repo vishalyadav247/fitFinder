@@ -7,8 +7,9 @@ name = "fitFinder"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# read_products: SKU and handle linking (M6). Theme scopes are added in M8 once verified.
-scopes = "read_products"
+# read_products: SKU and handle linking (M6). write_app_proxy: the storefront app proxy (M7).
+# Theme scopes are added in M8 once verified.
+scopes = "read_products,write_app_proxy"
 
 [webhooks]
 api_version = "2026-10"
@@ -25,6 +26,14 @@ api_version = "2026-10"
   [[webhooks.subscriptions]]
   uri = "/webhooks/products"
   topics = [ "products/create", "products/update", "products/delete" ]
+
+# Storefront data for the theme app extension (M7): /apps/fitfinder/* → {app url}/proxy/*.
+# Merchants can rename the prefix/subpath in their admin; the storefront uses /apps/fitfinder.
+# https://shopify.dev/docs/apps/build/online-store/app-proxies
+[app_proxy]
+url = "/proxy"
+prefix = "apps"
+subpath = "fitfinder"
 
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]

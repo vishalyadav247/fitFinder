@@ -1,0 +1,23 @@
+{%- comment -%}
+  Fitment table (specs/storefront.md › Fitment table): everything this product fits, as a
+  collapsible row (or open table) the merchant drags between the theme's product rows.
+  ff-product.js fills it; it stays empty when the product has no rows and the table is hidden.
+{%- endcomment -%}
+{%- assign ff = app.metafields.fitfinder.config.value -%}
+{%- if ff and product -%}
+  <script type="application/json" data-ff-config>{{ ff | json }}</script>
+  <div class="ff-table-wrap" data-ff-table data-product="{{ product.id }}" data-collections="{{ product.collections | map: 'id' | join: ',' }}"></div>
+{%- elsif request.design_mode -%}
+  <p class="ff-note">{% if ff %}{{ 'fitfinder.product_only' | t }}{% else %}{{ 'fitfinder.setup_needed' | t }}{% endif %}</p>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "FitFinder fitment table",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "javascript": "ff-product.js",
+  "stylesheet": "fitfinder.css",
+  "settings": []
+}
+{% endschema %}

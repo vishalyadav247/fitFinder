@@ -740,7 +740,8 @@ async function apply(job: ImportJob) {
 async function applyRows(tx: Prisma.TransactionClient, job: ImportJob) {
   // Same lock as field changes and store type replace (M2/M3): they can't interleave.
   const locked = await tx.$queryRaw<unknown[]>`
-        SELECT 1 FROM search_configs WHERE shop_id = ${job.shopId} FOR UPDATE`;
+        UPDATE search_configs SET data_version = data_version + 1
+        WHERE shop_id = ${job.shopId} RETURNING 1`;
   if (locked.length === 0) throw new ImportError("Set up your store first.");
 
   const fields = toMapFields(

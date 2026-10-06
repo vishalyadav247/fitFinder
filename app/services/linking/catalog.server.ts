@@ -56,7 +56,7 @@ const isThrottled = (e: unknown) => /THROTTLED/.test(JSON.stringify(e ?? ""));
  * backoff (1, 2, 4, 8 s); other errors throw. The library may throw on GraphQL errors or return
  * them in the body; both are handled.
  */
-async function gqlData<T>(
+export async function gqlData<T>(
   gql: AdminGraphql,
   query: string,
   variables?: Record<string, unknown>,

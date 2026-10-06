@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "react-router build",
+    "build:theme": "node scripts/build-theme-js.mjs",
     "dev": "shopify app dev",
     "dev:tunnel": "node scripts/dev-tunnel.mjs",
     "config:link": "shopify app config link",

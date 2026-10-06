@@ -39,6 +39,8 @@ const [make, model] = lists;
 
 const t0 = performance.now();
 await prisma.$executeRaw`DELETE FROM fitment_rows WHERE shop_id = ${shop.id}`;
+// Storefront options cache: new data, new version.
+await prisma.$executeRaw`UPDATE search_configs SET data_version = data_version + 1 WHERE shop_id = ${shop.id}`;
 await prisma.$executeRaw`DELETE FROM product_links WHERE shop_id = ${shop.id}`;
 // 40 makes, 300 models, years 1990-2025, SKUs "SKU-{n % 60000}".
 await prisma.$executeRaw`

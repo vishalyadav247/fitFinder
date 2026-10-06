@@ -236,7 +236,8 @@ async function withSetupLock<T>(
         );
       }
       const locked = await tx.$queryRaw<unknown[]>`
-        SELECT 1 FROM search_configs WHERE shop_id = ${shopId} FOR UPDATE`;
+        UPDATE search_configs SET data_version = data_version + 1
+        WHERE shop_id = ${shopId} RETURNING 1`;
       if (locked.length === 0) {
         throw new FitmentRuleError("Set up your store first.");
       }

@@ -1,0 +1,24 @@
+{%- comment -%}
+  Fits badge (specs/storefront.md › Fits badge): whether this product fits the shopper's
+  selection. Shows "before a selection" right away; ff-product.js checks the selection.
+{%- endcomment -%}
+{%- assign ff = app.metafields.fitfinder.config.value -%}
+{%- if ff and product -%}
+  <script type="application/json" data-ff-config>{{ ff | json }}</script>
+  <div class="ff-badge-wrap" data-ff-badge data-product="{{ product.id }}" data-collections="{{ product.collections | map: 'id' | join: ',' }}">
+    <div class="ff-fit ff-fit--ask">{{ ff.s.askText | escape }}</div>
+  </div>
+{%- elsif request.design_mode -%}
+  <p class="ff-note">{% if ff %}{{ 'fitfinder.product_only' | t }}{% else %}{{ 'fitfinder.setup_needed' | t }}{% endif %}</p>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "FitFinder fits badge",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "javascript": "ff-product.js",
+  "stylesheet": "fitfinder.css",
+  "settings": []
+}
+{% endschema %}

@@ -81,7 +81,8 @@ export async function applyStoreType(
     db.searchConfig.upsert({
       where: { shopId },
       create: { shopId, ...config },
-      update: config,
+      // Bumps the storefront options cache version (the other writers do it in the setup lock).
+      update: { ...config, dataVersion: { increment: 1 } },
     }),
     db.fitmentRow.deleteMany(where),
     db.importMapping.deleteMany(where),

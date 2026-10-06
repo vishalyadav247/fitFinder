@@ -50,7 +50,8 @@ Indexes: (`shop_id`, `attachment`); (`shop_id`, `id`) for Filter data paging and
 | Path | Returns |
 |---|---|
 | `GET options?field={id}&{fieldId}={value}…` | Values for the next dropdown |
-| `GET results?{fieldId}={value}…` | Matching product ids, or a redirect to the filtered collection/search page |
+| `GET search?{fieldId}={value}…` | Where "Show {products}" goes: `{ mode: "search", q }` = the theme's search page for the fitting SKUs, or `{ mode: "page" }` |
+| `GET results?{fieldId}={value}…&page=` | FitFinder's own results page (Liquid in the theme layout): the fallback when the SKU list doesn't fit one search |
 | `GET fits?product={id}&{fieldId}={value}…` | `fits` / `no-fit` for the product badge, plus fitment table rows |
 
 ## Webhooks

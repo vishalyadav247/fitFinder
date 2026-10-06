@@ -70,12 +70,15 @@ enum StoreType {
 }
 
 model SearchConfig {
-  shopId     String    @id @map("shop_id")
-  storeType  StoreType @map("store_type")
-  heading    String
-  noun       String
-  thingsWord String    @map("things_word")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  shopId      String    @id @map("shop_id")
+  storeType   StoreType @map("store_type")
+  heading     String
+  noun        String
+  thingsWord  String    @map("things_word")
+  // Bumped by every write that takes the setup lock (rows, fields, imports, replace), so the
+  // storefront's cached dropdown options know when to recompute.
+  dataVersion Int       @default(0) @map("data_version")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
@@ -271,9 +274,11 @@ model ImportRow {
 
 // Every Storefront-page setting (keys in .claude/specs/data-model.md); mirrored to an app metafield.
 model StorefrontSettings {
-  shopId    String   @id @map("shop_id")
-  settings  Json     @default("{}")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  shopId        String   @id @map("shop_id")
+  settings      Json     @default("{}")
+  // Hash of the config last written to the app metafield; the admin republishes when it differs.
+  publishedHash String?  @map("published_hash")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 

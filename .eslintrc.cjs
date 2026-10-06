@@ -19,7 +19,8 @@ module.exports = {
     commonjs: true,
     es6: true,
   },
-  ignorePatterns: ["!**/.server", "!**/.client"],
+  // extensions/*/assets/*.js: minified builds of storefront-src/ (scripts/build-theme-js.mjs).
+  ignorePatterns: ["!**/.server", "!**/.client", "extensions/*/assets/*.js"],
 
   // Base config
   extends: ["eslint:recommended"],

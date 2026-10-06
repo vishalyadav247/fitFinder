@@ -1,0 +1,45 @@
+{%- comment -%}
+  FitFinder search section (specs/storefront.md › Search widget). Rendered as plain dropdowns
+  from the app metafield (no layout shift); ff-search.js makes them cascade and search.
+{%- endcomment -%}
+{%- assign ff = app.metafields.fitfinder.config.value -%}
+<div class="ff-search-wrap page-width" data-ff-search>
+  {%- if ff -%}
+    <script type="application/json" data-ff-config>{{ ff | json }}</script>
+    {%- liquid
+      assign ff_r = 10
+      if ff.s.corners == 'square'
+        assign ff_r = 2
+      elsif ff.s.corners == 'pill'
+        assign ff_r = 999
+      endif
+    -%}
+    <div class="ff-sfw ff-sfw--{% if ff.s.layout == 'card' %}v{% else %}h{% endif %}" style="--ff-b:{{ ff.s.btn }};--ff-bg:{{ ff.s.bg }};--ff-t:{{ ff.s.text }};--ff-r:{{ ff_r | at_most: 14 }}px;--ff-rb:{{ ff_r }}px">
+      {%- if ff.s.showHeading -%}<p class="ff-sfw__h">{{ ff.heading | escape }}</p>{%- endif -%}
+      <div class="ff-sfw__row">
+        {%- for f in ff.fields -%}
+          <label class="ff-sfw__f"><span class="{% if ff.s.labels %}ff-sfw__l{% else %}ff-sr{% endif %}">{{ f.label | escape }}</span><select disabled><option value="">{{ f.placeholder | escape }}</option></select></label>
+        {%- endfor -%}
+        <button type="button" class="ff-sfw__go" disabled>{{ ff.s.button | escape }}</button>
+      </div>
+      {%- if ff.s.saveLink or ff.s.reset -%}
+        <div class="ff-sfw__links">
+          {%- if ff.s.saveLink -%}<button type="button" class="ff-sfw__save">&#9734; <span>{{ ff.s.saveText | escape }}</span></button>{%- else -%}<span></span>{%- endif -%}
+          {%- if ff.s.reset -%}<button type="button" class="ff-sfw__reset">{{ ff.s.resetText | escape }}</button>{%- endif -%}
+        </div>
+      {%- endif -%}
+    </div>
+  {%- elsif request.design_mode -%}
+    <p class="ff-note">{{ 'fitfinder.setup_needed' | t }}</p>
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "FitFinder search",
+  "target": "section",
+  "javascript": "ff-search.js",
+  "stylesheet": "fitfinder.css",
+  "settings": []
+}
+{% endschema %}

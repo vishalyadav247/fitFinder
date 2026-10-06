@@ -31,7 +31,7 @@ Turn the search on in the live theme and set how the shopper-facing blocks look 
 - Preview, titled with a green `s-badge tone="success"` **Live preview** (Desktop / Mobile): the widget as shoppers see it — real cascading `<select>`s, button, "Save to {name shoppers see}", Reset. Results show matched products with "✓ Fits your {noun}" and `[price]`. Every setting below updates the preview right away.
 - **Layout and style**
   - `s-select` **Layout**: Horizontal (one row) / Vertical (stacked) — details "On phones the dropdowns always stack." · `s-select` **Corners**: Square / Rounded / Pill.
-  - `s-color-field` × 3: **Button colour**, **Background**, **Text colour** (heading, labels, links).
+  - `s-color-field` × 3: **Button colour**, **Background**, **Text colour** (heading, labels, save link; the reset link uses the button colour).
   - `s-checkbox` **Show labels above the dropdowns** (off by default) — "Off: the field name is shown inside each dropdown instead."
 - **Text** and **Behaviour** sit side by side (Text left, about two thirds; Behaviour right).
 - **Text** (one column)
@@ -39,7 +39,7 @@ Turn the search on in the live theme and set how the shopper-facing blocks look 
   - **Button text** · **Save link text** (default "Save to My Selection"). Dropdown placeholders are set per field on Search setup.
   - "Dropdowns and their placeholder text come from your search fields:" + field chips + **Edit fields** (→ Search setup).
 - **Behaviour** — only two `s-checkbox`es: **Show "{save link text}"** (on) and **Show a reset link** (on). The save link has its own setting, separate from the floating saved-selections button.
-  - Results always open on a filtered collection page (no choice shown).
+  - Results always open on the theme's own **search page**, filtered to the parts that fit (no choice shown), so shoppers get the theme's own product cards and its existing filters and sorting (Search & Discovery). FitFinder has no filters of its own (agreed 2026-10-05). How: "Show {products}" asks the app proxy for one SKU per fitting product (linked rows + universal products) and opens `{locale root}search?type=product&options[prefix]=none&q=variants.sku:"A" OR variants.sku:"B" …`. Products without a SKU can't be searched for and are left out. When nothing fits, only SKU-less products fit, or the list is longer than one search takes (100 SKUs / 6,000 characters), FitFinder's own results page opens instead (`/apps/fitfinder/results`, in the theme layout: heading "{Products} that fit your {noun}", the selection, linked collections, product cards, 16 per page, "No {products} fit this selection yet."). After a search, "Save {selection} to {name}?" with **Save** and a × close appears at the top of the results, once per selection (setting "Ask shoppers to save their selection after a search"). Opened without a full selection (e.g. "Add a {noun}" on a page without the widget), FitFinder's page shows the widget and "Select your {noun} to see the {products} that fit." The search button needs every **required** field (Search setup) and at least one pick; for optional fields a row without a value fits any pick.
 - Every preview (Search widget, Product page, My Selection) is titled with the same green `s-badge tone="success" icon="view"` **Live preview**.
 - Plain Polaris controls only (no custom segmented buttons or colour swatches). The Search widget preview has a Desktop / Mobile switch as two icon buttons (`icon="desktop"` / `icon="mobile"`; the selected one is secondary, the other tertiary); the Product page and My Selection previews look the same on both and have no switch. Previews show only FitFinder's part — no backdrop, padding, store bar or placeholder content (My Selection uses a small browser window to show the fixed position).
 
@@ -51,6 +51,7 @@ Turn the search on in the live theme and set how the shopper-facing blocks look 
     - **Before a selection**: **Text** ("Select your {noun} to check if it fits").
     - **When it fits**: **Text** (default "Fits your {noun}").
     - **When it doesn't fit**: **Text** ("Doesn't fit your {noun}") · `s-checkbox` **Show a link to parts that fit** (on) · **Link text** ("See parts that fit"; links to the search results for the shopper's selection).
+    - Products FitFinder doesn't cover (no rows and not universal, e.g. gift cards) show no badge.
     - Last: `s-checkbox` **Show the shopper's selection under the text** (on; applies to fits and doesn't fit; the example shown is the store's own first selection). One look only (no style choice): soft background — green when it fits, red when it doesn't, light blue (Polaris info) before a selection.
 - **Fitment table** — "Lists everything this product fits. It sits with your product page's description and specification tabs: drag it between them in the theme editor." Settings in groups separated by `s-divider`:
   - **Where to show it** (first group): `s-select` **As its own block** (default; app block next to the product's description/specification rows) / **Inside your theme's tabs (Description, Specifications …)**.
@@ -77,7 +78,7 @@ Turn the search on in the live theme and set how the shopper-facing blocks look 
 
 ## Data / backend
 - Themes: GraphQL `themes(first: 20) { id name role }` (role MAIN = live). Embed status per theme: read `config/settings_data.json` of that theme (app embed block `disabled` flag); block status: scan its templates for the app blocks. Theme editor link: `https://{shop}/admin/themes/{id}/editor?context=apps` (embed) or `?template=index&addAppBlockId={api_key}/search&target=newAppsSection` (add a block).
-- `GET/PUT /api/storefront-settings` — one JSON document per shop (layout, colours, corners, texts, toggles, results destination, badge texts/position, garage settings).
+- `GET/PUT /api/storefront-settings` — one JSON document per shop (layout, colours, corners, texts, toggles, badge texts, table and My Selection settings; key list in `app/services/storefront/settings.ts`).
 - App embed status / deep link: `https://{shop}/admin/themes/current/editor?context=apps&activateAppId={api_key}/{embed_handle}`.
 - Expose settings to the theme extension via a shop metafield (app-owned namespace) so blocks render without an extra request.
 

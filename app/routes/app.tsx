@@ -15,6 +15,7 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
+import { publishStorefrontConfig } from "../services/storefront/sync.server";
 import theme from "../styles/theme.css?url";
 
 const ONBOARDING = "/app/onboarding";
@@ -23,7 +24,7 @@ const ONBOARDING = "/app/onboarding";
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: theme }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, redirect } = await authenticate.admin(request);
+  const { session, redirect, admin } = await authenticate.admin(request);
   // afterAuth only runs when a new session is stored; this covers shops whose session predates it.
   const shop = await ensureShop(session.shop);
 
@@ -31,6 +32,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const onOnboarding = new URL(request.url).pathname === ONBOARDING;
   if (!onOnboarding && !(await getSearchConfig(shop.id))) {
     throw redirect(ONBOARDING);
+  }
+
+  // Keep the theme's copy of the search fields and storefront settings current (app metafield).
+  // Runs after every admin action too (loaders revalidate); writes only when something changed.
+  try {
+    await publishStorefrontConfig(admin.graphql, shop.id);
+  } catch (error) {
+    console.error("storefront config publish failed", {
+      shop: session.shop,
+      error,
+    });
   }
 
   // eslint-disable-next-line no-undef
