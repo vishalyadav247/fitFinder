@@ -8,8 +8,8 @@ name = "fitFinder"
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # read_products: SKU and handle linking (M6). write_app_proxy: the storefront app proxy (M7).
-# Theme scopes are added in M8 once verified.
-scopes = "read_products,write_app_proxy"
+# read_themes: theme integration status (M8). write_files: My Selection custom icon (M8).
+scopes = "read_products,write_app_proxy,read_themes,write_files"
 
 [webhooks]
 api_version = "2026-10"

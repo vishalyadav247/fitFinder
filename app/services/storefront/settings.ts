@@ -206,6 +206,100 @@ function isHttpsUrl(value: string) {
   }
 }
 
+export const TEXT_MAX = 200;
+
+/**
+ * Settings the Storefront page edits one at a time (specs/storefront.md). The other texts
+ * (Reset, Show all {n}, hint texts …) stay fixed in the MVP; savedIconUrl is set by the icon
+ * upload and can only be cleared here.
+ */
+export const EDITABLE_KEYS = [
+  "layout",
+  "corners",
+  "btn",
+  "bg",
+  "text",
+  "labels",
+  "showHeading",
+  "button",
+  "saveLink",
+  "saveText",
+  "reset",
+  "askText",
+  "fitsText",
+  "noFitText",
+  "noFitLink",
+  "noFitLinkText",
+  "badgeSel",
+  "tablePlace",
+  "tableStyle",
+  "tableTitle",
+  "tableOpen",
+  "tableLook",
+  "tableHide",
+  "tableSort",
+  "tableRows",
+  "tableEmpty",
+  "tableEmptyText",
+  "garage",
+  "garageName",
+  "savedPos",
+  "savedIcon",
+  "savedIconUrl",
+  "savedBg",
+  "savedText",
+  "savedCount",
+  "maxSaved",
+  "askSave",
+] as const satisfies readonly (keyof StorefrontSettings)[];
+
+export type EditableKey = (typeof EDITABLE_KEYS)[number];
+
+const FIELD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Checks one edited setting. Returns the value to store (texts trimmed; colours upper-cased),
+ * or null when it isn't valid for that key: same rules as resolveSettings, plus texts must not
+ * be empty or longer than TEXT_MAX.
+ */
+export function parseSettingValue(
+  key: string,
+  value: unknown,
+): StorefrontSettings[EditableKey] | null {
+  if (!(EDITABLE_KEYS as readonly string[]).includes(key)) return null;
+  const def = (
+    defaultSettings({
+      storeType: "automotive",
+      noun: "vehicle",
+      things: "parts",
+    }) as unknown as Record<string, unknown>
+  )[key];
+  if (key === "tableHide") {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (
+      entries.length > 50 ||
+      !entries.every(([id, v]) => FIELD_ID.test(id) && typeof v === "boolean")
+    ) {
+      return null;
+    }
+    return Object.fromEntries(
+      entries.filter(([, v]) => v === true),
+    ) as Record<string, boolean>;
+  }
+  if (typeof value !== typeof def) return null;
+  if (typeof value === "boolean") return value;
+  const text = String(value).trim();
+  if (key in CHOICES)
+    return CHOICES[key].includes(text) ? (text as never) : null;
+  if (COLOR_KEYS.has(key)) return COLOR.test(text) ? text.toUpperCase() : null;
+  if (key === "savedIconUrl") return text === "" ? "" : null;
+  if (!text || text.length > TEXT_MAX) return null;
+  return text;
+}
+
 /** The wording of a shop's search config (noun and products word can differ from the preset). */
 export function wordingFor(config: {
   storeType: StoreType;

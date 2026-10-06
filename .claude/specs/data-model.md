@@ -44,7 +44,7 @@ Indexes: (`shop_id`, `attachment`); (`shop_id`, `id`) for Filter data paging and
 | POST | `/api/fitment/export` `{ scope: all|selected|unmatched, ids? }` | Filter data · Export |
 | POST/GET/PUT | `/api/links/check`, `/api/links/unlinked`, `/api/links/{attachment}`, `/api/products/without-fitment` | Product mapping |
 | GET/PUT | `/api/universal-products` | Product mapping |
-| GET/PUT | `/api/storefront-settings`, `/api/themes`, `/api/themes/{id}/status` | Storefront |
+| PUT/GET/POST | `/api/storefront-settings` (PUT), `/api/themes/{id}` (status), `/api/storefront-preview` (preview options/results), `/api/storefront-icon` (POST upload); the theme list comes with the page loader | Storefront |
 
 ## Storefront API (app proxy `/apps/fitfinder/*`, signature-verified)
 | Path | Returns |

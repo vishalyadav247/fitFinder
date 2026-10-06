@@ -1,0 +1,135 @@
+/* Storefront page (.claude/design/styles/storefront.css, components.css .tabs/.sec-title).
+   The previews themselves are iframes with the theme's own stylesheet. */
+.ff-sec-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 750;
+  color: #303030;
+}
+.ff-sec-gap {
+  margin-bottom: 12px;
+}
+.ff-grp-t {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: #303030;
+}
+.ff-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e3e3e3;
+  overflow-x: auto;
+  scroll-margin-top: 16px;
+}
+.ff-tabs button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: #616161;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ff-tabs button:hover {
+  color: #303030;
+  border-bottom-color: #cccccc;
+}
+.ff-tabs button[aria-selected="true"] {
+  color: #303030;
+  border-bottom-color: #303030;
+}
+.ff-opt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+.ff-opt-grid.ff-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ff-opt-grid.ff-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ff-pv-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.ff-pv-stage {
+  margin-top: 10px;
+}
+.ff-pv-stage.is-mobile {
+  max-width: 375px;
+  margin-inline: auto;
+}
+.ff-pv-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+.ff-mini-win {
+  margin-top: 10px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #dadada;
+}
+.ff-mw-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: #f3f3f3;
+  border-bottom: 1px solid #e3e3e3;
+}
+.ff-mw-bar i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #d4d4d4;
+}
+.ff-mw-bar em {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 11px;
+  color: #8a8a8a;
+  background: #ffffff;
+  border-radius: 5px;
+  padding: 1px 8px;
+}
+.ff-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: #303030;
+}
+.ff-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.ff-code-row code {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #dadada;
+  font-size: 13px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (max-width: 760px) {
+  .ff-opt-grid,
+  .ff-opt-grid.ff-three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

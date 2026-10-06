@@ -274,11 +274,14 @@ model ImportRow {
 
 // Every Storefront-page setting (keys in .claude/specs/data-model.md); mirrored to an app metafield.
 model StorefrontSettings {
-  shopId        String   @id @map("shop_id")
-  settings      Json     @default("{}")
+  shopId          String    @id @map("shop_id")
+  settings        Json      @default("{}")
   // Hash of the config last written to the app metafield; the admin republishes when it differs.
-  publishedHash String?  @map("published_hash")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  publishedHash   String?   @map("published_hash")
+  // A publish in progress holds this lease (one UPDATE claims it; nothing stays open while
+  // Shopify answers). Expires on its own if the process dies.
+  publishingUntil DateTime? @map("publishing_until")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 

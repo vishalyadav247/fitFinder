@@ -41,7 +41,7 @@ Heading "Overview", then 4 small cards in one row (2 per row on phones), styled 
 
 | Card | Number / badge | Line | Opens |
 |---|---|---|---|
-| Search on your store | Live / Off; "Hidden" (critical) when off | {n} of 4 blocks added | Storefront |
+| Search on your store | Live / Off; "Hidden" (critical) when the live theme's app embed is off (My Selection and the code in theme tabs don't show; search sections already added keep working) | {n} of 4 blocks added | Storefront |
 | Filter rows | row count | Distinct values of the first 3 list fields, e.g. "9 makes · 9 models" | Filter data |
 | Unlinked SKUs | count; "Needs linking" (warning) when > 0 | {pct}% of SKUs linked | Product mapping |
 | Products without filter data | count | Not shown in any search | Product mapping |

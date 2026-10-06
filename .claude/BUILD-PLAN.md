@@ -46,11 +46,11 @@ productFinder/                   (project root: React Router template, TypeScrip
 │   └── shopify.server.ts
 ├── extensions/
 │   └── fitfinder-theme/
-│       ├── blocks/search.liquid        Search section (target: section)
-│       ├── blocks/fits-badge.liquid    Fits badge (target: section, product)
-│       ├── blocks/fitment-table.liquid Fitment table (target: section, product)
-│       ├── blocks/app-embed.liquid     App embed (target: body): loader, My Selection, [fitfinder-table] swap
-│       ├── assets/fitfinder.js / .css
+│       ├── blocks/fitfinder-search.liquid         Search section (target: section)
+│       ├── blocks/fitfinder-fits-badge.liquid     Fits badge (target: section, product)
+│       ├── blocks/fitfinder-fitment-table.liquid  Fitment table (target: section, product)
+│       ├── blocks/fitfinder-embed.liquid          App embed (target: body): loader, My Selection, [fitfinder-table] swap
+│       ├── assets/ff-search.js, ff-product.js, ff-embed.js, fitfinder.css (built from storefront-src/)
 │       └── locales/en.default.json
 ├── prisma/schema.prisma
 └── shopify.app.toml
@@ -97,7 +97,7 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 - App proxy endpoints: `options` (next dropdown values for the picks so far), `search` (the SKUs that fit → the theme's own search page, so its product cards and filters apply; decided 2026-10-05, specs/storefront.md › Results), `results` (FitFinder's own results page, the fallback for long SKU lists), `fits` (badge state + table rows for a product).
 - My Selection: saved in `localStorage` on the shopper's device; floating tab per the spec (fixed size, ellipsis, hover hint card, panel with slide animation, close tile).
 - Fitment table in theme tabs: the app embed finds the text `[fitfinder-table]` on product pages and replaces it with the table (respects all table settings).
-- Theme status: list themes (GraphQL `themes`), read `config/settings_data.json` for the embed state and scan templates for our blocks / the code **(verify** asset read access and scopes). "Add to theme" / "View in editor" / app-embed switch = theme editor deep links (`/admin/themes/{id}/editor?context=apps&activateAppId={api_key}/{handle}` for the embed; `addAppBlockId` for blocks) **(verify)**.
+- Theme status: list themes (GraphQL `themes`), read `config/settings_data.json` for the embed state and scan templates for our blocks / the code **(verify** asset read access and scopes). "Add to theme" / "View in editor" / app-embed switch = theme editor deep links (`/admin/themes/{id}/editor?context=apps&activateAppId={api_key}/fitfinder-embed` for the embed; `addAppBlockId={api_key}/{handle}&target=newAppsSection|mainSection` for blocks). Verified 2026-10-06: `read_themes`, `theme.files(filenames:)`; see PROGRESS.md.
 
 ### Billing
 - Managed Pricing plans: Starter (free), Growth, Pro; monthly + yearly. Plans page links to Shopify's hosted plan page. `app_subscriptions/update` webhook updates `shops.plan`. Limits (rows, linked products, fields) enforced in import and field APIs; over-limit → banner with upgrade link.
