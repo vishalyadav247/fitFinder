@@ -115,6 +115,35 @@ describe("PUT /api/storefront-settings", () => {
     expect(p.body).toEqual({ ok: true, published: true });
   });
 
+  it("saves the save bar's changes in one write, heading too, and publishes once", async () => {
+    const r = await put({
+      intent: "save",
+      settings: { btn: '"#1d4ed8"', labels: "true", button: '"Find parts"' },
+      heading: " Find your fit ",
+    });
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    expect(saveSettings).toHaveBeenCalledWith("shop_1", {
+      btn: "#1D4ED8",
+      labels: true,
+      button: "Find parts",
+    });
+    expect(saveHeading).toHaveBeenCalledWith("shop_1", "Find your fit");
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(r).toEqual({ status: 200, body: { ok: true, published: true } });
+  });
+
+  it("writes nothing when one of the save bar's values is invalid", async () => {
+    for (const body of [
+      { intent: "save", settings: { btn: '"#1d4ed8"', layout: '"grid"' } },
+      { intent: "save", settings: { resetText: '"Clear"' } },
+      { intent: "save", settings: {}, heading: "   " },
+    ]) {
+      expect((await put(body)).status).toBe(400);
+    }
+    expect(saveSettings).not.toHaveBeenCalled();
+    expect(saveHeading).not.toHaveBeenCalled();
+  });
+
   it("reports a failed save as 500", async () => {
     saveSettings.mockRejectedValue(new Error("db down"));
     const r = await put({ intent: "setting", key: "labels", value: "true" });
@@ -164,7 +193,10 @@ describe("POST /api/storefront-icon", () => {
     const form = new FormData();
     if (file) form.append("file", file, name);
     // Encode the multipart body so the request carries a Content-Length, as browsers send it.
-    const encoded = new Request("https://app.test/x", { method: "POST", body: form });
+    const encoded = new Request("https://app.test/x", {
+      method: "POST",
+      body: form,
+    });
     const body = await encoded.arrayBuffer();
     const res = (await iconRoute.action({
       request: new Request("https://app.test/api/storefront-icon", {

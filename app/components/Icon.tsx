@@ -1,5 +1,6 @@
-// Line icons for the custom areas (dashboard banner, setup guide); paths from the prototype's
-// .claude/design/scripts/core/icons.js. Polaris components use Polaris icons.
+// Line icons for the custom areas (dashboard banner, setup guide) and the page tabs, which need
+// an icon that follows the text colour (white on the active tab); first paths from the
+// prototype's .claude/design/scripts/core/icons.js. Polaris components use Polaris icons.
 const PATHS = {
   left: '<path d="M12 5l-5 5 5 5"/>',
   right: '<path d="M8 5l5 5-5 5"/>',
@@ -22,6 +23,15 @@ const PATHS = {
     '<path d="M10 2v4M10 14v4M2 10h4M14 10h4M4.5 4.5l2.5 2.5M13 13l2.5 2.5M4.5 15.5 7 13M13 7l2.5-2.5"/>',
   rows: '<path d="M4 5h12M4 10h12M4 15h12"/>',
   check: '<path d="M5 10.5l3 3L15 7"/>',
+  search: '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/>',
+  checkCircle: '<circle cx="10" cy="10" r="7"/><path d="M7 10.2l2 2 4-4.4"/>',
+  table:
+    '<rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M3 12h14M8 8v8"/>',
+  star: '<path d="M10 3l2.1 4.4 4.8.6-3.5 3.3.9 4.7L10 13.8 5.7 16l.9-4.7L3.1 8l4.8-.6z"/>',
+  product:
+    '<path d="M3.5 6.5 10 3l6.5 3.5v7L10 17l-6.5-3.5z"/><path d="M3.5 6.5 10 10l6.5-3.5M10 10v7"/>',
+  globe:
+    '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2.2 2.8 4.5 2.8 7s-.8 4.8-2.8 7c-2-2.2-2.8-4.5-2.8-7S8 5.2 10 3z"/>',
 } as const;
 
 export type IconName = keyof typeof PATHS;

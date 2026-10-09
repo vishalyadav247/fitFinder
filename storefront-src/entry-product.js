@@ -1,4 +1,4 @@
-// ff-product.js: the fits badge and fitment table blocks, and tables in the theme's tabs
+// ff-product.js: the fits badge and fitment table blocks, and tables from the shortcode
 // ([fitfinder-table], marked by the app embed, which loads this bundle when there's no block).
 import { boot, each } from "./core.js";
 import { initBadge, initTable } from "./product.js";

@@ -111,3 +111,119 @@ body {
 .ff-tf-select {
   inline-size: 76px;
 }
+
+/* Page tabs (Storefront, Product mapping): a segmented bar in the card style. The active tab is
+   a dark Sky pill with white text and icon (line icons follow the text colour); counts sit in
+   small pills (amber when there's something to do). */
+.ff-tabs {
+  /* Hover background and the inactive tabs' outline share one colour. */
+  --ff-tab-hover: #e9edf1;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    var(--ff-card-shadow);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-margin-top: 16px;
+}
+.ff-tabs::-webkit-scrollbar {
+  display: none;
+}
+.ff-tabs button {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  /* Inset, so the outline doesn't change the tab's size. */
+  box-shadow: inset 0 0 0 1px var(--ff-tab-hover);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #616161;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.ff-tabs button:hover {
+  background: var(--ff-tab-hover);
+  color: #303030;
+}
+.ff-tabs button[aria-selected="true"] {
+  background: linear-gradient(180deg, var(--ff-p), var(--ff-p-strong));
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px var(--ff-p-strong),
+    0 4px 10px -4px rgba(2, 132, 199, 0.55);
+}
+.ff-tabs button:focus-visible {
+  outline: 2px solid var(--ff-p);
+  outline-offset: 1px;
+}
+.ff-tab-count {
+  min-width: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 18px;
+  font-weight: 700;
+  text-align: center;
+  background: #eef0f2;
+  color: #4a4a4a;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+.ff-tabs button[aria-selected="true"] .ff-tab-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+.ff-tab-count.is-warning,
+.ff-tabs button[aria-selected="true"] .ff-tab-count.is-warning {
+  background: #ffe8cc;
+  color: #8a4b00;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ff-tabs button,
+  .ff-tab-count {
+    transition: none;
+  }
+}
+
+/* EmptyState: the large icon tile, rings in the tile's colour. */
+.ff-empty__tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--ff-p-soft);
+  box-shadow:
+    0 0 0 6px var(--ff-p-softer),
+    0 10px 22px -10px rgba(2, 132, 199, 0.45);
+}
+.ff-empty__tile--success {
+  background: #dcfce7;
+  box-shadow:
+    0 0 0 6px #f0fdf4,
+    0 10px 22px -10px rgba(22, 163, 74, 0.45);
+}
+.ff-empty__tile s-icon {
+  transform: scale(1.4);
+}
+.ff-empty__text {
+  text-align: center;
+}

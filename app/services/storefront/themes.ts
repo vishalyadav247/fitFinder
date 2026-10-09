@@ -36,6 +36,14 @@ export interface ThemeStatusView {
   /** Where each block was found: the template name ("index", "product.alt") or "" for a section group; absent = not added. */
   blocks: Partial<Record<BlockKey, string>>;
   tableCodeFound: boolean;
+  /** The section each block sits in, as the theme editor names it ("Product information"). */
+  sections?: Partial<Record<BlockKey, string>>;
+}
+
+/** The section a block of ours was found in: its type, and the merchant's own name for it. */
+export interface BlockSection {
+  type: string;
+  name?: string;
 }
 
 /** JSON theme files may start with a comment block (Shopify adds one to generated files). */
@@ -66,22 +74,30 @@ type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
-/** Every enabled block of ours inside a template or section group (nested blocks included). */
-function blocksIn(doc: unknown): Set<keyof typeof BLOCK_HANDLES> {
-  const found = new Set<keyof typeof BLOCK_HANDLES>();
-  const walkBlocks = (blocks: unknown) => {
+/**
+ * Every enabled block of ours inside a template or section group (nested blocks included), with
+ * the section it sits in (the first one, when a block appears more than once).
+ */
+function blocksIn(doc: unknown): Map<keyof typeof BLOCK_HANDLES, BlockSection> {
+  const found = new Map<keyof typeof BLOCK_HANDLES, BlockSection>();
+  const walkBlocks = (blocks: unknown, section: BlockSection) => {
     if (!isObject(blocks)) return;
     for (const b of Object.values(blocks)) {
       if (!isObject(b) || b.disabled === true) continue;
       const mine = ourBlock(b.type);
-      if (mine) found.add(mine);
-      walkBlocks(b.blocks);
+      if (mine && !found.has(mine)) found.set(mine, section);
+      walkBlocks(b.blocks, section);
     }
   };
   if (!isObject(doc) || !isObject(doc.sections)) return found;
   for (const section of Object.values(doc.sections)) {
     if (!isObject(section) || section.disabled === true) continue;
-    walkBlocks(section.blocks);
+    const type = typeof section.type === "string" ? section.type : "";
+    const name =
+      typeof section.name === "string" && section.name.trim()
+        ? section.name.trim()
+        : undefined;
+    walkBlocks(section.blocks, { type, name });
   }
   return found;
 }
@@ -101,11 +117,17 @@ function currentSettings(doc: unknown): Json | null {
 const TEMPLATE = /^templates\/(.+)\.json$/;
 const PRODUCT_TEMPLATE = /^templates\/product(\.[^/]+)?\.json$/;
 
-export function analyzeTheme(files: ThemeFile[]): ThemeStatusView {
-  const view: ThemeStatusView = {
+export function analyzeTheme(files: ThemeFile[]): ThemeStatusView & {
+  /** Where each found block sits, for sectionLabel(). */
+  blockSections: Partial<Record<BlockKey, BlockSection>>;
+} {
+  const view: ThemeStatusView & {
+    blockSections: Partial<Record<BlockKey, BlockSection>>;
+  } = {
     embedOn: false,
     blocks: {},
     tableCodeFound: false,
+    blockSections: {},
   };
   // Templates first (so "View in editor" opens a template), section groups after.
   const ordered = [...files].sort(
@@ -132,12 +154,54 @@ export function analyzeTheme(files: ThemeFile[]): ThemeStatusView {
     ) {
       view.tableCodeFound = true;
     }
-    for (const key of blocksIn(parseThemeJson(file.content))) {
+    for (const [key, section] of blocksIn(parseThemeJson(file.content))) {
       if (key === "embed" || key in view.blocks) continue;
       view.blocks[key] = template ? template[1] : "";
+      view.blockSections[key] = section;
     }
   }
   return view;
+}
+
+/** "main-product" → "Main product" (when the theme's own name can't be read). */
+const humanize = (type: string) => {
+  const t = type.replace(/[-_]+/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+};
+
+/** The schema name in a section's Liquid file ("Product information" or "t:sections.x.name"). */
+export function schemaName(liquid: string | undefined): string | null {
+  if (!liquid) return null;
+  const m = /\{%-?\s*schema\s*-?%\}([\s\S]*?)\{%-?\s*endschema\s*-?%\}/.exec(
+    liquid,
+  );
+  if (!m) return null;
+  const schema = parseThemeJson(m[1]);
+  return isObject(schema) && typeof schema.name === "string"
+    ? schema.name
+    : null;
+}
+
+/**
+ * The section's name as the theme editor shows it: the merchant's own name, else the section's
+ * schema name (a "t:" key is looked up in the theme's en.default.schema.json), else its type.
+ */
+export function sectionLabel(
+  section: BlockSection,
+  liquid: string | undefined,
+  schemaLocale: unknown,
+): string {
+  if (section.name) return section.name;
+  const name = schemaName(liquid);
+  if (name && !name.startsWith("t:")) return name;
+  if (name) {
+    let v: unknown = schemaLocale;
+    for (const part of name.slice(2).split(".")) {
+      v = isObject(v) ? v[part] : undefined;
+    }
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return humanize(section.type);
 }
 
 // ---------------------------------------------------------------- themes and deep links

@@ -1,11 +1,12 @@
 // Storefront: theme integration (app embed and blocks per theme, theme editor deep links) and the
-// settings of the shopper-facing blocks with live previews. Every change saves on its own and is
-// published to the theme (app metafield).
+// settings of the shopper-facing blocks with live previews. Changes collect in a draft (the
+// previews follow it) behind the App Bridge save bar; Save sends them all at once and publishes
+// the result to the theme (app metafield).
 // Spec: .claude/specs/storefront.md · Prototype: .claude/design/scripts/screens/storefront.js
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useSearchParams } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useLoaderData, useNavigate, useSearchParams } from "react-router";
+import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
@@ -32,9 +33,10 @@ import { previewSample } from "../services/storefront/preview.server";
 import { PREVIEW_ASSETS } from "../components/storefront/preview-assets.server";
 import { selectionLabel } from "../services/storefront/picks";
 import { STORE_TYPES } from "../services/store-types";
-import type {
-  EditableKey,
-  StorefrontSettings,
+import {
+  EDITABLE_KEYS,
+  type EditableKey,
+  type StorefrontSettings,
 } from "../services/storefront/settings";
 import {
   SELECTION_HEIGHT,
@@ -42,6 +44,7 @@ import {
 } from "../components/storefront/StorefrontPreview";
 import styles from "../styles/storefront.css?url";
 import { SectionTitle } from "../components/SectionTitle";
+import { Icon, type IconName } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
@@ -107,11 +110,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 type Tab = "widget" | "badge" | "table" | "garage";
-const TABS: [Tab, string][] = [
-  ["widget", "Search widget"],
-  ["badge", "Fits badge"],
-  ["table", "Fitment table"],
-  ["garage", "My Selection"],
+// Line icons (they follow the text colour: white on the active tab), like the section titles.
+const TABS: [Tab, string, IconName][] = [
+  ["widget", "Search widget", "search"],
+  ["badge", "Fits badge", "checkCircle"],
+  ["table", "Fitment table", "table"],
+  ["garage", "My Selection", "star"],
 ];
 
 type SaveResult = { ok: boolean; published?: boolean; error?: string };
@@ -132,24 +136,35 @@ async function put(body: unknown): Promise<SaveResult> {
 const valueOf = (e: Event) =>
   String((e.currentTarget as HTMLInputElement).value ?? "");
 const checkedOf = (e: Event) => !!(e.currentTarget as HTMLInputElement).checked;
-const withoutKey = <T extends object>(o: T, key: string): T => {
-  const { [key]: _drop, ...rest } = o as Record<string, unknown>;
-  void _drop;
-  return rest as T;
-};
+const SAVE_BAR = "storefront-save-bar";
+/** Settings edited in text fields: saved trimmed, and an emptied one keeps its saved text. */
+const TEXT_KEYS = new Set<EditableKey>([
+  "askText",
+  "button",
+  "fitsText",
+  "garageName",
+  "noFitLinkText",
+  "noFitText",
+  "saveText",
+  "tableEmptyText",
+  "tableTitle",
+]);
 const open = (url: string) => window.open(url, "_blank", "noopener");
 
 export default function StorefrontPage() {
   const data = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const { config, sample } = data;
 
-  // Saved settings (updated optimistically) and text being typed (preview only until committed).
+  // What the server has (saved) and the draft shown in the fields and previews (s, heading). The
+  // save bar shows while they differ.
+  const [saved, setSaved] = useState<StorefrontSettings>(config.s);
   const [s, setS] = useState<StorefrontSettings>(config.s);
-  const [draft, setDraft] = useState<Partial<Record<string, string>>>({});
+  const [savedHeading, setSavedHeading] = useState(config.heading);
   const [heading, setHeading] = useState(config.heading);
-  const [headingDraft, setHeadingDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [publishFailed, setPublishFailed] = useState(data.publishFailed);
   const [tab, setTab] = useState<Tab>(
     (TABS.find(([k]) => k === params.get("tab"))?.[0] as Tab) ?? "widget",
@@ -220,66 +235,82 @@ export default function StorefrontPage() {
   const embed = !!status?.embedOn;
 
   // ---------------------------------------------------------------- saving
-  const afterSave = (r: SaveResult) => {
-    if (!r.ok) {
-      shopify.toast.show(r.error ?? "That change couldn't be saved.", {
-        isError: true,
-      });
-      return false;
-    }
-    setPublishFailed(r.published === false);
-    return true;
-  };
+  const same = (a: unknown, b: unknown) =>
+    JSON.stringify(a) === JSON.stringify(b);
+  const changedKeys = EDITABLE_KEYS.filter((k) => !same(s[k], saved[k]));
+  const dirty = changedKeys.length > 0 || heading.trim() !== savedHeading;
 
-  const save = async <K extends EditableKey>(
-    key: K,
-    value: StorefrontSettings[K],
-  ) => {
-    const prev = s[key];
+  /** A change goes into the draft; Save sends it. */
+  const save = <K extends EditableKey>(key: K, value: StorefrontSettings[K]) =>
     setS((cur) => ({ ...cur, [key]: value }));
-    setDraft((d) => withoutKey(d, key));
-    const ok = afterSave(
-      await put({ intent: "setting", key, value: JSON.stringify(value) }),
-    );
-    // Back to the previous value, unless a later change replaced this one meanwhile.
-    if (!ok) {
-      setS((cur) => (cur[key] === value ? { ...cur, [key]: prev } : cur));
-    }
-  };
 
-  /** Text fields: the preview follows typing; the value is saved when the field is left. */
+  /** Text fields: the draft (and the preview) follow typing. */
   const textProps = (key: EditableKey & keyof StorefrontSettings) => ({
     value: String(s[key]),
-    onInput: (e: Event) => {
-      const v = valueOf(e);
-      setDraft((d) => ({ ...d, [key]: v }));
-    },
-    onChange: (e: Event) => {
-      const el = e.currentTarget as HTMLInputElement;
-      const v = el.value.trim();
-      setDraft((d) => withoutKey(d, key));
-      if (!v || v === s[key]) {
-        el.value = String(s[key]);
-        return;
-      }
-      save(key, v as never);
-    },
+    onInput: (e: Event) => save(key, valueOf(e) as never),
   });
 
-  const saveHeading = async (e: Event) => {
-    const el = e.currentTarget as HTMLInputElement;
-    const v = el.value.trim();
-    setHeadingDraft(null);
-    if (!v || v === heading) {
-      el.value = heading;
+  const saveAll = async () => {
+    // What this Save sends: the draft as it is now (edits made while it runs stay in the draft).
+    const sent = s;
+    const sentHeading = heading;
+    // Texts are trimmed; an emptied one keeps its saved text (it isn't sent).
+    const applied: Partial<Record<EditableKey, unknown>> = {};
+    const settings: Record<string, string> = {};
+    for (const key of changedKeys) {
+      let value: unknown = sent[key];
+      if (TEXT_KEYS.has(key) && typeof value === "string") {
+        value = value.trim();
+        if (!value) {
+          applied[key] = saved[key];
+          continue;
+        }
+      }
+      applied[key] = value;
+      settings[key] = JSON.stringify(value);
+    }
+    const newHeading = sentHeading.trim() || savedHeading;
+    setSaving(true);
+    const r = await put({
+      intent: "save",
+      settings,
+      ...(newHeading !== savedHeading ? { heading: newHeading } : {}),
+    });
+    setSaving(false);
+    if (!r.ok) {
+      shopify.toast.show(r.error ?? "Your changes couldn't be saved.", {
+        isError: true,
+      });
       return;
     }
-    const prev = heading;
-    setHeading(v);
-    if (!afterSave(await put({ intent: "heading", value: v }))) {
-      setHeading(prev);
-      el.value = prev;
-    }
+    // Saved now: what was sent. The draft takes it only where nothing changed since Save was
+    // clicked (an icon uploaded meanwhile keeps its own saved values: functional updates).
+    setSaved((cur) => ({ ...cur, ...applied }) as StorefrontSettings);
+    setS((cur) => {
+      const next = { ...cur } as Record<string, unknown>;
+      for (const [key, value] of Object.entries(applied)) {
+        if (same(cur[key as EditableKey], sent[key as EditableKey])) {
+          next[key] = value;
+        }
+      }
+      return next as unknown as StorefrontSettings;
+    });
+    setSavedHeading(newHeading);
+    setHeading((cur) => (cur === sentHeading ? newHeading : cur));
+    setPublishFailed(r.published === false);
+    shopify.toast.show("Settings saved");
+  };
+
+  const discard = () => {
+    setS(saved);
+    setHeading(savedHeading);
+  };
+
+  /** Leaving the page from inside it: ask first while there are unsaved changes. */
+  const leave = async (go: () => void) => {
+    // Resolves when the merchant confirms (or no save bar is open); staying never resolves.
+    if (dirty) await shopify.saveBar.leaveConfirmation?.();
+    go();
   };
 
   const retryPublish = async () => {
@@ -314,8 +345,12 @@ export default function StorefrontPage() {
         setIconError(body.error ?? "The icon couldn't be uploaded.");
         return;
       }
-      setS((cur) => ({ ...cur, savedIcon: "custom", savedIconUrl: body.url! }));
+      // The upload is saved right away (a file, not a draft change).
+      const icon = { savedIcon: "custom" as const, savedIconUrl: body.url! };
+      setSaved((cur) => ({ ...cur, ...icon }));
+      setS((cur) => ({ ...cur, ...icon }));
       setPublishFailed(body.published === false);
+      shopify.toast.show("Icon uploaded");
     } catch {
       setIconError("The icon couldn't be uploaded. Try again.");
     } finally {
@@ -347,10 +382,10 @@ export default function StorefrontPage() {
   };
 
   // ---------------------------------------------------------------- preview config
-  const live: StorefrontSettings = { ...s, ...(draft as object) };
+  const live: StorefrontSettings = s;
   const previewConfig = {
     ...config,
-    heading: headingDraft ?? heading,
+    heading,
     s: live,
   };
   const things = config.things;
@@ -379,21 +414,22 @@ export default function StorefrontPage() {
     {
       name: "Fits badge",
       type: "App block",
-      where: "Product page, inside the product info",
+      where: "Product page",
       kind: "block",
       key: "badge",
     },
     inTabs
       ? {
           name: "Fitment table",
-          type: "Code in a theme tab",
-          where: "Product page, inside your theme's tabs",
+          // Both ways are offered (Fitment table tab › Where to show it).
+          type: "App block / Shortcode",
+          where: "Product page",
           kind: "code",
         }
       : {
           name: "Fitment table",
-          type: "App block",
-          where: "Product page, with the description and specification tabs",
+          type: "App block / Shortcode",
+          where: "Product page",
           kind: "block",
           key: "table",
         },
@@ -423,17 +459,21 @@ export default function StorefrontPage() {
     }
     if (row.kind === "code") {
       return status.tableCodeFound ? (
-        <s-badge tone="success">Code found</s-badge>
+        <s-badge tone="success">Active</s-badge>
       ) : (
-        <s-badge>Code not found yet</s-badge>
+        <s-badge>Not added</s-badge>
       );
     }
     if (row.kind === "embed") {
-      if (embed && s.garage) return <s-badge tone="success">Showing</s-badge>;
-      return <s-badge>{embed ? "Turned off" : "Needs app embed"}</s-badge>;
+      if (!embed) return <s-badge tone="warning">Needs app embed</s-badge>;
+      return s.garage ? (
+        <s-badge tone="success">Active</s-badge>
+      ) : (
+        <s-badge>Off</s-badge>
+      );
     }
     return blockStatus(row.key!) !== undefined ? (
-      <s-badge tone="success">Added</s-badge>
+      <s-badge tone="success">Active</s-badge>
     ) : (
       <s-badge>Not added</s-badge>
     );
@@ -441,55 +481,60 @@ export default function StorefrontPage() {
 
   const actionCell = (row: Row) => {
     if (row.kind === "code") {
+      // Inside s-text, Polaris underlines the link.
       return (
-        <s-button
-          variant="tertiary"
-          icon="settings"
-          onClick={() => showTab("table")}
-        >
-          How to add
-        </s-button>
+        <s-text>
+          <s-link onClick={() => showTab("table")}>How to add →</s-link>
+        </s-text>
       );
     }
     if (row.kind === "embed") {
       return (
-        <s-stack direction="inline" gap="small-200" alignItems="center">
-          <s-switch
-            label="Show My Selection"
-            labelAccessibilityVisibility="exclusive"
-            checked={s.garage}
-            disabled={!embed}
-            onChange={(e) => save("garage", checkedOf(e))}
-          />
-          <s-button
-            variant="tertiary"
-            icon="settings"
-            onClick={() => showTab("garage")}
-          >
-            Settings
-          </s-button>
-        </s-stack>
+        // Just the on/off switch; its settings are in the My Selection tab below.
+        <s-switch
+          label="Show My Selection"
+          labelAccessibilityVisibility="exclusive"
+          checked={s.garage}
+          disabled={!embed}
+          onChange={(e) => save("garage", checkedOf(e))}
+        />
       );
     }
     const found = blockStatus(row.key!);
-    return found !== undefined ? (
-      <s-button
-        variant="tertiary"
-        icon="external"
-        accessibilityLabel={`Show ${row.name} in the theme editor`}
-        onClick={() => open(links.view(found))}
-      >
-        View in editor
-      </s-button>
+    // Underlined links like "How to add" (inside s-text, Polaris underlines them). Adding needs
+    // the app embed and a theme; until then it's plain text.
+    if (found !== undefined) {
+      return (
+        <s-text>
+          <s-link
+            accessibilityLabel={`Show ${row.name} in the theme editor`}
+            onClick={() => {
+              // Shopify has no deep link that selects an existing block: say where it is.
+              const section = status?.sections?.[row.key!];
+              openEditor(
+                links.view(found),
+                section
+                  ? `Theme editor opened. ${row.name} is in the ${section} section.`
+                  : "Theme editor opened.",
+              );
+            }}
+          >
+            View in editor →
+          </s-link>
+        </s-text>
+      );
+    }
+    return !embed || !themeId ? (
+      <s-text color="subdued">Add to theme</s-text>
     ) : (
-      <s-button
-        icon="plus"
-        disabled={!embed || !themeId}
-        accessibilityLabel={`Add ${row.name} to the theme in the theme editor`}
-        onClick={() => open(links.add[row.key!])}
-      >
-        Add to theme
-      </s-button>
+      <s-text>
+        <s-link
+          accessibilityLabel={`Add ${row.name} to the theme in the theme editor`}
+          onClick={() => open(links.add[row.key!])}
+        >
+          Add to theme →
+        </s-link>
+      </s-text>
     );
   };
 
@@ -727,8 +772,7 @@ export default function StorefrontPage() {
                 label="Search heading"
                 value={heading}
                 maxLength={200}
-                onInput={(e) => setHeadingDraft(valueOf(e))}
-                onChange={saveHeading}
+                onInput={(e) => setHeading(valueOf(e))}
               />
               <s-checkbox
                 label="Show search heading"
@@ -755,7 +799,13 @@ export default function StorefrontPage() {
                 {config.fields.map((f) => (
                   <s-chip key={f.id}>{f.label}</s-chip>
                 ))}
-                <s-link href="/app/search-setup">Edit fields</s-link>
+                <s-link
+                  onClick={() =>
+                    void leave(() => navigate("/app/search-setup"))
+                  }
+                >
+                  Edit fields
+                </s-link>
               </s-stack>
             </s-box>
           </s-stack>
@@ -887,25 +937,21 @@ export default function StorefrontPage() {
                 )
               }
             >
-              <s-option value="block">As its own block</s-option>
-              <s-option value="tabs">
-                Inside your theme&apos;s tabs (Description, Specifications …)
-              </s-option>
+              <s-option value="block">Use as block</s-option>
+              <s-option value="tabs">Use as shortcode</s-option>
             </s-select>
             {inTabs ? (
               <s-box padding="base" background="subdued" borderRadius="base">
                 <s-stack gap="small-300">
-                  <s-text type="strong">
-                    Add it to your product tabs in 3 steps
-                  </s-text>
+                  <s-text type="strong">Add the shortcode in 3 steps</s-text>
                   <ol className="ff-steps">
                     <li>
-                      In the theme editor, open a product page and select your
-                      tabs section (the one with Description, Specifications …).
+                      In the theme editor, open a product page and pick where
+                      the table should go: any spot that shows text, such as a
+                      text or Custom Liquid block, a collapsible row or a tab.
                     </li>
                     <li>
-                      Add a tab, name it for example “Fits these {noun}s”, and
-                      paste this code as its content:
+                      Paste this shortcode there:
                       <span className="ff-code-row">
                         <code>{TABLE_CODE}</code>
                         <s-button
@@ -918,9 +964,8 @@ export default function StorefrontPage() {
                       </span>
                     </li>
                     <li>
-                      Save. FitFinder replaces the code with the table on every
-                      product page. Your theme decides how the tabs look: tabs
-                      on desktop, often an accordion on phones.
+                      Save. FitFinder replaces the shortcode with the table on
+                      every product page.
                     </li>
                   </ol>
                   <s-text color="subdued">
@@ -940,8 +985,8 @@ export default function StorefrontPage() {
               </s-box>
             ) : (
               <s-text color="subdued">
-                Sits with your product page&apos;s description and specification
-                rows: drag it between them in the theme editor.
+                Add it to any section on the product page that supports app
+                blocks, then drag it where you want it in the theme editor.
               </s-text>
             )}
           </s-stack>
@@ -960,9 +1005,7 @@ export default function StorefrontPage() {
                     )
                   }
                 >
-                  <s-option value="collapsible">
-                    Collapsible row (matches your theme&apos;s tabs)
-                  </s-option>
+                  <s-option value="collapsible">Collapsible row</s-option>
                   <s-option value="open">Open table</s-option>
                 </s-select>
                 <s-text-field
@@ -992,7 +1035,8 @@ export default function StorefrontPage() {
             </s-select>
             {inTabs && (
               <s-text color="subdued">
-                The tab&apos;s name comes from your theme.
+                The shortcode shows just the table. Add a heading above it in
+                your theme if you want one.
               </s-text>
             )}
           </s-stack>
@@ -1093,8 +1137,8 @@ export default function StorefrontPage() {
       <s-section accessibilityLabel="Live preview">
         {previewNote(
           inTabs
-            ? "Inside your theme's tabs, with sample rows. On phones your theme may show them as an accordion."
-            : "With sample rows.",
+            ? "Where you paste the shortcode. An example using the first rows of your filter data."
+            : "An example using the first rows of your filter data.",
         )}
         <StorefrontPreview
           kind="table"
@@ -1296,6 +1340,19 @@ export default function StorefrontPage() {
 
   return (
     <s-page inlineSize="base">
+      {/* App Bridge save bar: the primary button is Save, the other one Discard. */}
+      <SaveBar id={SAVE_BAR} open={dirty} discardConfirmation>
+        <button
+          variant="primary"
+          loading={saving ? "" : undefined}
+          onClick={() => void saveAll()}
+        >
+          Save
+        </button>
+        <button disabled={saving} onClick={discard}>
+          Discard
+        </button>
+      </SaveBar>
       <PageHeader title="Storefront">
         <s-button
           variant="primary"
@@ -1323,9 +1380,9 @@ export default function StorefrontPage() {
             tone="critical"
             heading="FitFinder is turned off in your live theme"
           >
-            Shoppers don&apos;t see My Selection or the fitment table in your
-            theme&apos;s tabs, and blocks can&apos;t be added, until you turn on
-            the app embed in Theme integration.
+            Shoppers don&apos;t see My Selection or the fitment table shortcode,
+            and blocks can&apos;t be added, until you turn on the app embed in
+            Theme integration.
           </s-banner>
         )}
         {themeCard}
@@ -1335,7 +1392,7 @@ export default function StorefrontPage() {
           aria-label="Storefront"
           ref={tabsRef}
         >
-          {TABS.map(([k, label]) => (
+          {TABS.map(([k, label, icon]) => (
             <button
               key={k}
               type="button"
@@ -1343,6 +1400,7 @@ export default function StorefrontPage() {
               aria-selected={tab === k}
               onClick={() => setTab(k)}
             >
+              <Icon name={icon} size={16} />
               {label}
             </button>
           ))}

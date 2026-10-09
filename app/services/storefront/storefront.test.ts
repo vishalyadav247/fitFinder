@@ -32,7 +32,10 @@ describe("storefront settings", () => {
     expect(s.askText).toBe("Select your vehicle to check if it fits");
     expect(s.noFitLinkText).toBe("See parts that fit");
     expect(s.tableTitle).toBe("Fits these vehicles");
-    expect(s.msAdd).toBe("Add a vehicle");
+    // My Selection's own texts are generic for every store type.
+    expect(s.msAdd).toBe("Add a new selection");
+    expect(s.msEmpty).toBe("Nothing saved yet");
+    expect(s.hintEmpty).toBe("Save your selection here");
     expect(s.savedIcon).toBe("car");
     expect(s.garageName).toBe("My Selection");
     const phones = defaultSettings({

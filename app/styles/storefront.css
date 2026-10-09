@@ -16,33 +16,6 @@
   font-weight: 650;
   color: #303030;
 }
-.ff-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #e3e3e3;
-  overflow-x: auto;
-  scroll-margin-top: 16px;
-}
-.ff-tabs button {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  font: inherit;
-  font-weight: 600;
-  color: #616161;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ff-tabs button:hover {
-  color: #303030;
-  border-bottom-color: #cccccc;
-}
-.ff-tabs button[aria-selected="true"] {
-  color: #303030;
-  border-bottom-color: #303030;
-}
 .ff-opt-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

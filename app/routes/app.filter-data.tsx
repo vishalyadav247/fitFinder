@@ -46,6 +46,7 @@ import { saveBlob } from "../components/import/client";
 import styles from "../styles/filter-data.css?url";
 import { PageHeader } from "../components/PageHeader";
 import { TableFooter } from "../components/TableFooter";
+import { EmptyState } from "../components/EmptyState";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZES,
@@ -540,17 +541,17 @@ export default function FilterDataPage() {
           )}
 
           {counts.total === 0 ? (
-            <s-box padding="large">
-              <s-stack gap="base" alignItems="center">
-                <s-heading>No rows yet</s-heading>
-                <s-paragraph color="subdued">
-                  Import a CSV or add rows by hand.
-                </s-paragraph>
-                <s-button variant="primary" onClick={openImport}>
+            <EmptyState
+              icon="upload"
+              heading="No rows yet"
+              actions={
+                <s-button variant="primary" icon="upload" onClick={openImport}>
                   Import CSV
                 </s-button>
-              </s-stack>
-            </s-box>
+              }
+            >
+              Import a CSV or add rows by hand.
+            </EmptyState>
           ) : (
             <>
               <s-table loading={rowsLoading}>

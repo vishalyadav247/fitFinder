@@ -7,6 +7,7 @@ import {
   FieldRuleError,
   MAX_FIELDS,
   applyFieldIntent,
+  applyFieldSave,
   listFields,
   type FieldIntent,
 } from "./search-field.server";
@@ -129,6 +130,82 @@ describe.skipIf(!process.env.DATABASE_URL)("search fields (Postgres)", () => {
       [1, "Model"],
       [2, "Year"],
     ]);
+  });
+
+  it("save bar: adds, edits and reorders in one save (new fields by key)", async () => {
+    const [make, year, model] = await fields(shopA);
+    await applyFieldSave(
+      shopA,
+      [
+        { intent: "add", key: "new:1" },
+        { intent: "label", fieldId: "new:1", value: "Engine" },
+        { intent: "required", fieldId: "new:1", value: true },
+        { intent: "label", fieldId: make.id, value: "Brand" },
+        {
+          intent: "order",
+          fieldIds: [year.id, make.id, "new:1", model.id],
+        },
+      ],
+      db,
+    );
+    expect(
+      (await fields(shopA)).map((x) => [x.position, x.label, x.required]),
+    ).toEqual([
+      [0, "Year", true],
+      [1, "Brand", true],
+      [2, "Engine", true],
+      [3, "Model", true],
+    ]);
+  });
+
+  it("save bar: a refused step leaves nothing changed", async () => {
+    const make = await byLabel(shopA, "Make");
+    await expect(
+      applyFieldSave(
+        shopA,
+        [
+          { intent: "add", key: "new:1" },
+          { intent: "label", fieldId: make.id, value: "Brand" },
+          // Year is already the Year range.
+          { intent: "type", fieldId: make.id, value: "year_range" },
+        ],
+        db,
+      ),
+    ).rejects.toThrow("Only one field can be a year range.");
+    expect((await fields(shopA)).map((x) => x.label)).toEqual([
+      "Make",
+      "Year",
+      "Model",
+    ]);
+  });
+
+  it("save bar: the Year range moves to another field in one save", async () => {
+    const make = await byLabel(shopA, "Make");
+    const year = await byLabel(shopA, "Year");
+    await applyFieldSave(
+      shopA,
+      [
+        { intent: "type", fieldId: year.id, value: "list" },
+        { intent: "type", fieldId: make.id, value: "year_range" },
+      ],
+      db,
+    );
+    expect((await byLabel(shopA, "Make")).type).toBe("year_range");
+    expect((await byLabel(shopA, "Year")).type).toBe("list");
+  });
+
+  it("save bar: an order that isn't exactly the shop's fields is refused", async () => {
+    const mine = await fields(shopA);
+    const other = await byLabel(shopB, "Make");
+    for (const fieldIds of [
+      mine.slice(0, 2).map((x) => x.id),
+      [mine[0].id, mine[1].id, other.id],
+      [mine[0].id, mine[0].id, mine[1].id],
+    ]) {
+      await expect(
+        applyFieldSave(shopA, [{ intent: "order", fieldIds }], db),
+      ).rejects.toBeInstanceOf(FieldRuleError);
+    }
   });
 
   it("can't touch another shop's field", async () => {

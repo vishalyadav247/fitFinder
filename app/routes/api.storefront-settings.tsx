@@ -1,7 +1,8 @@
-// PUT /api/storefront-settings — the Storefront page saves each change on its own (no Save
-// button, like Search setup): { intent: "setting", key, value } (value = JSON), { intent:
-// "heading", value } or { intent: "publish" } (Try again after a failed publish). After a write
-// the new config is published to the theme (app metafield). Returns { ok, published }.
+// PUT /api/storefront-settings — the Storefront page's save bar sends every change at once:
+// { intent: "save", settings: { key: JSON value }, heading? }. Also { intent: "setting", key,
+// value } and { intent: "heading", value } (one change), and { intent: "publish" } (Try again after
+// a failed publish). Every value is checked before anything is written; after a write the new
+// config is published to the theme (app metafield). Returns { ok, published }.
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
@@ -39,6 +40,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     } else if (intent.intent === "heading") {
       await saveHeading(shop.id, intent.value);
+    } else if (intent.intent === "save") {
+      // Check every value first (throws SettingValueError), then write them in one go.
+      const patch = Object.fromEntries(
+        Object.entries(intent.settings).map(([key, value]) => [
+          key,
+          settingValue(key, value),
+        ]),
+      );
+      if (Object.keys(patch).length) await saveSettings(shop.id, patch);
+      if (intent.heading) await saveHeading(shop.id, intent.heading);
     }
   } catch (error) {
     if (error instanceof SettingValueError) {

@@ -3,7 +3,7 @@
   from the app metafield (no layout shift); ff-search.js makes them cascade and search.
 {%- endcomment -%}
 {%- assign ff = app.metafields.fitfinder.config.value -%}
-<div class="ff-search-wrap page-width" data-ff-search>
+<div class="ff-search-wrap" data-ff-search>
   {%- if ff -%}
     <script type="application/json" data-ff-config>{{ ff | json }}</script>
     {%- liquid

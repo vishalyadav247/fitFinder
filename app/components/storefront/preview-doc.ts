@@ -199,11 +199,6 @@ body{padding:2px}
 .pv-table>.ff-table-wrap{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:0 12px}
 .pv-hidden{display:none;margin:0;font-size:12px;color:#a3a3a3;font-style:italic}
 [data-ff-table][hidden]~.pv-hidden{display:block}
-.pv-tabs{border:1px solid #e5e5e5;border-radius:10px;background:#fff;overflow:hidden}
-.pv-tabs-bar{display:flex;gap:18px;padding:0 12px;border-bottom:1px solid #e5e5e5;font-size:13px;color:#737373;overflow-x:auto}
-.pv-tabs-bar span{padding:10px 0;white-space:nowrap}
-.pv-tabs-bar .on{color:#1a1a1a;font-weight:650;box-shadow:inset 0 -2px 0 #1a1a1a}
-.pv-tabs-body{padding:4px 12px 2px;min-height:20px}
 .pv-results{display:grid;gap:8px;margin-top:12px}
 .pv-results:empty{display:none}
 .pv-card{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:10px;background:#fff;box-shadow:0 0 0 1px #eaeaea}
@@ -281,9 +276,8 @@ function markup(kind: PreviewKind, config: StorefrontConfig): string {
       const inTabs = config.s.tablePlace === "tabs";
       const spot = (product: string, note: string) => {
         const table = `<div class="ff-table-wrap${inTabs ? " ff-table-wrap--tabs" : ""}" data-ff-table${inTabs ? " data-ff-tabs" : ""} data-product="${product}"></div><p class="pv-hidden">${esc(note)}</p>`;
-        return inTabs
-          ? `<div class="pv-tabs"><div class="pv-tabs-bar"><span>Description</span><span>Specifications</span><span class="on">Fits these ${esc(config.noun)}s</span><span>Reviews</span></div><div class="pv-tabs-body pv-table">${table}</div></div>`
-          : `<div class="pv-table">${table}</div>`;
+        // Block or shortcode: the same table (no wrapper, so one border).
+        return `<div class="pv-table">${table}</div>`;
       };
       return [
         cap("Product with rows"),
@@ -291,9 +285,7 @@ function markup(kind: PreviewKind, config: StorefrontConfig): string {
         cap("Product with no rows"),
         spot(
           "none",
-          inTabs
-            ? "The code shows nothing (the tab stays empty)"
-            : "Nothing is shown",
+          inTabs ? "The shortcode shows nothing" : "Nothing is shown",
         ),
       ].join("");
     }

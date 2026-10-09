@@ -91,7 +91,9 @@
   background: rgba(0, 0, 0, 0.04);
 }
 .ff-ft--striped td,
-.ff-ft--plain td {
+.ff-ft--plain td,
+/* The table sits in a box or above the row's own line: no second line under the last row. */
+.ff-ft tbody tr:last-child td {
   border-bottom: 0;
 }
 .ff-ft-more {

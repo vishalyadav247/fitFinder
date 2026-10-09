@@ -159,36 +159,106 @@ async function runFieldIntent(shopId: string, input: FieldIntent, db: Db) {
       `SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT}'`,
     );
     await lockSetup(tx, shopId);
-    switch (input.intent) {
-      case "add":
-        return addField(tx, shopId);
-      case "label":
-        return setLabel(tx, shopId, input.fieldId, input.value);
-      case "placeholder":
-        return setPlaceholder(tx, shopId, input.fieldId, input.value);
-      case "required":
-        await getField(tx, shopId, input.fieldId);
-        await tx.searchField.update({
-          where: { id: input.fieldId },
-          data: { required: input.value },
-        });
-        return;
-      case "type":
-        return setType(tx, shopId, input.fieldId, input.value);
-      case "move":
-        return moveField(tx, shopId, input.fieldId, input.value);
-      case "delete":
-        return deleteField(tx, shopId, input.fieldId);
-    }
+    await runStep(tx, shopId, input);
   }, TX_OPTIONS);
 }
 
-async function addField(tx: Tx, shopId: string) {
+/**
+ * One step of a save bar save. Field ids may be the key of a field added earlier in the same
+ * save ("new:1"); "order" lists every field (saved and new) in the new order.
+ */
+export type SaveStep =
+  | { intent: "add"; key: string }
+  | Extract<
+      FieldIntent,
+      { intent: "label" | "placeholder" | "required" | "type" }
+    >
+  | { intent: "order"; fieldIds: string[] };
+
+/**
+ * The save bar's Save: every step in one transaction under the setup lock, so a refused step
+ * (FieldRuleError) leaves nothing changed.
+ */
+export async function applyFieldSave(
+  shopId: string,
+  steps: SaveStep[],
+  db: Db = prisma,
+): Promise<void> {
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT}'`,
+      );
+      await lockSetup(tx, shopId);
+      const added = new Map<string, string>();
+      const id = (fieldId: string) => added.get(fieldId) ?? fieldId;
+      for (const step of steps) {
+        if (step.intent === "add") {
+          added.set(step.key, await addField(tx, shopId));
+        } else if (step.intent === "order") {
+          await setOrder(tx, shopId, step.fieldIds.map(id));
+        } else {
+          await runStep(tx, shopId, { ...step, fieldId: id(step.fieldId) });
+        }
+      }
+    }, TX_OPTIONS);
+  } catch (error) {
+    if (isTimeout(error)) throw new FieldTimeoutError();
+    throw error;
+  }
+}
+
+async function runStep(tx: Tx, shopId: string, input: FieldIntent) {
+  switch (input.intent) {
+    case "add":
+      return addField(tx, shopId);
+    case "label":
+      return setLabel(tx, shopId, input.fieldId, input.value);
+    case "placeholder":
+      return setPlaceholder(tx, shopId, input.fieldId, input.value);
+    case "required":
+      await getField(tx, shopId, input.fieldId);
+      await tx.searchField.update({
+        where: { id: input.fieldId },
+        data: { required: input.value },
+      });
+      return;
+    case "type":
+      return setType(tx, shopId, input.fieldId, input.value);
+    case "move":
+      return moveField(tx, shopId, input.fieldId, input.value);
+    case "delete":
+      return deleteField(tx, shopId, input.fieldId);
+  }
+}
+
+/** Puts the fields in the given order; the list must be exactly the shop's fields. */
+async function setOrder(tx: Tx, shopId: string, fieldIds: string[]) {
+  const fields = await orderedFields(tx, shopId);
+  const byId = new Map(fields.map((f) => [f.id, f]));
+  if (
+    fieldIds.length !== fields.length ||
+    new Set(fieldIds).size !== fieldIds.length ||
+    !fieldIds.every((fid) => byId.has(fid))
+  ) {
+    throw new FieldRuleError(
+      "Your fields changed meanwhile. Reload the page and try again.",
+    );
+  }
+  await renumber(
+    tx,
+    shopId,
+    fieldIds.map((fid) => byId.get(fid)!),
+  );
+}
+
+/** Adds a "New field" at the end; returns its id. */
+async function addField(tx: Tx, shopId: string): Promise<string> {
   const position = await tx.searchField.count({ where: { shopId } });
   if (position >= MAX_FIELDS) {
     throw new FieldRuleError(`You can have up to ${MAX_FIELDS} fields.`);
   }
-  await tx.searchField.create({
+  const field = await tx.searchField.create({
     data: {
       shopId,
       position,
@@ -198,6 +268,7 @@ async function addField(tx: Tx, shopId: string) {
       required: false,
     },
   });
+  return field.id;
 }
 
 async function setLabel(tx: Tx, shopId: string, fieldId: string, raw: string) {

@@ -69,6 +69,9 @@ export interface StorefrontSettings {
   hintSub: string;
   hintEmpty: string;
   hintEmptySub: string;
+  /** My Selection panel with nothing saved yet. */
+  msEmpty: string;
+  msEmptySub: string;
 }
 
 /** Wording a store type gives the defaults: noun (vehicle …) and products word (parts …). */
@@ -119,17 +122,20 @@ export function defaultSettings({
     savedPos: "right-middle",
     savedIcon: STORE_TYPES[storeType].icon,
     savedIconUrl: "",
-    savedBg: "#FFFFFF",
+    savedBg: "#74F821",
     savedText: "#1A1A1A",
     savedCount: true,
     maxSaved: "5",
     askSave: true,
     msSelected: "Selected",
-    msAdd: `Add a ${noun}`,
+    // My Selection texts are generic (every store type), not built from the noun.
+    msAdd: "Add a new selection",
     hintTitle: "Shopping for",
     hintSub: "{n} saved · Click to switch or add",
-    hintEmpty: `Save your ${noun} here`,
-    hintEmptySub: `Click to add your first ${noun}`,
+    hintEmpty: "Save your selection here",
+    hintEmptySub: "Click to add your first one",
+    msEmpty: "Nothing saved yet",
+    msEmptySub: "Search, then save your selection to find it here next time.",
   };
 }
 

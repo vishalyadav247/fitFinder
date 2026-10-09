@@ -4,9 +4,26 @@
   visibility: visible !important;
   position: fixed;
   z-index: 2147483000;
+  /* The device's own UI font, not the theme's web font: a theme font that loads late made the
+     text start bold (fallback font at 600) and then turn lighter. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   font-size: 14px;
   line-height: 1.3;
   color: #1a1a1a;
+  /* No fades for the first moments after this stylesheet applies: the script drew the hint
+     and panel before it arrived, so they'd visibly fade out on page load. --ff-ms-t scales every
+     transition below (0 = instant, 1 = normal). */
+  animation: ff-ms-ready 0s 0.5s both;
+}
+@keyframes ff-ms-ready {
+  from {
+    --ff-ms-t: 0;
+  }
+  to {
+    --ff-ms-t: 1;
+  }
 }
 .ff-ms * {
   box-sizing: border-box;
@@ -39,13 +56,13 @@
   border: 1px solid #d9d9d9;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   font: inherit;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   transition:
-    box-shadow 0.35s ease,
-    opacity 0.2s;
+    box-shadow calc(0.35s * var(--ff-ms-t, 1)) ease,
+    opacity calc(0.2s * var(--ff-ms-t, 1));
 }
 .ff-ms__tab svg,
 .ff-ms__icon {
@@ -77,11 +94,14 @@
   background: var(--ff-ms-fg);
   color: var(--ff-ms-bg);
 }
-/* side edges: vertical tab, 46 × 190px, flush with the edge */
+/* side edges: vertical tab, 46px wide and up to 190px tall (as tall as its content), flush with
+   the edge */
 .ff-ms--side .ff-ms__tab {
+  /* Draggable up and down (my-selection.js): touch drags move the tab, not the page. */
+  touch-action: none;
   writing-mode: vertical-rl;
   width: 46px;
-  height: 190px;
+  max-height: 190px;
   padding: 14px 10px;
 }
 .ff-ms--right-middle .ff-ms__tab {
@@ -104,16 +124,18 @@
 .ff-ms__tab:focus-visible {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
 }
-/* bottom corners: fixed-width pill */
+/* bottom corners: pill up to 220px wide (as wide as its content) */
 .ff-ms--bottom-right .ff-ms__tab,
 .ff-ms--bottom-left .ff-ms__tab {
-  width: 220px;
+  max-width: 220px;
   height: 46px;
   padding: 0 14px;
   border-radius: 999px;
 }
-/* hover hint */
+/* Hover card: not there at all (display: none) until the tab is hovered, so it can never show
+   while the page loads; it fades in with an animation (animations run when display changes). */
 .ff-ms__hint {
+  display: none;
   position: absolute;
   width: 210px;
   padding: 10px 12px;
@@ -123,11 +145,7 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
   font-size: 13px;
   line-height: 1.35;
-  opacity: 0;
   pointer-events: none;
-  transition:
-    opacity 0.25s ease,
-    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .ff-ms__hint b {
   display: block;
@@ -153,37 +171,34 @@
 .ff-ms--right-middle .ff-ms__hint {
   right: 56px;
   top: 50%;
-  transform: translate(10px, -50%);
+  transform: translateY(-50%);
 }
 .ff-ms--left-middle .ff-ms__hint {
   left: 56px;
   top: 50%;
-  transform: translate(-10px, -50%);
+  transform: translateY(-50%);
 }
 .ff-ms--bottom-right .ff-ms__hint {
   right: 0;
   bottom: 58px;
-  transform: translateY(8px);
 }
 .ff-ms--bottom-left .ff-ms__hint {
   left: 0;
   bottom: 58px;
-  transform: translateY(8px);
 }
 @media (hover: hover) {
   .ff-ms__tab:hover + .ff-ms__hint {
-    opacity: 1;
+    display: block;
+    animation: ff-ms-hint-in 0.25s ease;
   }
-  .ff-ms--side .ff-ms__tab:hover + .ff-ms__hint {
-    transform: translate(0, -50%);
-  }
-  .ff-ms--bottom-right .ff-ms__tab:hover + .ff-ms__hint,
-  .ff-ms--bottom-left .ff-ms__tab:hover + .ff-ms__hint {
-    transform: none;
+}
+@keyframes ff-ms-hint-in {
+  from {
+    opacity: 0;
   }
 }
 .ff-ms.is-open .ff-ms__hint {
-  opacity: 0;
+  display: none;
 }
 /* panel */
 .ff-ms__panel {
@@ -195,15 +210,15 @@
   padding: 18px 18px 16px;
   background: #ffffff;
   color: #1a1a1a;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--ff-ms-bg) /* same colour as the closed tab */;
   border-radius: 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
   opacity: 0;
   visibility: hidden;
   transition:
-    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 0.25s,
-    visibility 0.35s;
+    transform calc(0.35s * var(--ff-ms-t, 1)) cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity calc(0.25s * var(--ff-ms-t, 1)),
+    visibility calc(0.35s * var(--ff-ms-t, 1));
 }
 .ff-ms--right-middle .ff-ms__panel {
   right: -1px;
@@ -255,7 +270,7 @@
   margin: 0;
   background: #ffffff;
   color: #303030;
-  border: 1px solid #d9d9d9;
+  border: 1px solid var(--ff-ms-bg) /* same colour as the closed tab */;
   cursor: pointer;
   padding: 0;
   transition:
@@ -385,9 +400,32 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ff-ms__panel,
-  .ff-ms__hint,
   .ff-ms__tab {
     transition: none;
   }
+  .ff-ms__tab:hover + .ff-ms__hint {
+    animation: none;
+  }
 }
-.ff-ask-wrap{padding-top:16px}
+.ff-ask-wrap {
+  padding-top: 16px;
+}
+
+/* panel: nothing saved yet */
+.ff-ms__empty {
+  margin: 0 0 12px;
+  padding: 14px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 12px;
+  text-align: center;
+}
+.ff-ms__empty b {
+  display: block;
+  font-size: 15px;
+}
+.ff-ms__empty small {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #8a8a8a;
+}

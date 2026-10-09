@@ -36,8 +36,9 @@ export function initBadge(el) {
       (d) => {
         if (keyOf(getStore().current) !== keyOf(picks)) return;
         // Products FitFinder doesn't cover (no rows, not universal, e.g. gift cards): no badge.
+        // Theme editor: keep it visible, so the merchant can see where it sits.
         if (!d.total && !d.universal) {
-          el.innerHTML = "";
+          el.innerHTML = el.hasAttribute("data-ff-editor") ? ask : "";
           return;
         }
         if (!picks) {
@@ -134,7 +135,10 @@ export function initTable(el, inTabs) {
   api("fits", productParams(el, {})).then(
     (d) => {
       if (!d.rows.length) {
-        const text = s.tableEmpty === "text";
+        // Theme editor: a table that would be hidden shows like "Show a text instead", so the
+        // merchant can see where it sits.
+        const text =
+          s.tableEmpty === "text" || el.hasAttribute("data-ff-editor");
         el.innerHTML = text
           ? wrap('<p class="ff-ft-empty">' + esc(s.tableEmptyText) + "</p>", true)
           : "";
@@ -182,7 +186,7 @@ export function initTable(el, inTabs) {
 const CODE = "[fitfinder-table]";
 
 /**
- * Product pages: replaces the code [fitfinder-table] in the theme's tabs with an empty table
+ * Product pages: replaces the shortcode [fitfinder-table] anywhere on the page with an empty table
  * spot (data-ff-table data-ff-tabs) that ff-product.js fills. Returns how many it found.
  */
 export function markTableCode(embed) {

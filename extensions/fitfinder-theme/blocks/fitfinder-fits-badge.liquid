@@ -1,11 +1,13 @@
 {%- comment -%}
   Fits badge (specs/storefront.md › Fits badge): whether this product fits the shopper's
   selection. Shows "before a selection" right away; ff-product.js checks the selection.
+  Products without filter rows show no badge; in the theme editor it stays visible
+  (data-ff-editor), so merchants can see and place it on any product.
 {%- endcomment -%}
 {%- assign ff = app.metafields.fitfinder.config.value -%}
 {%- if ff and product -%}
   <script type="application/json" data-ff-config>{{ ff | json }}</script>
-  <div class="ff-badge-wrap" data-ff-badge data-product="{{ product.id }}" data-collections="{{ product.collections | map: 'id' | join: ',' }}">
+  <div class="ff-badge-wrap" data-ff-badge data-product="{{ product.id }}" data-collections="{{ product.collections | map: 'id' | join: ',' }}"{% if request.design_mode %} data-ff-editor{% endif %}>
     <div class="ff-fit ff-fit--ask">{{ ff.s.askText | escape }}</div>
   </div>
 {%- elsif request.design_mode -%}

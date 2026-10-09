@@ -8,6 +8,7 @@ import type {
   ActionFunctionArgs,
   LinksFunction,
   LoaderFunctionArgs,
+  ShouldRevalidateFunction,
 } from "react-router";
 import {
   data,
@@ -55,6 +56,8 @@ import {
 } from "../services/linking/attachment";
 import { cellDisplay, type RowField } from "../services/fitment/rows";
 import { TableFooter } from "../components/TableFooter";
+import { EmptyState } from "../components/EmptyState";
+import { Icon, type IconName } from "../components/Icon";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZES,
@@ -82,6 +85,40 @@ const sizeParam = (url: URL, key: string) =>
   tablePageSize(url.searchParams.get(key));
 
 type TableKey = "u" | "p" | "x";
+
+// One tab per list (?tab=); Unlinked rows first.
+// Line icons (they follow the text colour: white on the active tab), like the section titles.
+const TABS = [
+  ["u", "Unlinked rows", "link"],
+  ["p", "Products without filter data", "product"],
+  ["x", "Universal products", "globe"],
+] as const satisfies readonly (readonly [TableKey, string, IconName])[];
+const tabParam = (value: string | null): TableKey =>
+  TABS.find(([k]) => k === value)?.[0] ?? "u";
+
+/** Switching tabs only changes ?tab=: the lists are already loaded, so don't load them again. */
+export const shouldRevalidate: ShouldRevalidateFunction = ({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}) => {
+  // Same URL = an explicit reload (revalidator, after a link check): always load.
+  if (
+    formMethod ||
+    currentUrl.pathname !== nextUrl.pathname ||
+    currentUrl.search === nextUrl.search
+  ) {
+    return defaultShouldRevalidate;
+  }
+  const strip = (url: URL) => {
+    const p = new URLSearchParams(url.search);
+    p.delete("tab");
+    p.sort();
+    return p.toString();
+  };
+  return strip(currentUrl) === strip(nextUrl) ? false : defaultShouldRevalidate;
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -136,6 +173,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
   return {
     noun: config.noun,
+    things: config.thingsWord,
     fields,
     unlinkedCount: counts.unlinkedSkus,
     unlinked,
@@ -294,6 +332,7 @@ type Picked = { id: string; variants?: { id?: string }[] }[] | undefined;
 export default function ProductMappingPage() {
   const {
     noun,
+    things,
     fields,
     unlinkedCount,
     unlinked,
@@ -305,7 +344,18 @@ export default function ProductMappingPage() {
   const navigate = useNavigate();
   const navigation = useNavigation();
   const revalidator = useRevalidator();
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = tabParam(searchParams.get("tab"));
+  const showTab = (key: TableKey) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (key === "u") next.delete("tab");
+        else next.set("tab", key);
+        return next;
+      },
+      { preventScrollReset: true, replace: true },
+    );
   const fetcher = useFetcher<MappingResult>();
   const busy = fetcher.state !== "idle";
   // The table being paged shows its loading state; the others stay as they are.
@@ -354,9 +404,19 @@ export default function ProductMappingPage() {
   const checking = isActive(live);
   // The store's products are being loaded for the first time: link results aren't known yet.
   const firstLoad = !live.catalogReady;
-  const notLoaded = checking
-    ? "Loading your products from Shopify…"
-    : "Your products couldn't be loaded yet. Click Check links again.";
+  // First visit: the store's products are still loading (or that failed).
+  const loadingState = checking ? (
+    <EmptyState tone="loading" heading="Loading your products from Shopify…">
+      This takes a moment for big stores. The list fills in by itself.
+    </EmptyState>
+  ) : (
+    <EmptyState
+      icon="alert-circle"
+      heading="Your products couldn't be loaded yet"
+    >
+      Click Check links again to try again.
+    </EmptyState>
+  );
   const [watching, setWatching] = useState<number | null>(null);
   const idlePolls = useRef(0);
   useEffect(() => {
@@ -474,220 +534,292 @@ export default function ProductMappingPage() {
       </PageHeader>
 
       <s-stack gap="base">
-        <s-section padding="none" accessibilityLabel="Unlinked rows">
-          <s-box padding="base">
-            <s-stack gap="small-100">
-              <s-stack direction="inline" gap="small-200" alignItems="center">
-                <SectionTitle icon="link">Unlinked rows</SectionTitle>
-                {!firstLoad && (
-                  <s-badge tone={unlinkedCount ? "warning" : "success"}>
-                    {unlinkedCount.toLocaleString("en-US")} to link
-                  </s-badge>
+        <div className="ff-tabs" role="tablist" aria-label="Product mapping">
+          {TABS.map(([key, label, icon]) => {
+            const count =
+              key === "u"
+                ? unlinkedCount
+                : key === "p"
+                  ? withoutData.total
+                  : universal.total;
+            // Counts mean nothing until the store's products have loaded (not for universal).
+            const known = key === "x" || !firstLoad;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => showTab(key)}
+              >
+                <Icon name={icon} size={16} />
+                {label}
+                {known && (
+                  <span
+                    className={
+                      key !== "x" && count > 0
+                        ? "ff-tab-count is-warning"
+                        : "ff-tab-count"
+                    }
+                  >
+                    {count.toLocaleString("en-US")}
+                  </span>
                 )}
-              </s-stack>
-              <s-text color="subdued">
-                Each filter row points to a product through its Attachment
-                (usually a SKU). We couldn&apos;t find these in your store, so
-                shoppers don&apos;t see them in search results.
-              </s-text>
-            </s-stack>
-          </s-box>
-          {firstLoad ? (
-            <s-box padding="base" paddingBlockStart="none">
-              <s-text color="subdued">{notLoaded}</s-text>
-            </s-box>
-          ) : unlinked.items.length ? (
-            <>
-              <s-table loading={paging("u")}>
-                <s-table-header-row>
-                  <s-table-header listSlot="primary">Attachment</s-table-header>
-                  <s-table-header>Type</s-table-header>
-                  <s-table-header>Fits</s-table-header>
-                  <s-table-header format="numeric">Rows</s-table-header>
-                  <s-table-header>Action</s-table-header>
-                </s-table-header-row>
-                <s-table-body>
-                  {unlinked.items.map((g) => (
-                    <s-table-row key={g.attachment}>
-                      <s-table-cell>
-                        <s-text type="strong">{g.attachment}</s-text>
-                      </s-table-cell>
-                      <s-table-cell>{kindLabel(g.kind)}</s-table-cell>
-                      <s-table-cell>
-                        <s-text color="subdued">{fitsText(fields, g)}</s-text>
-                      </s-table-cell>
-                      <s-table-cell>
-                        {g.rows.toLocaleString("en-US")}
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-button
-                          disabled={busy}
-                          onClick={() => void choose(g)}
-                        >
-                          {g.kind === "collection"
-                            ? "Choose collection"
-                            : "Choose product"}
-                        </s-button>
-                      </s-table-cell>
-                    </s-table-row>
-                  ))}
-                </s-table-body>
-              </s-table>
-              {footer("u", unlinked, unlinkedCount, "attachments")}
-            </>
-          ) : (
-            <s-box padding="base" paddingBlockStart="none">
-              <s-banner
-                tone="success"
-                heading="Every row is linked to a product"
-              ></s-banner>
-            </s-box>
-          )}
-        </s-section>
+              </button>
+            );
+          })}
+        </div>
 
-        <s-section
-          padding="none"
-          accessibilityLabel="Products without filter data"
-        >
-          <s-box padding="base">
-            <s-stack gap="small-100">
-              <s-stack direction="inline" gap="small-200" alignItems="center">
-                <SectionTitle icon="product">
-                  Products without filter data
-                </SectionTitle>
-                {!firstLoad && (
-                  <s-badge tone={withoutData.total ? "warning" : "success"}>
-                    {withoutData.total.toLocaleString("en-US")} products
-                  </s-badge>
-                )}
+        {tab === "u" && (
+          <s-section padding="none" accessibilityLabel="Unlinked rows">
+            <s-box padding="base">
+              <s-stack gap="small-100">
+                <s-stack direction="inline" gap="small-200" alignItems="center">
+                  <SectionTitle icon="link">Unlinked rows</SectionTitle>
+                  {!firstLoad && (
+                    <s-badge tone={unlinkedCount ? "warning" : "success"}>
+                      {unlinkedCount.toLocaleString("en-US")} to link
+                    </s-badge>
+                  )}
+                </s-stack>
+                <s-text color="subdued">
+                  Each filter row points to a product through its Attachment
+                  (usually a SKU). We couldn&apos;t find these in your store, so
+                  shoppers don&apos;t see them in search results.
+                </s-text>
               </s-stack>
-              <s-text color="subdued">
-                These products have no filter rows, so they never appear in a
-                search. Add rows for them, or mark them as universal if they fit
-                every {noun}.
-              </s-text>
-            </s-stack>
-          </s-box>
-          {firstLoad ? (
-            <s-box padding="base" paddingBlockStart="none">
-              <s-text color="subdued">{notLoaded}</s-text>
             </s-box>
-          ) : withoutData.items.length ? (
-            <>
-              <s-table loading={paging("p")}>
-                <s-table-header-row>
-                  <s-table-header listSlot="primary">Product</s-table-header>
-                  <s-table-header>SKU</s-table-header>
-                  <s-table-header>Action</s-table-header>
-                </s-table-header-row>
-                <s-table-body>
-                  {withoutData.items.map((p) => (
-                    <s-table-row key={p.productId}>
-                      <s-table-cell>
-                        <s-text type="strong">{p.title}</s-text>
-                      </s-table-cell>
-                      <s-table-cell>{p.sku || "—"}</s-table-cell>
-                      <s-table-cell>
-                        <s-stack direction="inline" gap="small-200">
-                          <s-button onClick={() => addRow(p)}>
-                            Add filter row
+            {firstLoad ? (
+              loadingState
+            ) : unlinked.items.length ? (
+              <>
+                <s-table loading={paging("u")}>
+                  <s-table-header-row>
+                    <s-table-header listSlot="primary">
+                      Attachment
+                    </s-table-header>
+                    <s-table-header>Type</s-table-header>
+                    <s-table-header>Fits</s-table-header>
+                    <s-table-header format="numeric">Rows</s-table-header>
+                    <s-table-header>Action</s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>
+                    {unlinked.items.map((g) => (
+                      <s-table-row key={g.attachment}>
+                        <s-table-cell>
+                          <s-text type="strong">{g.attachment}</s-text>
+                        </s-table-cell>
+                        <s-table-cell>{kindLabel(g.kind)}</s-table-cell>
+                        <s-table-cell>
+                          <s-text color="subdued">{fitsText(fields, g)}</s-text>
+                        </s-table-cell>
+                        <s-table-cell>
+                          {g.rows.toLocaleString("en-US")}
+                        </s-table-cell>
+                        <s-table-cell>
+                          <s-button
+                            disabled={busy}
+                            onClick={() => void choose(g)}
+                          >
+                            {g.kind === "collection"
+                              ? "Choose collection"
+                              : "Choose product"}
                           </s-button>
+                        </s-table-cell>
+                      </s-table-row>
+                    ))}
+                  </s-table-body>
+                </s-table>
+                {footer("u", unlinked, unlinkedCount, "attachments")}
+              </>
+            ) : (
+              <EmptyState
+                tone="success"
+                icon="check-circle"
+                heading="Every row is linked to a product"
+                actions={
+                  <s-button onClick={() => navigate("/app/filter-data")}>
+                    View filter data
+                  </s-button>
+                }
+              >
+                Shoppers can find all of your {things} in the search. Rows from
+                new imports are matched automatically; any we can&apos;t match
+                show up here.
+              </EmptyState>
+            )}
+          </s-section>
+        )}
+
+        {tab === "p" && (
+          <s-section
+            padding="none"
+            accessibilityLabel="Products without filter data"
+          >
+            <s-box padding="base">
+              <s-stack gap="small-100">
+                <s-stack direction="inline" gap="small-200" alignItems="center">
+                  <SectionTitle icon="product">
+                    Products without filter data
+                  </SectionTitle>
+                  {!firstLoad && (
+                    <s-badge tone={withoutData.total ? "warning" : "success"}>
+                      {withoutData.total.toLocaleString("en-US")} products
+                    </s-badge>
+                  )}
+                </s-stack>
+                <s-text color="subdued">
+                  These products have no filter rows, so they never appear in a
+                  search. Add rows for them, or mark them as universal if they
+                  fit every {noun}.
+                </s-text>
+              </s-stack>
+            </s-box>
+            {firstLoad ? (
+              loadingState
+            ) : withoutData.items.length ? (
+              <>
+                <s-table loading={paging("p")}>
+                  <s-table-header-row>
+                    <s-table-header listSlot="primary">Product</s-table-header>
+                    <s-table-header>SKU</s-table-header>
+                    <s-table-header>Action</s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>
+                    {withoutData.items.map((p) => (
+                      <s-table-row key={p.productId}>
+                        <s-table-cell>
+                          <s-text type="strong">{p.title}</s-text>
+                        </s-table-cell>
+                        <s-table-cell>{p.sku || "—"}</s-table-cell>
+                        <s-table-cell>
+                          <s-stack direction="inline" gap="small-200">
+                            <s-button onClick={() => addRow(p)}>
+                              Add filter row
+                            </s-button>
+                            <s-button
+                              variant="tertiary"
+                              disabled={busy}
+                              onClick={() =>
+                                submit({
+                                  intent: "universal-mark",
+                                  productId: p.productId,
+                                })
+                              }
+                            >
+                              Mark as universal
+                            </s-button>
+                          </s-stack>
+                        </s-table-cell>
+                      </s-table-row>
+                    ))}
+                  </s-table-body>
+                </s-table>
+                {footer("p", withoutData, withoutData.total, "products")}
+              </>
+            ) : (
+              <EmptyState
+                tone="success"
+                icon="check-circle"
+                heading="Every product has filter data or is universal"
+                actions={
+                  <s-button onClick={() => showTab("x")}>
+                    View universal products
+                  </s-button>
+                }
+              >
+                Every active product in your store shows up in at least one
+                search.
+              </EmptyState>
+            )}
+          </s-section>
+        )}
+
+        {tab === "x" && (
+          <s-section padding="none" accessibilityLabel="Universal products">
+            <s-box padding="base">
+              <s-grid
+                gridTemplateColumns="1fr auto"
+                gap="base"
+                alignItems="center"
+              >
+                <s-stack gap="small-100">
+                  <SectionTitle icon="globe">Universal products</SectionTitle>
+                  <s-text color="subdued">
+                    Shown in every search result, whatever the shopper picks.
+                    For example tools, cleaning kits or cables.
+                  </s-text>
+                </s-stack>
+                {/* Empty list: the empty state below has the button instead. */}
+                {universal.items.length > 0 && (
+                  <s-button
+                    icon="plus"
+                    disabled={busy}
+                    onClick={() => void addProducts()}
+                  >
+                    Add products
+                  </s-button>
+                )}
+              </s-grid>
+            </s-box>
+            {universal.items.length ? (
+              <>
+                <s-table loading={paging("x")}>
+                  <s-table-header-row>
+                    <s-table-header listSlot="primary">Product</s-table-header>
+                    <s-table-header>SKU</s-table-header>
+                    <s-table-header>Action</s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>
+                    {universal.items.map((p) => (
+                      <s-table-row key={p.productId}>
+                        <s-table-cell>
+                          <s-text type="strong">
+                            {p.title || "Unknown product"}
+                          </s-text>
+                        </s-table-cell>
+                        <s-table-cell>{p.sku || "—"}</s-table-cell>
+                        <s-table-cell>
                           <s-button
                             variant="tertiary"
                             disabled={busy}
                             onClick={() =>
                               submit({
-                                intent: "universal-mark",
+                                intent: "universal-remove",
                                 productId: p.productId,
                               })
                             }
                           >
-                            Mark as universal
+                            Remove
                           </s-button>
-                        </s-stack>
-                      </s-table-cell>
-                    </s-table-row>
-                  ))}
-                </s-table-body>
-              </s-table>
-              {footer("p", withoutData, withoutData.total, "products")}
-            </>
-          ) : (
-            <s-box padding="base" paddingBlockStart="none">
-              <s-banner
-                tone="success"
-                heading="Every product has filter data or is universal"
-              ></s-banner>
-            </s-box>
-          )}
-        </s-section>
-
-        <s-section padding="none" accessibilityLabel="Universal products">
-          <s-box padding="base">
-            <s-grid
-              gridTemplateColumns="1fr auto"
-              gap="base"
-              alignItems="center"
-            >
-              <s-stack gap="small-100">
-                <SectionTitle icon="globe">Universal products</SectionTitle>
-                <s-text color="subdued">
-                  Shown in every search result, whatever the shopper picks. For
-                  example tools, cleaning kits or cables.
-                </s-text>
-              </s-stack>
-              <s-button
-                icon="plus"
-                disabled={busy}
-                onClick={() => void addProducts()}
+                        </s-table-cell>
+                      </s-table-row>
+                    ))}
+                  </s-table-body>
+                </s-table>
+                {footer("x", universal, universal.total, "products")}
+              </>
+            ) : (
+              <EmptyState
+                icon="globe"
+                heading="No universal products yet"
+                actions={
+                  <s-button
+                    variant="primary"
+                    icon="plus"
+                    disabled={busy}
+                    onClick={() => void addProducts()}
+                  >
+                    Add products
+                  </s-button>
+                }
               >
-                Add products
-              </s-button>
-            </s-grid>
-          </s-box>
-          {universal.items.length ? (
-            <>
-              <s-table loading={paging("x")}>
-                <s-table-header-row>
-                  <s-table-header listSlot="primary">Product</s-table-header>
-                  <s-table-header>SKU</s-table-header>
-                  <s-table-header>Action</s-table-header>
-                </s-table-header-row>
-                <s-table-body>
-                  {universal.items.map((p) => (
-                    <s-table-row key={p.productId}>
-                      <s-table-cell>
-                        <s-text type="strong">
-                          {p.title || "Unknown product"}
-                        </s-text>
-                      </s-table-cell>
-                      <s-table-cell>{p.sku || "—"}</s-table-cell>
-                      <s-table-cell>
-                        <s-button
-                          variant="tertiary"
-                          disabled={busy}
-                          onClick={() =>
-                            submit({
-                              intent: "universal-remove",
-                              productId: p.productId,
-                            })
-                          }
-                        >
-                          Remove
-                        </s-button>
-                      </s-table-cell>
-                    </s-table-row>
-                  ))}
-                </s-table-body>
-              </s-table>
-              {footer("x", universal, universal.total, "products")}
-            </>
-          ) : (
-            <s-box padding="base" paddingBlockStart="none">
-              <s-text color="subdued">No universal products yet.</s-text>
-            </s-box>
-          )}
-        </s-section>
+                Universal products show in every search result, whatever the
+                shopper picks. For example tools, cleaning kits or cables.
+              </EmptyState>
+            )}
+          </s-section>
+        )}
       </s-stack>
     </s-page>
   );

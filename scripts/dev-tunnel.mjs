@@ -7,11 +7,14 @@
 // shopify.app.toml has automatically_update_urls_on_dev = true, points the app's URLs at the tunnel.
 // Every run first stops an earlier dev session still running (old dev:tunnel, its cloudflared,
 // shopify app dev, the React Router dev server, anything listening on PORT), then starts fresh.
-// Flags: --dry-run prints the tunnel URL and exits (checks cloudflared works).
+// Flags: --dry-run prints the tunnel URL and exits (checks cloudflared works); any other flags
+// are passed on to shopify app dev, e.g. `npm run dev:tunnel -- --verbose`.
 import { spawn, spawnSync } from "node:child_process";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const DRY_RUN = process.argv.includes("--dry-run");
+// Anything else after `npm run dev:tunnel --` goes to shopify app dev (e.g. --verbose, --reset).
+const DEV_ARGS = process.argv.slice(2).filter((a) => a !== "--dry-run");
 const isWin = process.platform === "win32";
 
 function log(msg) {
@@ -198,10 +201,11 @@ async function main() {
   // Quick tunnels can take a few seconds before DNS resolves.
   if (tunnel) await new Promise((r) => setTimeout(r, 5000));
 
-  log(`Running: shopify app dev --tunnel-url ${url}:${PORT}`);
+  const args = ["app", "dev", "--tunnel-url", `${url}:${PORT}`, ...DEV_ARGS];
+  log(`Running: shopify ${args.join(" ")}`);
   const dev = spawn(
     "npx",
-    ["shopify", "app", "dev", "--tunnel-url", `${url}:${PORT}`],
+    ["shopify", ...args],
     { stdio: "inherit", shell: isWin },
   );
   dev.on("exit", (code) => {

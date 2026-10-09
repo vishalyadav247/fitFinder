@@ -162,7 +162,7 @@ export function overviewCards(f: DashboardFacts): OverviewCard[] {
       value: n(f.withoutData),
       badge: null,
       line: "Not shown in any search",
-      to: "/app/product-mapping",
+      to: "/app/product-mapping?tab=p",
     },
   ];
 }

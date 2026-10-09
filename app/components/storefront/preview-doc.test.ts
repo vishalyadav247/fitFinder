@@ -86,7 +86,7 @@ describe("previewDoc", () => {
     expect(initOf(doc("selection")).store.saved).toEqual(sample.selections);
   });
 
-  it("puts the table in a tab bar when it goes inside the theme's tabs", () => {
+  it("shows the shortcode's table as plain page content", () => {
     const tabs = { ...config, s: { ...config.s, tablePlace: "tabs" as const } };
     const doc = previewDoc({
       kind: "table",
@@ -96,7 +96,7 @@ describe("previewDoc", () => {
       sample,
     });
     expect(doc).toContain("data-ff-tabs");
-    expect(doc).toContain("Fits these vehicles");
+    expect(doc).not.toContain("pv-tabs-bar");
   });
 
   it("falls back to the field names when the shop has no rows", () => {

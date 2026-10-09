@@ -50,29 +50,3 @@ export function targetsField(target: string, fieldId: string): boolean {
   const base = `field:${fieldId}`;
   return target === base || target.startsWith(`${base}:`);
 }
-
-/** The value/checked properties Polaris form elements expose. */
-export interface SyncableControl {
-  value: string;
-  checked: boolean;
-}
-
-/**
- * Writes saved values back onto form controls after a save, so they show what the server kept,
- * skipping the control that has focus (the merchant may be typing in it).
- */
-export function syncControls(
-  controls: Record<string, SyncableControl | null>,
-  saved: Record<string, string | boolean>,
-  active: unknown,
-): void {
-  for (const [name, value] of Object.entries(saved)) {
-    const el = controls[name];
-    if (!el || el === active) continue;
-    if (typeof value === "boolean") {
-      if (el.checked !== value) el.checked = value;
-    } else if (el.value !== value) {
-      el.value = value;
-    }
-  }
-}

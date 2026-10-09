@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyFieldIntent = vi.fn();
+const applyFieldSave = vi.fn();
 
 vi.mock("../db.server", () => ({ default: {} }));
 vi.mock("../shopify.server", () => ({
@@ -18,7 +19,12 @@ vi.mock("../models/shop.server", () => ({
 vi.mock("../models/search-field.server", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("../models/search-field.server")>();
-  return { ...real, applyFieldIntent, listFields: vi.fn(async () => []) };
+  return {
+    ...real,
+    applyFieldIntent,
+    applyFieldSave,
+    listFields: vi.fn(async () => []),
+  };
 });
 
 const { action } = await import("../routes/app.search-setup");
@@ -43,6 +49,7 @@ async function post(body: Record<string, string | undefined>) {
 
 beforeEach(() => {
   applyFieldIntent.mockReset();
+  applyFieldSave.mockReset();
 });
 
 describe("search setup action", () => {
@@ -69,10 +76,82 @@ describe("search setup action", () => {
     expect(r.data).toEqual({ ok: true, toast: undefined });
   });
 
-  it("returns the spec toasts for add and delete", async () => {
-    expect((await post({ intent: "add" })).data.toast).toBe(
-      "Field added. Map a column to it on your next import.",
+  const save = (changes: unknown) =>
+    post({
+      intent: "save",
+      changes: typeof changes === "string" ? changes : JSON.stringify(changes),
+    });
+
+  it("turns the save bar's draft into one ordered save", async () => {
+    const r = await save({
+      edits: [
+        { fieldId: "f1", label: "Brand", required: false },
+        { fieldId: "f2", type: "list" },
+      ],
+      added: [
+        {
+          key: "new:1",
+          label: "Engine",
+          placeholder: "",
+          type: "year_range",
+          required: true,
+        },
+      ],
+      order: ["f2", "new:1", "f1"],
+    });
+    expect(applyFieldSave).toHaveBeenCalledTimes(1);
+    expect(applyFieldSave.mock.calls[0][0]).toBe("shop_1");
+    // New fields first, then names/placeholders/required, then Dropdown before Year range, then
+    // the order (so the one Year range can move from f2 to the new field).
+    expect(applyFieldSave.mock.calls[0][1]).toEqual([
+      { intent: "add", key: "new:1" },
+      { intent: "label", fieldId: "f1", value: "Brand" },
+      { intent: "required", fieldId: "f1", value: false },
+      { intent: "label", fieldId: "new:1", value: "Engine" },
+      { intent: "placeholder", fieldId: "new:1", value: "" },
+      { intent: "required", fieldId: "new:1", value: true },
+      { intent: "type", fieldId: "f2", value: "list" },
+      { intent: "type", fieldId: "new:1", value: "year_range" },
+      { intent: "order", fieldIds: ["f2", "new:1", "f1"] },
+    ]);
+    expect(applyFieldIntent).not.toHaveBeenCalled();
+    expect(r.data).toEqual({
+      ok: true,
+      toast: "Fields saved. Map a column to the new field on your next import.",
+    });
+  });
+
+  it("says just Fields saved without new fields", async () => {
+    const r = await save({
+      edits: [{ fieldId: "f1", label: "Brand" }],
+      added: [],
+    });
+    expect(r.data).toEqual({ ok: true, toast: "Fields saved" });
+  });
+
+  it("refuses bad save bodies and reports a refused save", async () => {
+    for (const changes of [
+      "not json",
+      [{ fieldId: "f1", label: "x" }],
+      { edits: [{ fieldId: "f1", type: "years" }], added: [] },
+      { edits: [{ label: "No id" }], added: [] },
+      { edits: [], added: [{ key: "f9", label: "Not a new key" }] },
+    ]) {
+      expect((await save(changes)).init?.status).toBe(400);
+    }
+    expect(applyFieldSave).not.toHaveBeenCalled();
+    applyFieldSave.mockRejectedValueOnce(
+      new FieldRuleError("Only one field can be a year range."),
     );
+    const r = await save({
+      edits: [{ fieldId: "f1", type: "year_range" }],
+      added: [],
+    });
+    expect(r.init?.status).toBe(409);
+    expect(r.data.error).toBe("Only one field can be a year range.");
+  });
+
+  it("returns the spec toast for delete", async () => {
     expect((await post({ intent: "delete", fieldId: "f1" })).data.toast).toBe(
       "Field deleted",
     );

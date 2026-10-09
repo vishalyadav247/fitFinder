@@ -1,6 +1,7 @@
 // My Selection, the floating saved-selections button of the app embed (specs/storefront.md ›
-// My Selection tab). Closed: a fixed-size tab with icon, current selection and count; hover: a
-// hint card; click: a panel that slides in from the same edge. Bundle: ff-embed.js.
+// My Selection tab). Closed: a tab with icon, current selection and count (on the side edges
+// shoppers can drag it up or down); hover: a hint card; click: a panel that slides in from the
+// same edge. Bundle: ff-embed.js.
 import {
   cfg,
   CHANGE,
@@ -33,6 +34,8 @@ const ICONS = {
 };
 const TRASH =
   '<path d="M4 6h12M8 6V4h4v2M5.5 6l.8 10.5h7.4L14.5 6M8.5 9v5M11.5 9v5"/>';
+/** Where a shopper dragged the side tab to (CSS top, % of the window height), in this browser. */
+const TOP_KEY = "fitfinder:ms-top";
 const ARROWS = {
   "left-middle": '<path d="M12 5l-5 5 5 5"/>',
   "right-middle": '<path d="M8 5l5 5-5 5"/>',
@@ -65,6 +68,36 @@ export function initMySelection() {
   const icon = iconHtml(s);
   const close = svg(ARROWS[pos] || ARROWS.bottom, 18, 2.2);
 
+  // Side tabs: drag up or down the edge (10–90% of the window, kept in this browser); a real
+  // drag isn't a click. The tab captures the pointer, so the moves come to this box only (no
+  // page-wide listeners). Storage may be blocked (private mode): then it's this page only.
+  let from = null;
+  let dragged = false;
+  if (pos.endsWith("-middle")) {
+    try {
+      // Stored as the CSS value ("37%"); anything else is ignored by the browser.
+      box.style.top = localStorage[TOP_KEY] || "50%";
+    } catch {}
+    box.onpointerdown = (e) => {
+      const tab = e.target.closest(".ff-ms__tab");
+      dragged = false;
+      from = tab ? e.clientY : null;
+      if (tab) tab.setPointerCapture(e.pointerId);
+    };
+    box.onpointermove = (e) => {
+      if (from === null || (!dragged && Math.abs(e.clientY - from) < 6)) return;
+      dragged = true;
+      box.style.top =
+        Math.min(90, Math.max(10, (e.clientY / innerHeight) * 100)) + "%";
+    };
+    box.onpointerup = box.onpointercancel = () => {
+      try {
+        if (dragged) localStorage[TOP_KEY] = box.style.top;
+      } catch {}
+      from = null;
+    };
+  }
+
   const render = () => {
     const { current: cur, saved } = getStore();
     const curKey = cur ? keyOf(cur) : null;
@@ -96,6 +129,14 @@ export function initMySelection() {
       '</button><p class="ff-ms__title">' +
       esc(s.garageName) +
       "</p>" +
+      // Nothing saved yet: say so above the Add button.
+      (n
+        ? ""
+        : '<div class="ff-ms__empty"><b>' +
+          esc(s.msEmpty) +
+          "</b><small>" +
+          esc(s.msEmptySub) +
+          "</small></div>") +
       saved
         .map((p, i) => {
           const on = keyOf(p) === curKey;
@@ -139,7 +180,7 @@ export function initMySelection() {
 
   box.addEventListener("click", (e) => {
     const t = e.target;
-    if (t.closest(".ff-ms__tab")) return open(true);
+    if (t.closest(".ff-ms__tab")) return dragged || open(true);
     if (t.closest(".ff-ms__handle")) return open(false);
     const del = t.closest("[data-del]");
     if (del) return removeSaved(Number(del.getAttribute("data-del")));

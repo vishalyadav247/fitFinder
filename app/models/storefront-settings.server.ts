@@ -22,6 +22,14 @@ export const storefrontIntentSchema = z.discriminatedUnion("intent", [
     value: z.string().trim().min(1).max(TEXT_MAX),
   }),
   z.object({ intent: z.literal("publish") }),
+  // The save bar's Save: every changed setting (JSON values) and the heading, in one request.
+  z.object({
+    intent: z.literal("save"),
+    settings: z
+      .partialRecord(z.enum(EDITABLE_KEYS), z.string().max(5000))
+      .refine((s) => Object.keys(s).length <= EDITABLE_KEYS.length),
+    heading: z.string().trim().min(1).max(TEXT_MAX).optional(),
+  }),
 ]);
 
 export type StorefrontIntent = z.infer<typeof storefrontIntentSchema>;

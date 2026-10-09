@@ -7,12 +7,15 @@ import prisma from "../../db.server";
 import { gqlData, type AdminGraphql } from "../linking/catalog.server";
 import {
   analyzeTheme,
+  parseThemeJson,
+  sectionLabel,
   sortThemes,
   THEME_FILE_PATTERNS,
   themeNumericId,
   type ThemeFile,
   type ThemeItem,
   type ThemeRole,
+  type BlockKey,
   type ThemeStatusView,
 } from "./themes";
 
@@ -101,6 +104,7 @@ export async function listThemes(gql: AdminGraphql): Promise<ThemeItem[]> {
 async function themeFiles(
   gql: AdminGraphql,
   themeId: string,
+  filenames: string[] = THEME_FILE_PATTERNS,
 ): Promise<ThemeFile[]> {
   const files: ThemeFile[] = [];
   let after: string | null = null;
@@ -110,7 +114,7 @@ async function themeFiles(
       THEME_FILES,
       {
         id: `gid://shopify/OnlineStoreTheme/${themeId}`,
-        filenames: THEME_FILE_PATTERNS,
+        filenames,
         after,
       },
     );
@@ -131,13 +135,71 @@ async function themeFiles(
   return files;
 }
 
+const SECTION_TYPE = /^[\w-]{1,100}$/;
+const SCHEMA_LOCALE = "locales/en.default.schema.json";
+
+/**
+ * The editor's names for the sections our blocks sit in ("Product information"), for the
+ * "View in editor" toast. Reads only those sections' files and the schema translations; a
+ * failure only loses the names.
+ */
+async function sectionNames(
+  gql: AdminGraphql,
+  themeId: string,
+  found: Partial<Record<BlockKey, { type: string; name?: string }>>,
+): Promise<Partial<Record<BlockKey, string>>> {
+  const entries = Object.entries(found) as [
+    BlockKey,
+    { type: string; name?: string },
+  ][];
+  const types = [
+    ...new Set(
+      entries
+        .filter(([, sec]) => !sec.name && SECTION_TYPE.test(sec.type))
+        .map(([, sec]) => sec.type),
+    ),
+  ];
+  let files: ThemeFile[] = [];
+  if (types.length) {
+    try {
+      files = await themeFiles(gql, themeId, [
+        ...types.map((t) => `sections/${t}.liquid`),
+        SCHEMA_LOCALE,
+      ]);
+    } catch (error) {
+      console.warn("themes: section names couldn't be read", {
+        themeId,
+        error,
+      });
+    }
+  }
+  const byName = new Map(files.map((f) => [f.filename, f.content]));
+  const locale = parseThemeJson(byName.get(SCHEMA_LOCALE) ?? "");
+  const out: Partial<Record<BlockKey, string>> = {};
+  for (const [key, sec] of entries) {
+    const label = sectionLabel(
+      sec,
+      byName.get(`sections/${sec.type}.liquid`),
+      locale,
+    );
+    if (label) out[key] = label;
+  }
+  return out;
+}
+
 /** Reads the theme's files, works out the status and caches it for the shop. */
 export async function readThemeStatus(
   gql: AdminGraphql,
   shopId: string,
   themeId: string,
 ): Promise<ThemeStatusView> {
-  const status = analyzeTheme(await themeFiles(gql, themeId));
+  const {
+    blockSections,
+    ...status
+  }: ThemeStatusView & {
+    blockSections: Partial<Record<BlockKey, { type: string; name?: string }>>;
+  } = analyzeTheme(await themeFiles(gql, themeId));
+  status.sections = await sectionNames(gql, themeId, blockSections);
   const row = {
     embedOn: status.embedOn,
     blocks: status.blocks,

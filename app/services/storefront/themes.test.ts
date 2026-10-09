@@ -3,6 +3,8 @@ import {
   analyzeTheme,
   editorLinks,
   isThemeAccessError,
+  schemaName,
+  sectionLabel,
   ourBlock,
   parseThemeJson,
   sortThemes,
@@ -88,6 +90,27 @@ describe("analyzeTheme", () => {
       }),
     ]);
     expect(status.blocks).toEqual({ search: "index", badge: "product.alt" });
+    // The section each block sits in (the outer section, not the nested group block).
+    expect(status.blockSections).toEqual({
+      search: { type: "apps", name: undefined },
+      badge: { type: "main-product", name: undefined },
+    });
+  });
+
+  it("keeps the merchant's own section name", () => {
+    const status = analyzeTheme([
+      template("templates/product.json", {
+        main: {
+          type: "main-product",
+          name: "Buy box",
+          blocks: { b: { type: type("fitfinder-fits-badge") } },
+        },
+      }),
+    ]);
+    expect(status.blockSections.badge).toEqual({
+      type: "main-product",
+      name: "Buy box",
+    });
   });
 
   it("ignores disabled blocks, disabled sections and other apps' blocks", () => {
@@ -213,5 +236,47 @@ describe("isThemeAccessError", () => {
   it("is false for other failures", () => {
     expect(isThemeAccessError(new Error("fetch failed"))).toBe(false);
     expect(isThemeAccessError(null)).toBe(false);
+  });
+});
+
+describe("sectionLabel", () => {
+  const liquid = (name: string) =>
+    `<div></div>
+{% schema %}
+{ "name": "${name}", "settings": [] }
+{% endschema %}`;
+  const locale = {
+    sections: { "main-product": { name: "Product information" } },
+  };
+
+  it("reads the schema name, plain or translated", () => {
+    expect(schemaName(liquid("Featured product"))).toBe("Featured product");
+    expect(sectionLabel({ type: "x" }, liquid("Featured product"), null)).toBe(
+      "Featured product",
+    );
+    expect(
+      sectionLabel(
+        { type: "main-product" },
+        liquid("t:sections.main-product.name"),
+        locale,
+      ),
+    ).toBe("Product information");
+  });
+
+  it("prefers the merchant's name, and falls back to the type", () => {
+    expect(
+      sectionLabel({ type: "main-product", name: "Buy box" }, undefined, null),
+    ).toBe("Buy box");
+    expect(sectionLabel({ type: "main-product" }, undefined, null)).toBe(
+      "Main product",
+    );
+    expect(
+      sectionLabel(
+        { type: "main-product" },
+        liquid("t:sections.missing.name"),
+        locale,
+      ),
+    ).toBe("Main product");
+    expect(schemaName("{% schema %} not json {% endschema %}")).toBeNull();
   });
 });
