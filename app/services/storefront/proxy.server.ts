@@ -1,4 +1,4 @@
-// Shared start of every app proxy request (/apps/fitfinder/* → /proxy/*): verify Shopify's
+// Shared start of every app proxy request (/apps/sparefit/* → /proxy/*): verify Shopify's
 // signature (authenticate.public.appProxy throws 400 otherwise; it also rejects timestamps more
 // than 90 s off), take one request from the shop's budget (429 when used up), then load the shop's
 // search setup. Shops that are unknown, uninstalled or not set up get 404, so a removed app stops

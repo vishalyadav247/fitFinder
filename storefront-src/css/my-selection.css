@@ -1,5 +1,5 @@
 /* My Selection: fixed tab; hover shows a hint card; click opens a panel that slides in */
-.ff-ms {
+.sp-ms {
   /* Overrides the inline visibility:hidden the script sets until this stylesheet has loaded. */
   visibility: visible !important;
   position: fixed;
@@ -13,46 +13,46 @@
   line-height: 1.3;
   color: #1a1a1a;
   /* No fades for the first moments after this stylesheet applies: the script drew the hint
-     and panel before it arrived, so they'd visibly fade out on page load. --ff-ms-t scales every
+     and panel before it arrived, so they'd visibly fade out on page load. --sp-ms-t scales every
      transition below (0 = instant, 1 = normal). */
-  animation: ff-ms-ready 0s 0.5s both;
+  animation: sp-ms-ready 0s 0.5s both;
 }
-@keyframes ff-ms-ready {
+@keyframes sp-ms-ready {
   from {
-    --ff-ms-t: 0;
+    --sp-ms-t: 0;
   }
   to {
-    --ff-ms-t: 1;
+    --sp-ms-t: 1;
   }
 }
-.ff-ms * {
+.sp-ms * {
   box-sizing: border-box;
 }
-.ff-ms--right-middle {
+.sp-ms--right-middle {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
 }
-.ff-ms--left-middle {
+.sp-ms--left-middle {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
 }
-.ff-ms--bottom-right {
+.sp-ms--bottom-right {
   right: 16px;
   bottom: 16px;
 }
-.ff-ms--bottom-left {
+.sp-ms--bottom-left {
   left: 16px;
   bottom: 16px;
 }
-.ff-ms__tab {
+.sp-ms__tab {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0;
-  background: var(--ff-ms-bg);
-  color: var(--ff-ms-fg);
+  background: var(--sp-ms-bg);
+  color: var(--sp-ms-fg);
   border: 1px solid #d9d9d9;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   font: inherit;
@@ -61,17 +61,17 @@
   line-height: 1.2;
   cursor: pointer;
   transition:
-    box-shadow calc(0.35s * var(--ff-ms-t, 1)) ease,
-    opacity calc(0.2s * var(--ff-ms-t, 1));
+    box-shadow calc(0.35s * var(--sp-ms-t, 1)) ease,
+    opacity calc(0.2s * var(--sp-ms-t, 1));
 }
-.ff-ms__tab svg,
-.ff-ms__icon {
+.sp-ms__tab svg,
+.sp-ms__icon {
   flex: none;
   width: 24px;
   height: 24px;
   object-fit: contain;
 }
-.ff-ms__tab span {
+.sp-ms__tab span {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
@@ -80,7 +80,7 @@
   white-space: nowrap;
   text-align: start;
 }
-.ff-ms__count {
+.sp-ms__count {
   flex: none;
   writing-mode: horizontal-tb;
   font-style: normal;
@@ -91,12 +91,12 @@
   line-height: 18px;
   text-align: center;
   border-radius: 999px;
-  background: var(--ff-ms-fg);
-  color: var(--ff-ms-bg);
+  background: var(--sp-ms-fg);
+  color: var(--sp-ms-bg);
 }
 /* side edges: vertical tab, 46px wide and up to 190px tall (as tall as its content), flush with
    the edge */
-.ff-ms--side .ff-ms__tab {
+.sp-ms--side .sp-ms__tab {
   /* Draggable up and down (my-selection.js): touch drags move the tab, not the page. */
   touch-action: none;
   writing-mode: vertical-rl;
@@ -104,29 +104,29 @@
   max-height: 190px;
   padding: 14px 10px;
 }
-.ff-ms--right-middle .ff-ms__tab {
+.sp-ms--right-middle .sp-ms__tab {
   transform: rotate(180deg);
   border-right: 0;
   border-radius: 0 14px 14px 0;
 }
-.ff-ms--right-middle .ff-ms__count {
+.sp-ms--right-middle .sp-ms__count {
   transform: rotate(180deg);
 }
-.ff-ms--side .ff-ms__tab svg,
-.ff-ms--side .ff-ms__icon {
+.sp-ms--side .sp-ms__tab svg,
+.sp-ms--side .sp-ms__icon {
   transform: rotate(90deg);
 }
-.ff-ms--left-middle .ff-ms__tab {
+.sp-ms--left-middle .sp-ms__tab {
   border-left: 0;
   border-radius: 0 14px 14px 0;
 }
-.ff-ms__tab:hover,
-.ff-ms__tab:focus-visible {
+.sp-ms__tab:hover,
+.sp-ms__tab:focus-visible {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
 }
 /* bottom corners: pill up to 220px wide (as wide as its content) */
-.ff-ms--bottom-right .ff-ms__tab,
-.ff-ms--bottom-left .ff-ms__tab {
+.sp-ms--bottom-right .sp-ms__tab,
+.sp-ms--bottom-left .sp-ms__tab {
   max-width: 220px;
   height: 46px;
   padding: 0 14px;
@@ -134,7 +134,7 @@
 }
 /* Hover card: not there at all (display: none) until the tab is hovered, so it can never show
    while the page loads; it fades in with an animation (animations run when display changes). */
-.ff-ms__hint {
+.sp-ms__hint {
   display: none;
   position: absolute;
   width: 210px;
@@ -147,7 +147,7 @@
   line-height: 1.35;
   pointer-events: none;
 }
-.ff-ms__hint b {
+.sp-ms__hint b {
   display: block;
   font-size: 11px;
   font-weight: 700;
@@ -155,7 +155,7 @@
   text-transform: uppercase;
   color: #a3e635;
 }
-.ff-ms__hint span {
+.sp-ms__hint span {
   display: block;
   font-weight: 700;
   overflow: hidden;
@@ -163,45 +163,45 @@
   white-space: nowrap;
   margin: 2px 0;
 }
-.ff-ms__hint small {
+.sp-ms__hint small {
   display: block;
   color: #c7c7c7;
   font-size: 12px;
 }
-.ff-ms--right-middle .ff-ms__hint {
+.sp-ms--right-middle .sp-ms__hint {
   right: 56px;
   top: 50%;
   transform: translateY(-50%);
 }
-.ff-ms--left-middle .ff-ms__hint {
+.sp-ms--left-middle .sp-ms__hint {
   left: 56px;
   top: 50%;
   transform: translateY(-50%);
 }
-.ff-ms--bottom-right .ff-ms__hint {
+.sp-ms--bottom-right .sp-ms__hint {
   right: 0;
   bottom: 58px;
 }
-.ff-ms--bottom-left .ff-ms__hint {
+.sp-ms--bottom-left .sp-ms__hint {
   left: 0;
   bottom: 58px;
 }
 @media (hover: hover) {
-  .ff-ms__tab:hover + .ff-ms__hint {
+  .sp-ms__tab:hover + .sp-ms__hint {
     display: block;
-    animation: ff-ms-hint-in 0.25s ease;
+    animation: sp-ms-hint-in 0.25s ease;
   }
 }
-@keyframes ff-ms-hint-in {
+@keyframes sp-ms-hint-in {
   from {
     opacity: 0;
   }
 }
-.ff-ms.is-open .ff-ms__hint {
+.sp-ms.is-open .sp-ms__hint {
   display: none;
 }
 /* panel */
-.ff-ms__panel {
+.sp-ms__panel {
   position: absolute;
   width: 280px;
   max-width: calc(100vw - 40px);
@@ -210,59 +210,59 @@
   padding: 18px 18px 16px;
   background: #ffffff;
   color: #1a1a1a;
-  border: 1px solid var(--ff-ms-bg) /* same colour as the closed tab */;
+  border: 1px solid var(--sp-ms-bg) /* same colour as the closed tab */;
   border-radius: 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
   opacity: 0;
   visibility: hidden;
   transition:
-    transform calc(0.35s * var(--ff-ms-t, 1)) cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity calc(0.25s * var(--ff-ms-t, 1)),
-    visibility calc(0.35s * var(--ff-ms-t, 1));
+    transform calc(0.35s * var(--sp-ms-t, 1)) cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity calc(0.25s * var(--sp-ms-t, 1)),
+    visibility calc(0.35s * var(--sp-ms-t, 1));
 }
-.ff-ms--right-middle .ff-ms__panel {
+.sp-ms--right-middle .sp-ms__panel {
   right: -1px;
   top: 50%;
   transform: translate(105%, -50%);
   border-radius: 14px 0 0 14px;
   overflow: visible;
 }
-.ff-ms--left-middle .ff-ms__panel {
+.sp-ms--left-middle .sp-ms__panel {
   left: -1px;
   top: 50%;
   transform: translate(-105%, -50%);
   border-radius: 0 14px 14px 0;
   overflow: visible;
 }
-.ff-ms--bottom-right .ff-ms__panel {
+.sp-ms--bottom-right .sp-ms__panel {
   right: 0;
   bottom: 0;
   transform: translateY(24px);
   overflow: visible;
 }
-.ff-ms--bottom-left .ff-ms__panel {
+.sp-ms--bottom-left .sp-ms__panel {
   left: 0;
   bottom: 0;
   transform: translateY(24px);
   overflow: visible;
 }
-.ff-ms.is-open .ff-ms__panel {
+.sp-ms.is-open .sp-ms__panel {
   opacity: 1;
   visibility: visible;
 }
-.ff-ms--side.is-open .ff-ms__panel {
+.sp-ms--side.is-open .sp-ms__panel {
   transform: translate(0, -50%);
 }
-.ff-ms--bottom-right.is-open .ff-ms__panel,
-.ff-ms--bottom-left.is-open .ff-ms__panel {
+.sp-ms--bottom-right.is-open .sp-ms__panel,
+.sp-ms--bottom-left.is-open .sp-ms__panel {
   transform: none;
 }
-.ff-ms.is-open .ff-ms__tab {
+.sp-ms.is-open .sp-ms__tab {
   opacity: 0;
   pointer-events: none;
 }
 /* close tile on the panel's inner edge, arrow pointing back to the window edge */
-.ff-ms__handle {
+.sp-ms__handle {
   position: absolute;
   display: flex;
   align-items: center;
@@ -270,18 +270,18 @@
   margin: 0;
   background: #ffffff;
   color: #303030;
-  border: 1px solid var(--ff-ms-bg) /* same colour as the closed tab */;
+  border: 1px solid var(--sp-ms-bg) /* same colour as the closed tab */;
   cursor: pointer;
   padding: 0;
   transition:
     background 0.2s,
     color 0.2s;
 }
-.ff-ms__handle:hover {
+.sp-ms__handle:hover {
   background: #f3f3f3;
   color: #000000;
 }
-.ff-ms--right-middle .ff-ms__handle {
+.sp-ms--right-middle .sp-ms__handle {
   left: -30px;
   top: 50%;
   transform: translateY(-50%);
@@ -291,7 +291,7 @@
   border-radius: 10px 0 0 10px;
   box-shadow: -6px 0 12px rgba(0, 0, 0, 0.06);
 }
-.ff-ms--left-middle .ff-ms__handle {
+.sp-ms--left-middle .sp-ms__handle {
   right: -30px;
   top: 50%;
   transform: translateY(-50%);
@@ -301,8 +301,8 @@
   border-radius: 0 10px 10px 0;
   box-shadow: 6px 0 12px rgba(0, 0, 0, 0.06);
 }
-.ff-ms--bottom-right .ff-ms__handle,
-.ff-ms--bottom-left .ff-ms__handle {
+.sp-ms--bottom-right .sp-ms__handle,
+.sp-ms--bottom-left .sp-ms__handle {
   top: -26px;
   left: 50%;
   transform: translateX(-50%);
@@ -311,7 +311,7 @@
   border-bottom: 0;
   border-radius: 10px 10px 0 0;
 }
-.ff-ms__title {
+.sp-ms__title {
   margin: 2px 0 14px;
   text-align: center;
   font-size: 15px;
@@ -319,7 +319,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.ff-ms__item {
+.sp-ms__item {
   position: relative;
   display: flex;
   align-items: center;
@@ -330,10 +330,10 @@
   border: 1px solid #e3e3e3;
   border-radius: 12px;
 }
-.ff-ms__item.is-on {
+.sp-ms__item.is-on {
   border: 2px solid #4cc21d;
 }
-.ff-ms__pick {
+.sp-ms__pick {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
@@ -345,14 +345,14 @@
   text-align: start;
   cursor: pointer;
 }
-.ff-ms__pick b {
+.sp-ms__pick b {
   display: block;
   font-size: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ff-ms__pick small {
+.sp-ms__pick small {
   display: block;
   font-size: 13px;
   color: #8a8a8a;
@@ -361,7 +361,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ff-ms__del {
+.sp-ms__del {
   flex: none;
   display: flex;
   margin: 0;
@@ -371,10 +371,10 @@
   color: #5c5c5c;
   cursor: pointer;
 }
-.ff-ms__del:hover {
+.sp-ms__del:hover {
   color: #1a1a1a;
 }
-.ff-ms__pill {
+.sp-ms__pill {
   position: absolute;
   top: -10px;
   right: 12px;
@@ -385,7 +385,7 @@
   padding: 1px 8px;
   border-radius: 999px;
 }
-.ff-ms__add {
+.sp-ms__add {
   display: block;
   width: 100%;
   margin: 4px 0 0;
@@ -399,31 +399,31 @@
   cursor: pointer;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ff-ms__panel,
-  .ff-ms__tab {
+  .sp-ms__panel,
+  .sp-ms__tab {
     transition: none;
   }
-  .ff-ms__tab:hover + .ff-ms__hint {
+  .sp-ms__tab:hover + .sp-ms__hint {
     animation: none;
   }
 }
-.ff-ask-wrap {
+.sp-ask-wrap {
   padding-top: 16px;
 }
 
 /* panel: nothing saved yet */
-.ff-ms__empty {
+.sp-ms__empty {
   margin: 0 0 12px;
   padding: 14px;
   border: 1px dashed #d9d9d9;
   border-radius: 12px;
   text-align: center;
 }
-.ff-ms__empty b {
+.sp-ms__empty b {
   display: block;
   font-size: 15px;
 }
-.ff-ms__empty small {
+.sp-ms__empty small {
   display: block;
   margin-top: 4px;
   font-size: 13px;

@@ -6,7 +6,7 @@
 First-run screen. The merchant says what their store sells; the app creates the default search fields and wording for that store type. A store has exactly one store type.
 
 ## Layout (top to bottom)
-1. `s-page heading="Welcome to FitFinder"`, no sidebar menu while onboarding.
+1. `s-page heading="Welcome to SpareFit"`, no sidebar menu while onboarding.
 2. *(Only when changing type later)* `s-banner tone="warning"`: "Changing your store type replaces your search fields and filter data", with a link back to Settings.
 3. `s-section`
    - `s-badge tone="info"` "Step 1 of 2" + heading "What kind of products does your store sell?"

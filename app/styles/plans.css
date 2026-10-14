@@ -1,20 +1,20 @@
 /* Plans page (.claude/design/styles: .meter, .plans, .price). Plain Polaris otherwise. */
-.ff-meter {
+.sp-meter {
   height: 6px;
   border-radius: 999px;
   background: #ebebeb;
   overflow: hidden;
 }
-.ff-meter span {
+.sp-meter span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--ff-p-400), var(--ff-p));
+  background: linear-gradient(90deg, var(--sp-p-400), var(--sp-p));
 }
-.ff-meter.is-over span {
+.sp-meter.is-over span {
   background: #c70a24;
 }
-.ff-plans {
+.sp-plans {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
@@ -22,32 +22,46 @@
 }
 /* Equal-height plan cards: as a grid, the s-section host stretches Polaris' card to its full
    height; the button sits at the bottom of each card. */
-.ff-plans > s-section {
+.sp-plans > s-section {
   display: grid;
 }
-.ff-plan {
+.sp-plan {
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
 }
-.ff-plan-cta {
+.sp-plan-cta {
   margin-top: auto;
 }
-.ff-price {
+.sp-price {
   margin: 0;
   font-size: 28px;
   line-height: 36px;
   font-weight: 750;
   color: #303030;
 }
-.ff-price span {
+.sp-price span {
   font-size: 13px;
   font-weight: 500;
   color: #616161;
 }
 @media (max-width: 760px) {
-  .ff-plans {
+  .sp-plans {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Two plans side by side, three in a row; four as two rows of two (narrow page). */
+.sp-plans--1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sp-plans--2,
+.sp-plans--4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 760px) {
+  .sp-plans--2,
+  .sp-plans--4 {
     grid-template-columns: minmax(0, 1fr);
   }
 }

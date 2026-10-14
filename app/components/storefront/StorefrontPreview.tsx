@@ -66,13 +66,13 @@ export function StorefrontPreview({
       const win = frame.current?.contentWindow;
       const d = e.data;
       if (!win || e.source !== win || !d || typeof d !== "object") return;
-      if (d.ff === "height" && kind !== "selection") {
+      if (d.sp === "height" && kind !== "selection") {
         setHeight(Math.min(Math.max(Number(d.h) || 0, 40), 3000));
-      } else if (d.ff === "picks" && d.picks && typeof d.picks === "object") {
+      } else if (d.sp === "picks" && d.picks && typeof d.picks === "object") {
         onPicks?.(d.picks as Picks);
-      } else if (d.ff === "fetch") {
+      } else if (d.sp === "fetch") {
         const answer = (ok: boolean, body?: unknown) =>
-          win.postMessage({ ff: "reply", id: d.id, ok, body }, "*");
+          win.postMessage({ sp: "reply", id: d.id, ok, body }, "*");
         if (!PATHS.has(d.path)) return answer(false);
         const params = new URLSearchParams(String(d.q ?? ""));
         params.set("path", d.path);
@@ -94,7 +94,7 @@ export function StorefrontPreview({
       title={title}
       sandbox="allow-scripts"
       srcDoc={doc}
-      className="ff-pv-frame"
+      className="sp-pv-frame"
       style={{ height }}
     />
   );

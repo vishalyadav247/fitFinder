@@ -1,6 +1,6 @@
-// The shop's product catalog cache (catalog_products / catalog_variants / catalog_collections):
-// loaded from Shopify with a bulk operation (products + variants) and a paged query
-// (collections), kept fresh by products/* webhooks and by the resource picker. Every write is
+// The shop's product catalog cache (catalog_products / catalog_variants): loaded from Shopify
+// with a bulk operation (products + variants), kept fresh by products/* webhooks and by the
+// resource picker. Every write is
 // scoped by shop. Operations checked against Admin GraphQL 2026-10 (PROGRESS.md › Verified).
 import { Prisma } from "@prisma/client";
 import { createInterface } from "node:readline";
@@ -22,12 +22,6 @@ export interface CatalogProductInput {
   handle: string;
   status: string;
   variants: { variantId: string; sku: string }[];
-}
-
-export interface CatalogCollectionInput {
-  collectionId: string;
-  handle: string;
-  title: string;
 }
 
 export class ShopifyApiError extends Error {
@@ -245,39 +239,7 @@ export async function* fetchJsonlLines(url: string): AsyncGenerator<string> {
   for await (const line of lines) yield line;
 }
 
-// ---------------------------------------------------------------- collections, single products
-
-const COLLECTIONS = `#graphql
-  query CatalogCollections($after: String) {
-    collections(first: 250, after: $after) {
-      pageInfo { hasNextPage endCursor }
-      nodes { id handle title }
-    }
-  }`;
-
-export async function fetchCollections(
-  gql: AdminGraphql,
-): Promise<CatalogCollectionInput[]> {
-  const all: CatalogCollectionInput[] = [];
-  let after: string | null = null;
-  for (;;) {
-    const data: {
-      collections: {
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
-        nodes: { id: string; handle: string; title: string }[];
-      };
-    } = await gqlData(gql, COLLECTIONS, { after });
-    for (const c of data.collections.nodes) {
-      all.push({
-        collectionId: c.id,
-        handle: c.handle.toLowerCase(),
-        title: c.title,
-      });
-    }
-    if (!data.collections.pageInfo.hasNextPage) return all;
-    after = data.collections.pageInfo.endCursor;
-  }
-}
+// ---------------------------------------------------------------- single products
 
 const PRODUCT_VARIANTS = `#graphql
   query ProductVariantsPage($id: ID!, $after: String) {
@@ -328,27 +290,25 @@ const PICKED = `#graphql
   query PickedResources($ids: [ID!]!) {
     nodes(ids: $ids) {
       ... on Product { id title handle status variants(first: 1) { nodes { id sku } } }
-      ... on Collection { id handle title }
     }
   }`;
 
 export interface PickedResources {
   products: CatalogProductInput[];
-  collections: CatalogCollectionInput[];
 }
 
 // Requested cost grows with every id; 50 per call stays far below the 1,000-point query limit.
 const PICK_BATCH = 50;
 
 /**
- * Products and collections by id, read from Shopify (never trust ids or titles from the browser).
+ * Products by id, read from Shopify (never trust ids or titles from the browser).
  * Unknown ids are left out. Products carry only their first variant (merge it, don't replace).
  */
 export async function fetchResources(
   gql: AdminGraphql,
   ids: string[],
 ): Promise<PickedResources> {
-  const out: PickedResources = { products: [], collections: [] };
+  const out: PickedResources = { products: [] };
   for (let i = 0; i < ids.length; i += PICK_BATCH) {
     await fetchResourceBatch(gql, ids.slice(i, i + PICK_BATCH), out);
   }
@@ -371,7 +331,7 @@ async function fetchResourceBatch(
   }>(gql, PICKED, { ids });
   for (const n of data.nodes) {
     if (!n?.id || n.handle === undefined) continue;
-    if (n.id.startsWith("gid://shopify/Product/")) {
+    if (gidType(n.id) === "Product") {
       out.products.push({
         productId: n.id,
         title: n.title ?? "",
@@ -381,12 +341,6 @@ async function fetchResourceBatch(
           variantId: v.id,
           sku: v.sku ?? "",
         })),
-      });
-    } else if (n.id.startsWith("gid://shopify/Collection/")) {
-      out.collections.push({
-        collectionId: n.id,
-        handle: n.handle.toLowerCase(),
-        title: n.title ?? "",
       });
     }
   }
@@ -481,7 +435,6 @@ export async function dbNow(): Promise<Date> {
 export async function replaceCatalog(
   shopId: string,
   products: CatalogProductInput[],
-  collections: CatalogCollectionInput[],
   exportStartedAt: Date,
 ) {
   await prisma.$transaction(
@@ -500,26 +453,14 @@ export async function replaceCatalog(
       await tx.$executeRaw`
         DELETE FROM catalog_products
         WHERE shop_id = ${shopId} AND updated_at <= ${exportStartedAt}`;
-      await tx.$executeRaw`DELETE FROM catalog_collections WHERE shop_id = ${shopId}`;
       const fresh = products.filter((p) => !newer.has(p.productId));
       await insertProducts(tx, shopId, fresh);
       await insertVariants(tx, shopId, fresh);
-      for (let i = 0; i < collections.length; i += INSERT_BATCH) {
-        const b = collections.slice(i, i + INSERT_BATCH);
-        await tx.$executeRaw`
-          INSERT INTO catalog_collections (shop_id, collection_id, handle, title)
-          SELECT ${shopId}, c.id, c.handle, c.title
-          FROM unnest(${b.map((c) => c.collectionId)}::text[], ${b.map((c) => c.handle)}::text[],
-                      ${b.map((c) => c.title)}::text[]) AS c(id, handle, title)
-          ON CONFLICT (shop_id, collection_id) DO NOTHING`;
-      }
     },
     { timeout: 10 * 60_000, maxWait: 30_000 },
   );
   // Fresh statistics: the lists and matching join these tables right after a reload.
-  await prisma.$executeRawUnsafe(
-    "ANALYZE catalog_products, catalog_variants, catalog_collections",
-  );
+  await prisma.$executeRawUnsafe("ANALYZE catalog_products, catalog_variants");
 }
 
 /**
@@ -541,16 +482,4 @@ export async function upsertProducts(
     }
     await insertVariants(tx, shopId, products);
   });
-}
-
-export async function upsertCollections(
-  shopId: string,
-  collections: CatalogCollectionInput[],
-) {
-  for (const c of collections) {
-    await prisma.$executeRaw`
-      INSERT INTO catalog_collections (shop_id, collection_id, handle, title)
-      VALUES (${shopId}, ${c.collectionId}, ${c.handle}, ${c.title})
-      ON CONFLICT (shop_id, collection_id) DO UPDATE SET handle = EXCLUDED.handle, title = EXCLUDED.title`;
-  }
 }

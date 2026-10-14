@@ -1,20 +1,20 @@
-# FitFinder privacy policy (draft)
+# SpareFit privacy policy (draft)
 
-> Draft for the App Store listing's privacy policy URL (required). Fill in the bracketed parts, have it reviewed, and publish it on a dedicated public page (your website; not a cloud document) before submitting. Checked 2026-10-06 against what the app stores (`prisma/schema.prisma`: shops, sessions (offline tokens only), search setup, filter rows, imports, product links, catalog cache, theme status, storefront settings), `app/services/purge.server.ts`, `app/routes/webhooks.compliance.tsx` and Settings › Your data. If you change hosting providers or add analytics, update this page.
+> Draft for the App Store listing's privacy policy URL (required). Fill in the bracketed parts, have it reviewed, and publish it on a dedicated public page (your website; not a cloud document) before submitting. Checked 2026-10-06 against what the app stores (`prisma/schema.prisma`: shops, sessions (offline tokens only), search setup, filter rows, imports, product links, catalog cache, theme status, storefront settings), `app/services/purge.server.ts`, `app/routes/webhooks.compliance.tsx` and Settings › Your data. Search statistics (Analytics, `search_stats` / `fit_check_stats`: daily counts, no shopper data) added 2026-10-13. If you change hosting providers or add other analytics, update this page.
 
 **Last updated:** [date]
 
-FitFinder ("the app") is provided by [legal company name], [address] ("we", "us"). This policy explains what information the app collects when a merchant installs it on a Shopify store, how we use it, and how it is deleted.
+SpareFit ("the app") is provided by [legal company name], [address] ("we", "us"). This policy explains what information the app collects when a merchant installs it on a Shopify store, how we use it, and how it is deleted.
 
 ## Information we collect
 
-When you install FitFinder, Shopify gives the app access to some information about your store, limited to the permissions you approve:
+When you install SpareFit, Shopify gives the app access to some information about your store, limited to the permissions you approve:
 
 - **Store details:** your store's myshopify domain, the install and uninstall dates, and the access token Shopify issues to the app (an offline token for the store; we don't receive or store staff names or email addresses).
 - **Product information** (`read_products`): product titles, handles, statuses, variant SKUs and collection memberships. We keep a copy of these in our database to link your fitment data to your products, and update it when Shopify tells us a product changed. We don't change your products.
-- **Theme information** (`read_themes`): which of your themes contain FitFinder's blocks and app embed, so the app can show whether the search is live. We store only that status, not your theme files. We don't change your themes.
+- **Theme information** (`read_themes`): which of your themes contain SpareFit's blocks and app embed, so the app can show whether the search is live. We store only that status, not your theme files. We don't change your themes.
 - **Files** (`write_files`): only the My Selection icon you upload yourself is stored in your store's Files.
-- **Plan information:** your current FitFinder plan and trial end date, read from Shopify.
+- **Plan information:** your current SpareFit plan and trial end date, read from Shopify.
 - **Storefront settings:** your search fields and storefront texts are also saved as an app setting (metafield) on your store so your theme can show them.
 
 Information you give the app directly:
@@ -24,7 +24,7 @@ Information you give the app directly:
 
 ## Information about your customers
 
-FitFinder does **not** collect or store personal information about your customers (shoppers). A shopper's saved selections ("My Selection") are stored only in their own browser (local storage) and never sent to our servers. Storefront requests to the app (dropdown options, "fits" checks, results) contain the shopper's picks (for example a make and model) but no names, emails, addresses, orders or other personal data, and we don't store them. These requests reach us through Shopify's app proxy; our hosting provider may process connection data (such as IP addresses) in transit to deliver them, but we don't log or store shopper IP addresses. FitFinder doesn't use the logged-in customer ID that Shopify can add to these requests.
+SpareFit does **not** collect or store personal information about your customers (shoppers). A shopper's saved selections ("My Selection") are stored only in their own browser (local storage) and never sent to our servers. Storefront requests to the app (dropdown options, "fits" checks, results) contain the shopper's picks (for example a make and model) but no names, emails, addresses, orders or other personal data. To show the merchant search statistics (Analytics), we count per day how often each selection was searched and how often a product fitted it; these counts contain no information about who searched and are deleted after 180 days. These requests reach us through Shopify's app proxy; our hosting provider may process connection data (such as IP addresses) in transit to deliver them, but we don't log or store shopper IP addresses. SpareFit doesn't use the logged-in customer ID that Shopify can add to these requests.
 
 Our server logs contain your store's domain and technical events (for example webhook deliveries and errors). They contain no shopper data and are kept for [log retention, e.g. 30 days] by our hosting provider.
 

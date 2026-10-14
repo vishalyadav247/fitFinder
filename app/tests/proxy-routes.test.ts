@@ -9,6 +9,10 @@ const productFits = vi.fn();
 const searchResults = vi.fn();
 const fitSkus = vi.fn();
 const loadStorefrontConfig = vi.fn();
+// Analytics: track runs the recording at once here, so the calls can be checked.
+const recordSearch = vi.fn();
+const recordFitCheck = vi.fn();
+const track = vi.fn((record: () => unknown) => record());
 
 vi.mock("../db.server", () => ({ default: {} }));
 vi.mock("../shopify.server", () => ({
@@ -23,6 +27,11 @@ vi.mock("../services/storefront/query.server", () => ({
 }));
 vi.mock("../services/storefront/sync.server", () => ({
   loadStorefrontConfig,
+}));
+vi.mock("../services/analytics/record.server", () => ({
+  recordSearch,
+  recordFitCheck,
+  track,
 }));
 
 const { loader: options } = await import("../routes/proxy.options");
@@ -103,35 +112,47 @@ describe("GET options", () => {
 });
 
 describe("GET fits", () => {
-  it("maps Liquid ids to Admin gids", async () => {
+  it("maps the Liquid id to an Admin gid", async () => {
     productFits.mockResolvedValue({
       state: "fits",
       universal: false,
       rows: [],
       total: 0,
     });
-    const res = await call(
-      fits,
-      "fits",
-      "product=123&collections=7,8&make=AUDI",
-    );
+    const res = await call(fits, "fits", "product=123&make=AUDI");
     expect(res.status).toBe(200);
-    const [, product, collections, picks] = productFits.mock.calls[0];
+    const [, product, picks] = productFits.mock.calls[0];
     expect(product).toBe("gid://shopify/Product/123");
-    expect(collections).toEqual([
-      "gid://shopify/Collection/7",
-      "gid://shopify/Collection/8",
-    ]);
     expect(picks.get("make")).toBe("AUDI");
+    // An incomplete selection isn't a fit check for Analytics.
+    expect(recordFitCheck).not.toHaveBeenCalled();
+  });
+
+  it("counts a check with a full selection for Analytics", async () => {
+    const result = { universal: false, rows: [], total: 0 };
+    const full = "make=AUDI&year=2008&model=A6";
+    productFits.mockResolvedValue({ ...result, state: "no-fit" });
+    await call(fits, "fits", `product=7&${full}`);
+    expect(recordFitCheck).toHaveBeenCalledWith(
+      "shop_1",
+      "gid://shopify/Product/7",
+      false,
+    );
+    productFits.mockResolvedValue({ ...result, state: "fits" });
+    await call(fits, "fits", `product=7&${full}`);
+    expect(recordFitCheck).toHaveBeenLastCalledWith(
+      "shop_1",
+      "gid://shopify/Product/7",
+      true,
+    );
+    // No selection (the fitment table's call): nothing counted.
+    productFits.mockResolvedValue({ ...result, state: "ask" });
+    await call(fits, "fits", "product=7");
+    expect(recordFitCheck).toHaveBeenCalledTimes(2);
   });
 
   it("refuses bad ids", async () => {
-    for (const q of [
-      "product=abc",
-      "product=1&collections=1,x",
-      `product=1&collections=${Array.from({ length: 101 }, (_, i) => i).join(",")}`,
-      "product=1&year=1",
-    ]) {
+    for (const q of ["product=abc", "product=", "product=1&year=1"]) {
       expect((await call(fits, "fits", q)).status).toBe(400);
     }
     expect(productFits).not.toHaveBeenCalled();
@@ -158,7 +179,6 @@ describe("GET results", () => {
     loadStorefrontConfig.mockResolvedValue(config);
     searchResults.mockResolvedValue({
       products: [{ handle: "shock", universal: false }],
-      collections: [],
       total: 1,
       page: 1,
       pageCount: 1,
@@ -186,14 +206,12 @@ describe("GET results", () => {
     searchResults
       .mockResolvedValueOnce({
         products: [],
-        collections: [],
         total: 0,
         page: 9,
         pageCount: 1,
       })
       .mockResolvedValueOnce({
         products: [],
-        collections: [],
         total: 0,
         page: 1,
         pageCount: 1,
@@ -234,6 +252,7 @@ describe("GET search", () => {
       skus: ["A-1", "B-2"],
       products: 2,
       withoutSku: 0,
+      specific: 2,
     });
     const res = await call(
       searchRoute,
@@ -252,9 +271,15 @@ describe("GET search", () => {
       ["year", 2008],
       ["model", "A6"],
     ]);
+    // Counted for Analytics with the products that really fit.
+    expect(recordSearch).toHaveBeenCalledWith(
+      search,
+      fitSkus.mock.calls[0][1],
+      2,
+    );
   });
 
-  it("falls back to FitFinder's page when nothing fits", async () => {
+  it("falls back to SpareFit's page when nothing fits", async () => {
     fitSkus.mockResolvedValue({ skus: [], products: 0, withoutSku: 0 });
     const res = await call(
       searchRoute,
@@ -267,5 +292,6 @@ describe("GET search", () => {
   it("refuses incomplete selections", async () => {
     expect((await call(searchRoute, "search", "make=AUDI")).status).toBe(400);
     expect(fitSkus).not.toHaveBeenCalled();
+    expect(recordSearch).not.toHaveBeenCalled();
   });
 });

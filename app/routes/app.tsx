@@ -17,7 +17,11 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
-import { publishStorefrontConfig } from "../services/storefront/sync.server";
+import {
+  firstListBehind,
+  publishStorefrontConfig,
+} from "../services/storefront/sync.server";
+import { queueStorefrontPublish } from "../services/jobs.server";
 import { shopPlan } from "../services/billing.server";
 import { AppLoading } from "../components/AppLoading";
 import theme from "../styles/theme.css?url";
@@ -53,9 +57,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       error,
     });
   }
+  // The first dropdown list (sync.server.ts › publishFirstList) is computed in the background
+  // only: here just a cheap check, so a row or field edit never waits on the values query.
+  try {
+    if (await firstListBehind(shop.id)) await queueStorefrontPublish(shop.id);
+  } catch (error) {
+    console.error("first dropdown publish not queued", {
+      shop: session.shop,
+      error,
+    });
+  }
 
-  // Limit checks read shops.plan: refresh it on any admin page (Partner API, cached 5 min).
-  // Not awaited: the page never waits on the Partner API; shopPlan logs its own failures.
+  // Limit checks read shops.plan: refresh it on any admin page (Billing API read, cached 5 min).
+  // Not awaited: the page never waits on the plan read; shopPlan logs its own failures.
   if (!onOnboarding) {
     shopPlan(admin.graphql, shop.id).catch((error) =>
       console.error("billing: plan refresh failed", {
@@ -92,6 +106,7 @@ export default function App() {
             <s-link href="/app/filter-data">Filter data</s-link>
             <s-link href="/app/storefront">Storefront</s-link>
             <s-link href="/app/product-mapping">Product mapping</s-link>
+            <s-link href="/app/analytics">Analytics</s-link>
             <s-link href="/app/settings">Settings</s-link>
             <s-link href="/app/plans">Plans</s-link>
           </s-app-nav>

@@ -30,8 +30,10 @@ import {
   type ResolvedTarget,
 } from "./mapping";
 import { buildRow } from "./transform";
-import { overLimitMessage, storedPlan } from "../billing.server";
-import { limitMessage, limitsFor } from "../billing";
+import { overLimitMessage } from "../billing.server";
+import { limitMessage } from "../billing";
+import { HARD_LIMITS, limitOf } from "../plan-features";
+import { shopPlanView } from "../../models/plan.server";
 
 export const KEEP_FILES = 5;
 const STAGE_BATCH = 10000;
@@ -165,12 +167,12 @@ export async function currentJob(shopId: string) {
   });
 }
 
-/** Import history: the newest finished imports that still have their file. */
-export function importHistory(shopId: string) {
+/** Import history: the newest finished imports that still have their file (plan's backups). */
+export async function importHistory(shopId: string) {
   return prisma.importJob.findMany({
     where: { shopId, status: "completed" },
     orderBy: { finishedAt: "desc" },
-    take: KEEP_FILES,
+    take: await keptFiles(shopId),
     // What the history list shows; not the stored columns/mapping documents.
     select: {
       id: true,
@@ -272,7 +274,6 @@ export async function saveMapping(
   input: {
     choices: string[];
     hasHeader: boolean;
-    lookForSkus: boolean;
     mode: ImportMode;
   },
 ) {
@@ -304,7 +305,6 @@ export async function saveMapping(
     data: {
       mapping,
       hasHeader: input.hasHeader,
-      lookForSkus: input.lookForSkus,
       mode: input.mode,
       status: "previewing",
       processedRows: 0,
@@ -782,8 +782,8 @@ async function applyRows(tx: Prisma.TransactionClient, job: ImportJob) {
 
   // The plan's row limit. First a cheap estimate, so a file far over the limit fails before
   // any rows are written (or deleted, for Replace)…
-  const plan = await storedPlan(job.shopId, tx);
-  const maxRows = limitsFor(plan).rows;
+  const plan = await shopPlanView(job.shopId, tx);
+  const maxRows = limitOf(plan, "rows");
   if (maxRows !== Infinity && job.mode !== "delete") {
     const tooMany = () => {
       throw new ImportError(
@@ -865,7 +865,17 @@ async function saveJobMapping(job: ImportJob) {
   ]);
 }
 
-/** Keeps the files of the newest KEEP_FILES finished imports; older files are deleted. */
+/** How many finished imports the history shows: the plan's import backups (at least 1). */
+export async function keptFiles(shopId: string) {
+  const n = limitOf(await shopPlanView(shopId), "backups");
+  return Math.max(1, n);
+}
+
+/**
+ * Deletes the files of finished imports past the technical cap (100). The plan's backups limit only
+ * decides how many the history shows (keptFiles), so a downgrade or a lower limit never deletes a
+ * backup the shop could need after an upgrade.
+ */
 export async function keepNewestFiles(shopId: string) {
   const old = await prisma.importJob.findMany({
     where: {
@@ -874,7 +884,7 @@ export async function keepNewestFiles(shopId: string) {
       OR: [{ fileKey: { not: null } }, { reportKey: { not: null } }],
     },
     orderBy: { finishedAt: "desc" },
-    skip: KEEP_FILES,
+    skip: HARD_LIMITS.backups!,
   });
   for (const j of old) {
     if (j.fileKey) await deleteQuietly(j.fileKey);

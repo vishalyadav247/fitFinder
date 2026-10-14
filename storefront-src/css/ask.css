@@ -1,5 +1,5 @@
 /* Results page: ask to save */
-.ff-ask {
+.sp-ask {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -11,10 +11,10 @@
   color: #00527c;
   font-size: 14px;
 }
-.ff-ask span {
+.sp-ask span {
   flex: 1 1 auto;
 }
-.ff-ask button {
+.sp-ask button {
   border: 0;
   background: none;
   font: inherit;
@@ -23,7 +23,7 @@
   color: inherit;
   padding: 4px;
 }
-.ff-ask__save {
+.sp-ask__save {
   text-decoration: underline;
 }
 

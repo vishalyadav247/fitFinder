@@ -1,5 +1,5 @@
 // Dashboard facts (specs/dashboard.md › Data): counts from the shop's data, the live theme's
-// FitFinder status (theme files, as on the Storefront page) and the plan. Every query is scoped
+// SpareFit status (theme files, as on the Storefront page) and the plan. Every query is scoped
 // by shop; a theme that can't be read leaves its parts unknown instead of failing the page.
 import { Prisma } from "@prisma/client";
 import prisma from "../db.server";
@@ -11,6 +11,34 @@ import { listThemes, readThemeStatus } from "./storefront/themes.server";
 import type { ThemeStatusView } from "./storefront/themes";
 import type { DashboardFacts } from "./dashboard";
 import type { PlanState } from "./billing.server";
+import { getPlans } from "../models/plan.server";
+import {
+  effectivePlan,
+  trialDaysFor,
+  visiblePlans,
+  type PlanView,
+} from "./billing";
+import { trialDaysUsed } from "./subscription.server";
+
+/** "Starter is free; paid plans start with a 14-day free trial." from the plans as set up. */
+/** Trial days are what this shop would get (days already used are taken off, as on Plans). */
+export function planHint(plans: PlanView[], trialUsed = 0) {
+  const shown = visiblePlans(plans);
+  const free = shown.find((p) => p.isFree);
+  const trials = [
+    ...new Set(
+      shown.filter((p) => !p.isFree).map((p) => trialDaysFor(p, trialUsed)),
+    ),
+  ];
+  const trial = trials.length === 1 && trials[0] > 0 ? trials[0] : 0;
+  const lead = "Pick the plan that suits your catalog.";
+  if (free && trial) {
+    return `${lead} ${free.name} is free; paid plans start with a ${trial}-day free trial.`;
+  }
+  if (free) return `${lead} ${free.name} is free.`;
+  if (trial) return `${lead} Paid plans start with a ${trial}-day free trial.`;
+  return lead;
+}
 
 const COVERAGE_FIELDS = 3;
 
@@ -46,7 +74,7 @@ export async function coverage(
   return lists.map((f, i) => ({ label: f.label, count: row[`c${i}`] ?? 0 }));
 }
 
-/** FitFinder's 4 storefront features in the live theme (Storefront page rules). */
+/** SpareFit's 4 storefront features in the live theme (Storefront page rules). */
 export function featuresAdded(
   status: ThemeStatusView,
   s: { tablePlace: "block" | "tabs"; garage: boolean },
@@ -74,21 +102,24 @@ async function liveTheme(gql: AdminGraphql, shopId: string) {
 export async function dashboardFacts(
   gql: AdminGraphql,
   shopId: string,
-  /** May still be loading (Partner API): the counts don't wait for it. */
+  /** May still be loading (Billing API read): the counts don't wait for it. */
   planState: PlanState | Promise<PlanState>,
 ): Promise<DashboardFacts | null> {
   const config = await loadStorefrontConfig(shopId);
   if (!config) return null;
-  const [plan, counts, withoutData, cov, theme] = await Promise.all([
-    planState,
-    rowCounts(shopId),
-    productsWithoutDataCount(shopId),
-    coverage(shopId, config.fields).catch((error) => {
-      console.error("dashboard: coverage read failed", { shopId, error });
-      return [];
-    }),
-    liveTheme(gql, shopId),
-  ]);
+  const [plan, plans, trialUsed, counts, withoutData, cov, theme] =
+    await Promise.all([
+      planState,
+      getPlans(),
+      trialDaysUsed(shopId),
+      rowCounts(shopId),
+      productsWithoutDataCount(shopId),
+      coverage(shopId, config.fields).catch((error) => {
+        console.error("dashboard: coverage read failed", { shopId, error });
+        return [];
+      }),
+      liveTheme(gql, shopId),
+    ]);
   return {
     fields: config.fields.map((f) => ({ label: f.label, type: f.type })),
     noun: config.noun,
@@ -100,8 +131,9 @@ export async function dashboardFacts(
     coverage: cov,
     embedOn: theme ? theme.embedOn : null,
     blocksAdded: theme ? featuresAdded(theme, config.s) : null,
-    plan: plan.connected ? plan.plan : "none",
-    planChosen: plan.connected && plan.plan !== "none",
+    planName: effectivePlan(plans, plan.plan).name,
+    planChosen: plan.plan !== "none",
+    planHint: planHint(plans, trialUsed),
     trialEndsAt: plan.trialEndsAt,
   };
 }

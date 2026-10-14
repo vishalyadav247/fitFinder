@@ -1,12 +1,12 @@
-// FitFinder storefront core (specs/storefront.md), shared by the three bundles that
-// scripts/build-theme-js.mjs writes to extensions/fitfinder-theme/assets/ (ff-search.js,
-// ff-product.js, ff-embed.js; each under Theme Check's 10 KB). Each bundle carries its own copy
+// SpareFit storefront core (specs/storefront.md), shared by the three bundles that
+// scripts/build-theme-js.mjs writes to extensions/sparefit-theme/assets/ (sp-search.js,
+// sp-product.js, sp-embed.js; each under Theme Check's 10 KB). Each bundle carries its own copy
 // of this module, so shared state lives where all of them see it: the config in the page
-// (script[data-ff-config], from the app metafield), selections in localStorage, changes as a
-// "fitfinder:change" event on document.
+// (script[data-sp-config], from the app metafield), selections in localStorage, changes as a
+// "sparefit:change" event on document.
 
-const KEY = "fitfinder:selection:v1";
-export const CHANGE = "fitfinder:change";
+const KEY = "sparefit:selection:v1";
+export const CHANGE = "sparefit:change";
 export const YEAR = new Date().getFullYear();
 export const collator = new Intl.Collator(undefined, {
   numeric: true,
@@ -20,7 +20,7 @@ export let cfg = null;
 export function loadConfig(given) {
   if (given !== undefined) return (cfg = given);
   if (cfg) return cfg;
-  const el = document.querySelector("script[data-ff-config]");
+  const el = document.querySelector("script[data-sp-config]");
   try {
     const c = el && JSON.parse(el.textContent);
     cfg = c && c.v === 1 && c.fields && c.fields.length ? c : null;
@@ -94,7 +94,7 @@ export function query(picks, extra) {
   return q.toString();
 }
 
-/** FitFinder's own results page (also the no-JavaScript link target). */
+/** SpareFit's own results page (also the no-JavaScript link target). */
 export const resultsUrl = (picks) => cfg.proxy + "/results?" + query(picks);
 
 /** The theme's search page for a query, under the shopper's language/market root. */
@@ -110,11 +110,11 @@ export function searchUrl(q) {
   return root + "search?" + params;
 }
 
-const SEARCHED = "fitfinder:searched";
+const SEARCHED = "sparefit:searched";
 
 /**
  * "Show {products}": the theme's own search page for the SKUs that fit (its product cards and
- * filters), or FitFinder's results page when nothing fits or the list is too long
+ * filters), or SpareFit's results page when nothing fits or the list is too long
  * (app/routes/proxy.search.tsx). The selection becomes the current one.
  */
 export function openResults(picks) {
@@ -135,9 +135,9 @@ export function openResults(picks) {
   );
 }
 
-/** On a results page FitFinder opened (its own, or the theme's search page after a search). */
+/** On a results page SpareFit opened (its own, or the theme's search page after a search). */
 export function onResultsPage() {
-  if (document.querySelector("[data-ff-results]")) return true;
+  if (document.querySelector("[data-sp-results]")) return true;
   try {
     const current = getStore().current;
     return (
@@ -155,23 +155,23 @@ export function askToSave(container, picks, where = "beforeend") {
   if (!cfg.s.askSave || !complete(picks) || isSaved(picks)) return;
   container.insertAdjacentHTML(
     where,
-    '<div class="ff-ask" data-ff-ask><span>Save <b>' +
+    '<div class="sp-ask" data-sp-ask><span>Save <b>' +
       esc(label(picks)) +
       "</b> to " +
       esc(cfg.s.garageName) +
-      '?</span><button type="button" class="ff-ask__save">Save</button>' +
-      '<button type="button" class="ff-ask__close" aria-label="Close">&times;</button></div>',
+      '?</span><button type="button" class="sp-ask__save">Save</button>' +
+      '<button type="button" class="sp-ask__close" aria-label="Close">&times;</button></div>',
   );
-  const bar = container.querySelector("[data-ff-ask]");
+  const bar = container.querySelector("[data-sp-ask]");
   bar.addEventListener("click", (e) => {
-    if (e.target.closest(".ff-ask__save")) save(picks);
-    if (e.target.closest(".ff-ask__save, .ff-ask__close")) bar.remove();
+    if (e.target.closest(".sp-ask__save")) save(picks);
+    if (e.target.closest(".sp-ask__save, .sp-ask__close")) bar.remove();
   });
 }
 
 /* ---------- My Selection store (this browser) ---------- */
 
-const mem = (window.__fitfinderStore = window.__fitfinderStore || {
+const mem = (window.__sparefitStore = window.__sparefitStore || {
   current: null,
   saved: [],
 });
@@ -242,7 +242,7 @@ export function api(path, params) {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     }).then((r) => {
-      if (!r.ok) throw new Error("FitFinder " + path + " " + r.status);
+      if (!r.ok) throw new Error("SpareFit " + path + " " + r.status);
       return r.json();
     });
     cache[url].catch(() => delete cache[url]);

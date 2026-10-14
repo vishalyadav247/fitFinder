@@ -29,6 +29,7 @@ const row = (over: Partial<RowView> = {}): RowView => ({
   yearTo: 2011,
   attachment: "SKU-1",
   linked: false,
+  product: null,
   ...over,
 });
 

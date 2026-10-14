@@ -58,8 +58,6 @@
       "Bash(npx prisma migrate reset*)",
       "Bash(npm publish*)",
       "Edit(//c/Users/progr/Desktop/bilstein-nl/**)",
-      "Read(./.env)",
-      "Read(./.env.local)",
       "Read(./.env.production)"
     ],
     "additionalDirectories": [

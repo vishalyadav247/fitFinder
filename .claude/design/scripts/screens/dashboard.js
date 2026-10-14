@@ -24,7 +24,7 @@ S.home = () => {
     <div class="how">
       <p class="how-title">How it works</p>
       <ol class="how-list">
-        ${[[t.icon, 'Shopper picks their ' + sp.noun, sp.fields.map((f) => f.label).join(' › ')], ['rows', 'FitFinder matches', sp.rows.length + ' filter rows'], ['check', 'Only ' + (t.things || 'products') + ' that fit', 'Fewer wrong orders and returns']].map(([ic, title, sub], i) =>
+        ${[[t.icon, 'Shopper picks their ' + sp.noun, sp.fields.map((f) => f.label).join(' › ')], ['rows', 'SpareFit matches', sp.rows.length + ' filter rows'], ['check', 'Only ' + (t.things || 'products') + ' that fit', 'Fewer wrong orders and returns']].map(([ic, title, sub], i) =>
           `<li class="how-step s${i + 1}"><span class="how-ico">${svg(ic, 16, 2.2)}</span><div><b>${esc(title)}</b><span>${esc(sub)}</span></div></li>`).join('')}
       </ol>
     </div>

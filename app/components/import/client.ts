@@ -91,7 +91,6 @@ export function jobAction(
         intent: "map";
         choices: string[];
         hasHeader: boolean;
-        lookForSkus: boolean;
         mode: ImportJobView["mode"];
       }
     | { intent: "run" }

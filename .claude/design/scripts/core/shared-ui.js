@@ -85,9 +85,9 @@ function confirmModal() {
 // This draws a look-alike so the prototype works outside the Shopify admin.
 function showToast(message, isError) {
   if (window.shopify && window.shopify.toast) { window.shopify.toast.show(message, { isError: !!isError }); return; }
-  document.querySelectorAll('.ff-toast').forEach((t) => t.remove());
+  document.querySelectorAll('.sp-toast').forEach((t) => t.remove());
   const t = document.createElement('div');
-  t.className = 'ff-toast' + (isError ? ' is-error' : '');
+  t.className = 'sp-toast' + (isError ? ' is-error' : '');
   t.setAttribute('role', isError ? 'alert' : 'status');
   t.innerHTML = '<span></span><button aria-label="Dismiss">×</button>';
   t.querySelector('span').textContent = message;

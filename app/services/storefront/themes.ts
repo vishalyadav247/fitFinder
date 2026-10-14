@@ -1,23 +1,23 @@
-// Theme integration (specs/storefront.md › Theme integration): what FitFinder has in a theme and
+// Theme integration (specs/storefront.md › Theme integration): what SpareFit has in a theme and
 // the theme editor deep links. Pure; the GraphQL side is themes.server.ts.
 //
 // Detection (https://shopify.dev/docs/apps/build/online-store/theme-app-extensions/configuration
 // › Detecting app blocks and app embed blocks): our blocks appear with the type
 // "shopify://apps/{app}/blocks/{handle}/{id}" in config/settings_data.json (app embed, with a
 // `disabled` flag; present only after it was enabled once) and in the JSON templates / section
-// groups (app blocks). Block handles are the Liquid file names; they all start with "fitfinder-"
+// groups (app blocks). Block handles are the Liquid file names; they all start with "sparefit-"
 // so another app's "search" or "app-embed" block can't be mistaken for ours.
 
 export const BLOCK_HANDLES = {
-  search: "fitfinder-search",
-  badge: "fitfinder-fits-badge",
-  table: "fitfinder-fitment-table",
-  embed: "fitfinder-embed",
+  search: "sparefit-search",
+  badge: "sparefit-fits-badge",
+  table: "sparefit-fitment-table",
+  embed: "sparefit-embed",
 } as const;
 
 export type BlockKey = "search" | "badge" | "table";
 
-export const TABLE_CODE = "[fitfinder-table]";
+export const TABLE_CODE = "[sparefit-table]";
 
 /** Files the status check reads (wildcards are allowed in `files(filenames:)`). */
 export const THEME_FILE_PATTERNS = [
@@ -63,7 +63,7 @@ const HANDLE_OF = new Map<string, keyof typeof BLOCK_HANDLES>(
   ]),
 );
 
-/** "shopify://apps/x/blocks/fitfinder-search/uid" → "search"; other blocks → null. */
+/** "shopify://apps/x/blocks/sparefit-search/uid" → "search"; other blocks → null. */
 export function ourBlock(type: unknown): keyof typeof BLOCK_HANDLES | null {
   if (typeof type !== "string") return null;
   const m = /^shopify:\/\/apps\/[^/]+\/blocks\/([^/]+)\/[^/]+$/.exec(type);

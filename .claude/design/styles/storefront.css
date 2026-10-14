@@ -38,7 +38,7 @@
 .acc-row th,.fit-open th{color:#737373;font-weight:600}
 .fit-open{padding:10px 0;border-bottom:1px solid #E5E5E5}.fit-open b{display:block;font-size:13px;margin-bottom:6px}
 
-/* Preview stage: only FitFinder's part, no backdrop or padding; mobile = phone width. */
+/* Preview stage: only SpareFit's part, no backdrop or padding; mobile = phone width. */
 .pv-stage{margin-top:10px;transition:max-width .2s}
 .pv-stage.mobile{max-width:375px;margin-inline:auto}
 .pdp-parts{display:grid;gap:8px;max-width:520px}

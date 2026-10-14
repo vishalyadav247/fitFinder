@@ -1,0 +1,21 @@
+{%- comment -%}
+  SpareFit app embed (specs/storefront.md › My Selection): loads the script and styles on every
+  page, shows the floating My Selection button, and on product pages swaps the code
+  [sparefit-table] in the theme's own tabs for the fitment table.
+{%- endcomment -%}
+{%- assign sp = app.metafields.sparefit.config.value -%}
+{%- if sp -%}
+  {%- comment -%} Not render-blocking: My Selection only shows once the (async) script has run. {%- endcomment -%}
+  <link rel="stylesheet" href="{{ 'sp-embed.css' | asset_url }}" media="print" onload="this.media='all'">
+  <script type="application/json" data-sp-config>{{ sp | json }}</script>
+  <div hidden data-sp-embed data-search-src="{{ 'sp-search.js' | asset_url }}" data-search-css="{{ 'sp-search.css' | asset_url }}" data-product-src="{{ 'sp-product.js' | asset_url }}" data-product-css="{{ 'sp-product.css' | asset_url }}"{% if product and template.name == 'product' %} data-product="{{ product.id }}"{% endif %}></div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "SpareFit – Parts Finder",
+  "target": "body",
+  "javascript": "sp-embed.js",
+  "settings": []
+}
+{% endschema %}

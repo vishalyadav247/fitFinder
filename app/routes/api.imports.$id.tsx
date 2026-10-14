@@ -42,7 +42,6 @@ const input = z.discriminatedUnion("intent", [
     intent: z.literal("map"),
     choices: z.array(z.string().max(100)).max(500),
     hasHeader: z.boolean(),
-    lookForSkus: z.boolean(),
     mode: z.enum(["upsert", "replace", "delete"]),
   }),
   z.object({ intent: z.literal("run") }),

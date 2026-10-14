@@ -1,6 +1,6 @@
-# FitFinder admin — UI prototype
+# SpareFit admin — UI prototype
 
-A clickable prototype of the FitFinder embedded admin app (a Shopify public app for "find parts that fit" search). It is the reference for building the real app. Every screen has a spec in [`../specs/`](../specs/). To build the app, start with [`../CLAUDE.md`](../CLAUDE.md) and [`../BUILD-PLAN.md`](../BUILD-PLAN.md).
+A clickable prototype of the SpareFit embedded admin app (a Shopify public app for "find parts that fit" search). It is the reference for building the real app. Every screen has a spec in [`../specs/`](../specs/). To build the app, start with [`../CLAUDE.md`](../CLAUDE.md) and [`../BUILD-PLAN.md`](../BUILD-PLAN.md).
 
 ## Open it
 
@@ -47,6 +47,7 @@ design/
 | Filter data (rows, export modal, clean up) | `scripts/screens/fitment-data.js` | [`../specs/fitment-data.md`](../specs/fitment-data.md) |
 | Storefront | `scripts/screens/storefront.js` | [`../specs/storefront.md`](../specs/storefront.md) |
 | Product mapping | `scripts/screens/product-mapping.js` | [`../specs/product-mapping.md`](../specs/product-mapping.md) |
+| Analytics | `scripts/screens/analytics.js` | [`../specs/analytics.md`](../specs/analytics.md) |
 | Settings | `scripts/screens/settings.js` | [`../specs/settings.md`](../specs/settings.md) |
 | Plans | `scripts/screens/plans.js` | [`../specs/plans.md`](../specs/plans.md) |
 | Data model and API | — | [`../specs/data-model.md`](../specs/data-model.md) |
@@ -80,6 +81,6 @@ This is prototype code, not app code. In the real app the screens become React r
 | Import counts shown as `[added]`, `[errors]` … | Real counts from the import job |
 | "Choose product" marks a row as linked | Shopify resource picker, then saved link |
 | Storefront previews | Theme app extension blocks on the live theme |
-| Plan buttons show a toast | Shopify Managed Pricing (hosted plan page) |
+| Plan buttons show a toast | Billing API charge → Shopify's approval page; free plan after a confirm modal; plans edited in the backoffice (`specs/backoffice.md`) |
 | Theme status, App embed switch, Add to theme | Theme editor deep links + reading the theme files |
 | My Selection saved in the prototype state | Saved in the shopper's browser (localStorage) by the app embed |

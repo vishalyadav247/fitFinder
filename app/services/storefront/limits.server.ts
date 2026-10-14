@@ -1,4 +1,4 @@
-// Protects the public app proxy (anyone can call /apps/fitfinder/* on a store): a request budget
+// Protects the public app proxy (anyone can call /apps/sparefit/* on a store): a request budget
 // per shop, and a cap on storefront queries running at once in this process, so one busy (or
 // abused) store can't take every database connection from the others. Over the budget: 429;
 // no free slot within a few seconds: 503 (the storefront scripts keep what they show).

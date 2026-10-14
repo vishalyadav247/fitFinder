@@ -61,7 +61,7 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
   let model: string;
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(os.tmpdir(), "ff-filter-data-"));
+    dir = await mkdtemp(path.join(os.tmpdir(), "sp-filter-data-"));
     setStorageForTests(new LocalStorage(dir));
   });
 
@@ -236,7 +236,6 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
       data: {
         shopId,
         attachment: "SKU-3",
-        kind: "sku",
         productId: "gid://shopify/Product/3",
       },
     });
@@ -273,7 +272,6 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
       data: {
         shopId,
         attachment: "SKU-2",
-        kind: "sku",
         productId: "gid://shopify/Product/1",
       },
     });
@@ -282,7 +280,6 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
       data: {
         shopId: otherShopId,
         attachment: "SKU-3",
-        kind: "sku",
         productId: "gid://shopify/Product/2",
       },
     });
@@ -414,7 +411,6 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
     await pipeline.saveMapping(shopId, job.id, {
       choices,
       hasHeader: true,
-      lookForSkus: true,
       mode,
     });
     await pipeline.runPreview(job.id);
@@ -476,7 +472,6 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
       data: {
         shopId,
         attachment: a.attachment,
-        kind: "sku",
         productId: "gid://shopify/Product/1",
       },
     });

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SEARCH_SKUS, SKU_FIELD, searchPlan } from "./search-query";
 import { defaultSettings, resolveSettings } from "./settings";
-import { buildStorefrontConfig, PROXY_PATH } from "./config";
+import { buildStorefrontConfig, byPosition, PROXY_PATH } from "./config";
 import {
   isComplete,
   parsePicks,
@@ -133,6 +133,24 @@ describe("storefront config (app metafield)", () => {
     expect(c.fields[0].type).toBe("list");
   });
 
+  it("turns off the blocks the plan doesn't include", () => {
+    const all = buildStorefrontConfig({
+      config: searchConfig,
+      fields: fieldRows,
+      stored: {},
+    });
+    expect(all.off).toEqual({ badge: false, table: false });
+    expect(all.s.garage).toBe(true);
+    const c = buildStorefrontConfig({
+      config: searchConfig,
+      fields: fieldRows,
+      stored: {},
+      features: { fitsBadge: true, fitmentTable: false, mySelection: false },
+    });
+    expect(c.off).toEqual({ badge: false, table: true });
+    expect(c.s.garage).toBe(false);
+  });
+
   it("drops hidden columns of gone fields and always keeps one column", () => {
     const c = buildStorefrontConfig({
       config: searchConfig,
@@ -158,6 +176,25 @@ describe("storefront config (app metafield)", () => {
       stored: { tableSort: "year" },
     });
     expect(withYears.s.tableSort).toBe("year");
+  });
+
+  it("orders fields by position, then id for ties (same rule as the first dropdown list)", () => {
+    const tied = [
+      { ...fieldRows[0], id: "b", position: 0 },
+      { ...fieldRows[1], id: "a", position: 0 },
+      { ...fieldRows[2], id: "c", position: -1 },
+    ];
+    const c = buildStorefrontConfig({
+      config: searchConfig,
+      fields: tied,
+      stored: {},
+    });
+    expect(c.fields.map((f) => f.id)).toEqual(["c", "a", "b"]);
+    expect([...tied].sort(byPosition).map((f) => f.id)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
   });
 });
 
@@ -254,12 +291,11 @@ describe("results page (Liquid)", () => {
         { handle: "shock-front", universal: false },
         { handle: "bad'handle{{", universal: false },
       ],
-      collections: [{ handle: "brakes", title: "Brakes & {{ more }}" }],
       total: 40,
       page: 2,
       pageCount: 3,
     },
-    pageHref: (n) => `/apps/fitfinder/results?make=AUDI&page=${n}`,
+    pageHref: (n) => `/apps/sparefit/results?make=AUDI&page=${n}`,
     ...over,
   });
 
@@ -269,13 +305,11 @@ describe("results page (Liquid)", () => {
     expect(html).not.toContain("bad'handle");
     expect(html).toContain("Parts that fit your vehicle");
     expect(html).toContain("Fits your vehicle");
-    expect(html).toContain('href="{{ routes.collections_url }}/brakes"');
   });
 
   it("escapes merchant text so it can't open Liquid or HTML", () => {
     const html = resultsLiquid(view({ label: "<b>{{ shop.email }}</b>" }));
     expect(html).not.toContain("{{ shop.email }}");
-    expect(html).not.toContain("{{ more }}");
     expect(html).not.toContain("<b>{");
     expect(escapeLiquidText("{% x %}")).toBe("&#123;&#37; x &#37;&#125;");
   });
@@ -292,7 +326,6 @@ describe("results page (Liquid)", () => {
       view({
         results: {
           products: [],
-          collections: [],
           total: 0,
           page: 1,
           pageCount: 1,
@@ -304,7 +337,7 @@ describe("results page (Liquid)", () => {
     expect(incomplete).toContain(
       "Select your vehicle to see the parts that fit.",
     );
-    expect(incomplete).toContain("data-ff-search");
+    expect(incomplete).toContain("data-sp-search");
   });
 });
 
@@ -328,7 +361,7 @@ describe("theme search plan", () => {
     expect(plan).toMatchObject({ mode: "search", skus: 1, missing: 2 });
   });
 
-  it("uses FitFinder's page when nothing fits, nothing is searchable or the list is too long", () => {
+  it("uses SpareFit's page when nothing fits, nothing is searchable or the list is too long", () => {
     expect(searchPlan({ skus: [], products: 0, withoutSku: 0 })).toEqual({
       mode: "page",
       reason: "none",

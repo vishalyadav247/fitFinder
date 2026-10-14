@@ -1,12 +1,12 @@
 // Live previews of the Storefront page (specs/storefront.md): each preview is a sandboxed iframe
-// running the real theme scripts and stylesheet (extensions/fitfinder-theme/assets) with the
+// running the real theme scripts and stylesheet (extensions/sparefit-theme/assets) with the
 // merchant's unsaved settings, so it looks and behaves exactly like the storefront.
 //
 // Inside the iframe the config's proxy is "#ff": a bridge (below) answers the scripts' app proxy
 // calls — fits from the sample, options and results through the admin (postMessage → parent →
 // /api/storefront-preview) — and every "go to the results page" becomes a harmless hash change.
 // The iframe has no same-origin access (sandbox="allow-scripts"), so localStorage throws and
-// the scripts keep selections in memory (window.__fitfinderStore), seeded here. Pure.
+// the scripts keep selections in memory (window.__sparefitStore), seeded here. Pure.
 import type { StorefrontConfig } from "../../services/storefront/config";
 import type { FitRow } from "../../services/storefront/query.server";
 
@@ -40,7 +40,7 @@ export interface BridgeInit {
  */
 export function bridge(init: BridgeInit) {
   const w = window as unknown as Record<string, unknown>;
-  w.__fitfinderStore = { current: init.store.current, saved: init.store.saved };
+  w.__sparefitStore = { current: init.store.current, saved: init.store.saved };
   const reply = (body: unknown) => ({
     ok: true,
     status: 200,
@@ -55,7 +55,7 @@ export function bridge(init: BridgeInit) {
     new Promise((res, rej) => {
       const id = ++next;
       pending.set(id, { res, rej });
-      parent.postMessage({ ff: "fetch", id, path, q }, "*");
+      parent.postMessage({ sp: "fetch", id, path, q }, "*");
     });
   const empty: FitsReply = {
     state: "ask",
@@ -75,13 +75,13 @@ export function bridge(init: BridgeInit) {
       const product = new URLSearchParams(q).get("product") || "";
       return Promise.resolve(reply(init.fits[product] || empty));
     }
-    // "Show {products}": FitFinder's own results page (= a hash change, handled below).
+    // "Show {products}": SpareFit's own results page (= a hash change, handled below).
     if (path === "search") return Promise.resolve(reply({ mode: "page" }));
     return ask(path, q).then(reply);
   };
   addEventListener("message", (e) => {
     const d = e.data;
-    if (e.source !== parent || !d || d.ff !== "reply") return;
+    if (e.source !== parent || !d || d.sp !== "reply") return;
     const p = pending.get(d.id);
     if (!p) return;
     pending.delete(d.id);
@@ -99,7 +99,7 @@ export function bridge(init: BridgeInit) {
     if (hash.indexOf(init.proxy + "/results") !== 0) return;
     location.hash = "";
     const box = results();
-    const go = document.querySelector<HTMLButtonElement>(".ff-sfw__go");
+    const go = document.querySelector<HTMLButtonElement>(".sp-sfw__go");
     if (!box) return;
     ask("results", hash.split("?")[1] || "").then(
       (body) => {
@@ -140,20 +140,20 @@ export function bridge(init: BridgeInit) {
     if (init.kind !== "search") return;
     clearResults();
     const selects = document.querySelectorAll<HTMLSelectElement>(
-      "[data-ff-search] select",
+      "[data-sp-search] select",
     );
     const picks: Picks = {};
     init.fieldIds.forEach((id, i) => {
       const v = selects[i] && selects[i].value;
       if (v) picks[id] = v;
     });
-    parent.postMessage({ ff: "picks", picks }, "*");
+    parent.postMessage({ sp: "picks", picks }, "*");
   });
   document.addEventListener("click", (e) => {
     const t = e.target as Element | null;
-    if (t && t.closest && t.closest(".ff-sfw__reset")) {
+    if (t && t.closest && t.closest(".sp-sfw__reset")) {
       clearResults();
-      parent.postMessage({ ff: "picks", picks: {} }, "*");
+      parent.postMessage({ sp: "picks", picks: {} }, "*");
     }
   });
 
@@ -164,7 +164,7 @@ export function bridge(init: BridgeInit) {
     const h = Math.ceil(document.body.getBoundingClientRect().height);
     if (h === last) return;
     last = h;
-    parent.postMessage({ ff: "height", h }, "*");
+    parent.postMessage({ sp: "height", h }, "*");
   };
   addEventListener("DOMContentLoaded", () => {
     report();
@@ -196,9 +196,9 @@ body{padding:2px}
 [hidden]{display:none!important}
 .pv-cap{margin:12px 0 6px;font-size:11px;font-weight:600;color:#8a8a8a;text-transform:uppercase;letter-spacing:.04em}
 .pv-cap:first-child{margin-top:0}
-.pv-table>.ff-table-wrap{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:0 12px}
+.pv-table>.sp-table-wrap{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:0 12px}
 .pv-hidden{display:none;margin:0;font-size:12px;color:#a3a3a3;font-style:italic}
-[data-ff-table][hidden]~.pv-hidden{display:block}
+[data-sp-table][hidden]~.pv-hidden{display:block}
 .pv-results{display:grid;gap:8px;margin-top:12px}
 .pv-results:empty{display:none}
 .pv-card{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:10px;background:#fff;box-shadow:0 0 0 1px #eaeaea}
@@ -262,20 +262,20 @@ function markup(kind: PreviewKind, config: StorefrontConfig): string {
   const cap = (t: string) => `<p class="pv-cap">${esc(t)}</p>`;
   switch (kind) {
     case "search":
-      return `<div class="ff-search-wrap" data-ff-search></div><div id="pv-results" class="pv-results"></div>`;
+      return `<div class="sp-search-wrap" data-sp-search></div><div id="pv-results" class="pv-results"></div>`;
     case "badge":
       return [
         cap("Before a selection"),
-        `<div class="ff-badge-wrap" data-ff-badge data-product="ask"></div>`,
+        `<div class="sp-badge-wrap" data-sp-badge data-product="ask"></div>`,
         cap("When it fits"),
-        `<div class="ff-badge-wrap" data-ff-badge data-product="fits"></div>`,
+        `<div class="sp-badge-wrap" data-sp-badge data-product="fits"></div>`,
         cap("When it doesn't fit"),
-        `<div class="ff-badge-wrap" data-ff-badge data-product="no-fit"></div>`,
+        `<div class="sp-badge-wrap" data-sp-badge data-product="no-fit"></div>`,
       ].join("");
     case "table": {
       const inTabs = config.s.tablePlace === "tabs";
       const spot = (product: string, note: string) => {
-        const table = `<div class="ff-table-wrap${inTabs ? " ff-table-wrap--tabs" : ""}" data-ff-table${inTabs ? " data-ff-tabs" : ""} data-product="${product}"></div><p class="pv-hidden">${esc(note)}</p>`;
+        const table = `<div class="sp-table-wrap${inTabs ? " sp-table-wrap--tabs" : ""}" data-sp-table${inTabs ? " data-sp-tabs" : ""} data-product="${product}"></div><p class="pv-hidden">${esc(note)}</p>`;
         // Block or shortcode: the same table (no wrapper, so one border).
         return `<div class="pv-table">${table}</div>`;
       };
@@ -290,7 +290,7 @@ function markup(kind: PreviewKind, config: StorefrontConfig): string {
       ].join("");
     }
     case "selection":
-      return `<div hidden data-ff-embed></div>`;
+      return `<div hidden data-sp-embed></div>`;
   }
 }
 
@@ -338,7 +338,7 @@ export function previewDoc(input: PreviewInput): string {
 <style>${input.css.replace(/<\/style/gi, "<\\/style")}</style><style>${HARNESS_CSS}</style>
 <script>(${scriptCode(bridge.toString())})(${scriptJson(bridgeInit({ ...input, config }))});</script>
 </head><body class="pv-${input.kind}">
-<script type="application/json" data-ff-config>${scriptJson(config)}</script>
+<script type="application/json" data-sp-config>${scriptJson(config)}</script>
 ${markup(input.kind, config)}
 <script>${scriptCode(input.script)}</script>
 </body></html>`;

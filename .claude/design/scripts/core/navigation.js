@@ -3,7 +3,7 @@
 /* ---------- navigation ---------- */
 const NAV = [
   ['home','Dashboard','home','t-indigo'], ['fields','Search setup','fields','t-violet'], ['data','Filter data','table','t-teal'],
-  ['store','Storefront','store','t-pink'], ['mapping','Product mapping','link','t-amber'],
+  ['store','Storefront','store','t-pink'], ['mapping','Product mapping','link','t-amber'], ['analytics','Analytics','chart','t-indigo'],
   ['settings','Settings','settings','t-slate'], ['plans','Plans','plans','t-green']
 ];
 function renderNav() {

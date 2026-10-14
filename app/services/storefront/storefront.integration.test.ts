@@ -97,19 +97,12 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
         product(4, "COL"),
         product(5, "SKU-5", "DRAFT"),
       ],
-      [
-        {
-          collectionId: "gid://shopify/Collection/9",
-          handle: "brakes",
-          title: "Brakes",
-        },
-      ],
       await catalog.dbNow(),
     );
     await add(shopId, "AUDI", "2008-2011", "A6", "SKU-1");
     await add(shopId, "AUDI", "2016-", "A4", "SKU-2");
     await add(shopId, "BMW", "2015", "X3", "SKU-1");
-    await add(shopId, "AUDI", "2009", "A6", "/collections/brakes");
+    await add(shopId, "AUDI", "2009", "A6", "/collections/brakes"); // not a SKU: unlinked
     await add(shopId, "AUDI", "2009", "A6", "SKU-5"); // draft product
     await relink(shopId);
     await prisma.universalProduct.create({ data: { shopId, productId: P(3) } });
@@ -193,7 +186,7 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
 
   it("checks whether a product fits and lists its rows", async () => {
     const s = await search();
-    const p1 = await q.productFits(s, P(1), [], new Map());
+    const p1 = await q.productFits(s, P(1), new Map());
     expect(p1.state).toBe("ask");
     expect(p1.total).toBe(2);
     expect(p1.rows).toEqual(
@@ -205,23 +198,17 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     const audi2009 = await picks(
       `${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`,
     );
-    expect((await q.productFits(s, P(1), [], audi2009)).state).toBe("fits");
-    expect((await q.productFits(s, P(2), [], audi2009)).state).toBe("no-fit");
-    // collection link: fits every product in the collection
-    const inBrakes = await q.productFits(
-      s,
-      P(4),
-      ["gid://shopify/Collection/9"],
-      audi2009,
-    );
-    expect(inBrakes.state).toBe("fits");
-    expect(inBrakes.total).toBe(1);
+    expect((await q.productFits(s, P(1), audi2009)).state).toBe("fits");
+    expect((await q.productFits(s, P(2), audi2009)).state).toBe("no-fit");
+    // A collection link is no attachment: product 4 (SKU COL) gets nothing from it.
+    const col = await q.productFits(s, P(4), audi2009);
+    expect(col).toMatchObject({ state: "no-fit", total: 0 });
     // universal: fits everything, no rows
-    const uni = await q.productFits(s, P(3), [], audi2009);
+    const uni = await q.productFits(s, P(3), audi2009);
     expect(uni).toMatchObject({ state: "fits", universal: true, total: 0 });
   });
 
-  it("lists active products that fit, universal last, with collections", async () => {
+  it("lists active products that fit, universal last", async () => {
     const s = await search();
     const r = await q.searchResults(
       s,
@@ -232,7 +219,6 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       { handle: "product-1", universal: false },
       { handle: "product-3", universal: true },
     ]); // product-5 is a draft
-    expect(r.collections).toEqual([{ handle: "brakes", title: "Brakes" }]);
     expect(r.total).toBe(2);
     const none = await q.searchResults(
       s,
@@ -243,7 +229,8 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
   });
 
   it("finds one SKU per fitting product for the theme search", async () => {
-    // a product link (handle) uses the product's first SKU; products without SKUs are counted
+    // a manual link without a variant uses the product's first SKU; products without SKUs are
+    // counted
     await catalog.upsertProducts(
       shopId,
       [
@@ -254,9 +241,15 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       ],
       { replaceVariants: true },
     );
-    await add(shopId, "AUDI", "2009", "A6", "/products/product-2");
-    await add(shopId, "AUDI", "2009", "A6", "product-6");
+    await add(shopId, "AUDI", "2009", "A6", "OLD-2");
+    await add(shopId, "AUDI", "2009", "A6", "OLD-6");
     await relink(shopId);
+    await prisma.productLink.createMany({
+      data: [
+        { shopId, attachment: "OLD-2", productId: P(2), method: "manual" },
+        { shopId, attachment: "OLD-6", productId: P(6), method: "manual" },
+      ],
+    });
     const s = await search();
     const found = await q.fitSkus(
       s,
@@ -267,6 +260,7 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       skus: ["SKU-1", "SKU-2", "UNI"],
       products: 4,
       withoutSku: 1,
+      specific: 3, // the universal product isn't one
     });
     // the limit cuts the list, not the counts
     const one = await q.fitSkus(
@@ -312,9 +306,7 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     )!;
     // no catalog, links or universal products in the other shop
     expect((await q.searchResults(other, otherPicks, 1)).products).toEqual([]);
-    expect((await q.productFits(other, P(1), [], otherPicks)).state).toBe(
-      "no-fit",
-    );
+    expect((await q.productFits(other, P(1), otherPicks)).state).toBe("no-fit");
     // this shop's field ids don't work as picks there
     expect(
       parsePicks(new URLSearchParams(`${ids.make}=AUDI`), other.fields)!.size,
@@ -365,7 +357,7 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     const input = (set.variables!.metafields as Record<string, string>[])[0];
     expect(input).toMatchObject({
       ownerId: "gid://shopify/AppInstallation/1",
-      namespace: "fitfinder",
+      namespace: "sparefit",
       key: "config",
       type: "json",
     });

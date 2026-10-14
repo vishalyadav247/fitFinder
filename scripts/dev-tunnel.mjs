@@ -132,11 +132,11 @@ function stopOldDevProcesses() {
 
 // Local Postgres (Docker container from PROGRESS.md). Ignore errors: it may run elsewhere.
 function startDatabase() {
-  const r = spawnSync("docker", ["start", "fitfinder-db"], {
+  const r = spawnSync("docker", ["start", "sparefit-db"], {
     encoding: "utf8",
   });
-  if (r.status === 0) log("Postgres container fitfinder-db is running.");
-  else log("Couldn't start Docker container fitfinder-db (skipped).");
+  if (r.status === 0) log("Postgres container sparefit-db is running.");
+  else log("Couldn't start Docker container sparefit-db (skipped).");
 }
 
 /** Starts a quick tunnel to localhost:PORT and resolves with its public URL. */

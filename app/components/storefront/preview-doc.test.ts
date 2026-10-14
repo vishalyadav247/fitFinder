@@ -15,10 +15,11 @@ import {
 
 const config: StorefrontConfig = {
   v: 1,
-  proxy: "/apps/fitfinder",
+  proxy: "/apps/sparefit",
   heading: "Find parts </script><script>alert(1)</script>",
   noun: "vehicle",
   things: "parts",
+  off: { badge: false, table: false },
   fields: [
     {
       id: "make",
@@ -95,7 +96,7 @@ describe("previewDoc", () => {
       script: "",
       sample,
     });
-    expect(doc).toContain("data-ff-tabs");
+    expect(doc).toContain("data-sp-tabs");
     expect(doc).not.toContain("pv-tabs-bar");
   });
 
@@ -176,14 +177,14 @@ describe("bridge", () => {
     const { fetch, posted, listeners, parent } = run();
     const pending = fetch("#ff/options?field=make");
     expect(posted[0]).toMatchObject({
-      ff: "fetch",
+      sp: "fetch",
       path: "options",
       q: "field=make",
     });
     listeners.message[0]({
       source: parent,
       data: {
-        ff: "reply",
+        sp: "reply",
         id: posted[0].id,
         ok: true,
         body: { options: ["AUDI"] },
@@ -198,7 +199,7 @@ describe("bridge", () => {
     fetch("#ff/options?field=make").then(() => (settled = true));
     listeners.message[0]({
       source: {},
-      data: { ff: "reply", id: posted[0].id, ok: true },
+      data: { sp: "reply", id: posted[0].id, ok: true },
     });
     await Promise.resolve();
     expect(settled).toBe(false);
@@ -207,7 +208,7 @@ describe("bridge", () => {
 
   it("seeds the in-memory selection store the scripts use", () => {
     run({ store: { current: { make: "A" }, saved: [{ make: "A" }] } });
-    expect((globalThis as Record<string, unknown>).__fitfinderStore).toEqual({
+    expect((globalThis as Record<string, unknown>).__sparefitStore).toEqual({
       current: { make: "A" },
       saved: [{ make: "A" }],
     });

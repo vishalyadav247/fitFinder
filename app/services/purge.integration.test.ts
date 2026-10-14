@@ -30,7 +30,7 @@ describe.skipIf(!process.env.DATABASE_URL)("purge (Postgres)", () => {
   const ids: Record<string, string> = {};
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(os.tmpdir(), "ff-purge-"));
+    dir = await mkdtemp(path.join(os.tmpdir(), "sp-purge-"));
     storageMod.setStorageForTests(new storageMod.LocalStorage(dir));
   });
   afterAll(async () => {

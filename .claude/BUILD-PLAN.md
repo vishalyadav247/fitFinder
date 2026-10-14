@@ -1,4 +1,4 @@
-# FitFinder — Build plan
+# SpareFit — Build plan
 
 How to turn the prototype (`.claude/design/`) into the real Shopify app. Read with `.claude/CLAUDE.md` (rules) and the screen specs in `.claude/specs/` (what each screen does). Where this plan and a spec disagree, the spec wins for UI and this plan wins for architecture; flag the conflict.
 
@@ -12,10 +12,10 @@ Items marked **(verify)** must be checked against current shopify.dev docs befor
 | Admin UI | **Polaris web components** (`s-page`, `s-section`, `s-table`, `s-modal` …) + App Bridge (`s-app-nav`, toast, resource picker, save bar) | No other UI kit. Match the prototype markup |
 | Database | PostgreSQL + Prisma | Template ships Prisma; add our tables. Sessions in Prisma session storage |
 | Background jobs | **pg-boss** on the same Postgres (decided 2026-10-05) | Imports of 700k rows must not run in a request; a separate worker process runs the jobs |
-| Cache | Postgres distinct-values tables (decided; no Redis) | Dropdown options per shop and per field path |
+| Cache | No Redis (decided). First dropdown: its values ship with the page in the app metafield `sparefit.first`; later dropdowns: per-process cache keyed by the shop's data version | Dropdown options per shop and per field path |
 | File storage | **Cloudflare R2** (S3-compatible) (decided) | Original uploads of the last 5 imports per shop (backups), error reports, exports |
 | Storefront | **Theme app extension**: 3 app blocks + 1 app embed, vanilla JS (no jQuery), small CSS | Data via **app proxy** |
-| Billing | **Shopify App Pricing** (formerly Managed Pricing; plans set in the Partner Dashboard) | Read the active subscription from the Partner API; enforce limits server-side |
+| Billing | **Billing API (Manual Pricing)**, agreed 2026-10-13 (was Shopify App Pricing) | Plans in the `plans` table, edited in the backoffice (`/backoffice`); `appSubscriptionCreate` with the plan's price and trial; active charge read from `currentAppInstallation`; limits and features enforced server-side |
 | Hosting | **Fly.io, EU region** with the template Dockerfile; managed Postgres (Neon or Supabase, EU) (decided) | Web process + worker process |
 
 ## 2. Repository layout (target)
@@ -45,12 +45,12 @@ productFinder/                   (project root: React Router template, TypeScrip
 │   ├── components/                     Shared admin pieces (setup guide, banner, preview widgets)
 │   └── shopify.server.ts
 ├── extensions/
-│   └── fitfinder-theme/
-│       ├── blocks/fitfinder-search.liquid         Search section (target: section)
-│       ├── blocks/fitfinder-fits-badge.liquid     Fits badge (target: section, product)
-│       ├── blocks/fitfinder-fitment-table.liquid  Fitment table (target: section, product)
-│       ├── blocks/fitfinder-embed.liquid          App embed (target: body): loader, My Selection, [fitfinder-table] swap
-│       ├── assets/ff-search.js/.css, ff-product.js/.css, ff-embed.js/.css (built from storefront-src/; the embed's stylesheet loads on every page, so it holds only My Selection and the save prompt)
+│   └── sparefit-theme/
+│       ├── blocks/sparefit-search.liquid         Search section (target: section)
+│       ├── blocks/sparefit-fits-badge.liquid     Fits badge (target: section, product)
+│       ├── blocks/sparefit-fitment-table.liquid  Fitment table (target: section, product)
+│       ├── blocks/sparefit-embed.liquid          App embed (target: body): loader, My Selection, [sparefit-table] swap
+│       ├── assets/sp-search.js/.css, sp-product.js/.css, sp-embed.js/.css (built from storefront-src/; the embed's stylesheet loads on every page, so it holds only My Selection and the save prompt)
 │       └── locales/en.default.json
 ├── prisma/schema.prisma
 └── shopify.app.toml
@@ -65,7 +65,7 @@ Start from `.claude/specs/data-model.md`. Additions and decisions:
 | `shops` | id, domain (unique), installed_at, uninstalled_at, last_auth_at, plan, trial_ends_at | Purge data 30 days after `uninstalled_at` |
 | `search_configs` | shop_id (PK), store_type, heading, noun, things_word | Store type presets live in code (copy from `.claude/design/scripts/data/store-types.js`) |
 | `search_fields` | id, shop_id, position, label, placeholder, type (`list`/`year_range`), required | Ordered; label/placeholder shown on the storefront |
-| `fitment_rows` | id, shop_id, values jsonb `{fieldId: value}`, year_from, year_to, attachment, row_hash (unique per shop), created_at | `attachment` = SKU, product URL/handle or collection URL/handle; `row_hash` = hash(values + year_from/year_to + attachment) for add/update and dedupe |
+| `fitment_rows` | id, shop_id, values jsonb `{fieldId: value}`, year_from, year_to, attachment, row_hash (unique per shop), created_at | `attachment` = the product SKU (SKU only, agreed 2026-10-09); `row_hash` = hash(values + year_from/year_to + attachment) for add/update and dedupe |
 | `product_links` | shop_id, attachment, kind (`sku`/`product`/`collection`), product_id, variant_id, collection_id, method (`auto`/`manual`) | Unique (shop_id, attachment) |
 | `universal_products` | shop_id, product_id | Shown in every result |
 | `import_mappings` | shop_id, column_name, target (`field:{id}`, `field:{id}:from`, `:to`, `:range`, `attachment`, `skip`) | Pre-fills the next import |
@@ -88,24 +88,25 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 6. After: re-run linking for new attachments, rebuild the options cache, update the storefront metafield counts, keep 5 newest files.
 
 ### Linking (Product mapping)
-- With "Look for SKUs in the Attachment column": match against variant SKUs (bulk operation export of products → SKU map, refreshed by `products/*` webhooks). Otherwise treat the attachment as a product or collection handle/URL.
+- Match the attachment against variant SKUs only (bulk operation export of products → SKU map, refreshed by `products/*` webhooks). No product links, handles or collection links (agreed 2026-10-09).
 - Unlinked rows grouped by attachment; **Choose product** = App Bridge resource picker → manual link for every row with that attachment.
 - "Products without filter data" = products whose SKUs match no row and aren't universal.
 
 ### Storefront
-- Blocks read settings from the app metafield; the app embed loads `fitfinder.js` once (deferred).
-- App proxy endpoints: `options` (next dropdown values for the picks so far), `search` (the SKUs that fit → the theme's own search page, so its product cards and filters apply; decided 2026-10-05, specs/storefront.md › Results), `results` (FitFinder's own results page, the fallback for long SKU lists), `fits` (badge state + table rows for a product).
+- Blocks read settings from the app metafield; the app embed loads `sparefit.js` once (deferred).
+- App proxy endpoints: `options` (next dropdown values for the picks so far), `search` (the SKUs that fit → the theme's own search page, so its product cards and filters apply; decided 2026-10-05, specs/storefront.md › Results), `results` (SpareFit's own results page, the fallback for long SKU lists), `fits` (badge state + table rows for a product).
 - My Selection: saved in `localStorage` on the shopper's device; floating tab per the spec (fixed size, ellipsis, hover hint card, panel with slide animation, close tile).
-- Fitment table in theme tabs: the app embed finds the text `[fitfinder-table]` on product pages and replaces it with the table (respects all table settings).
-- Theme status: list themes (GraphQL `themes`), read `config/settings_data.json` for the embed state and scan templates for our blocks / the code **(verify** asset read access and scopes). "Add to theme" / "View in editor" / app-embed switch = theme editor deep links (`/admin/themes/{id}/editor?context=apps&activateAppId={api_key}/fitfinder-embed` for the embed; `addAppBlockId={api_key}/{handle}&target=newAppsSection|mainSection` for blocks). Verified 2026-10-06: `read_themes`, `theme.files(filenames:)`; see PROGRESS.md.
+- Fitment table in theme tabs: the app embed finds the text `[sparefit-table]` on product pages and replaces it with the table (respects all table settings).
+- Theme status: list themes (GraphQL `themes`), read `config/settings_data.json` for the embed state and scan templates for our blocks / the code **(verify** asset read access and scopes). "Add to theme" / "View in editor" / app-embed switch = theme editor deep links (`/admin/themes/{id}/editor?context=apps&activateAppId={api_key}/sparefit-embed` for the embed; `addAppBlockId={api_key}/{handle}&target=newAppsSection|mainSection` for blocks). Verified 2026-10-06: `read_themes`, `theme.files(filenames:)`; see PROGRESS.md.
 
 ### Billing
+- **Since 2026-10-13 (M12):** four plan slots in the `plans` table, edited in the backoffice; Billing API charges (`app/services/subscription.server.ts`), `app_subscriptions/update` webhook, limits (rows, linked products, search fields, import backups) and features (fits badge, fitment table, My Selection, universal products) enforced server-side or in the storefront config. See `specs/plans.md` and `specs/backoffice.md`. The paragraph below describes the earlier App Pricing version.
 - Shopify App Pricing plans: Starter (free), Growth, Pro; monthly + yearly. Plans page links to Shopify's hosted plan page. The active plan comes from the Partner API `activeSubscription` (verified 2026-10-06: App Pricing sends no billing webhooks), cached 5 min per shop and stored in `shops.plan`. Limits (rows, linked products; search fields are not limited by plan) enforced in import, row and link writes; over-limit → banner with upgrade link.
 
 ### Privacy and uninstall
 - `app/uninstalled`: mark shop, stop serving the proxy; a daily pg-boss job (`purge-uninstalled`, 03:15 UTC) deletes shops uninstalled more than 30 days ago: storage folder, sessions, shop row (cascade).
 - Compliance webhooks (`/webhooks/compliance`, `compliance_topics` in the TOML) `customers/data_request`, `customers/redact`, `shop/redact`: we hold no customer data (My Selection is in the shopper's browser), so the customer topics answer 200; `shop/redact` (48 h after uninstall) marks the shop uninstalled if our uninstall webhook was missed, and the purge at uninstall + 30 days completes it within Shopify's 30 days.
-- App proxy: per-shop budget (100 requests/s, bursts of 300 → 429; `PROXY_SHOP_RATE`/`PROXY_SHOP_BURST`) and at most 8 storefront queries at once per process (`PROXY_MAX_QUERIES`; 3 s wait → 503). FitFinder's results page shows a short "busy" page instead of JSON.
+- App proxy: per-shop budget (100 requests/s, bursts of 300 → 429; `PROXY_SHOP_RATE`/`PROXY_SHOP_BURST`) and at most 8 storefront queries at once per process (`PROXY_MAX_QUERIES`; 3 s wait → 503). SpareFit's results page shows a short "busy" page instead of JSON.
 - `app/uninstalled` and the compliance topics check the webhook HMAC without loading the shop's session (the expired offline token can't be refreshed after an uninstall).
 
 ## 5. Milestones and acceptance criteria
@@ -118,11 +119,12 @@ Indexes: (shop_id, attachment); (shop_id, row_hash) unique; GIN on `values`; for
 | M4 | Import pipeline | 3-step import card works for all 3 modes on a 727k-row Bilstein file within agreed time; mapping remembered; review counts real; destructive modes confirm; history keeps 5 files with working downloads |
 | M5 | Filter data | Search, add/edit popup, delete (confirmed), bulk delete, export (all/selected/unlinked) round-trips through import unchanged; remove duplicates |
 | M6 | Linking + Product mapping | Auto-linking after import; unlinked list grouped by attachment; resource picker links; products without filter data; universal products |
-| M7 | Theme app extension | Search section, fits badge (3 states), fitment table (block + `[fitfinder-table]` in theme tabs), My Selection embed (4 positions, icons incl. custom upload, colours, count, hover hint, panel) all match the prototype on Dawn and one non-Dawn theme |
+| M7 | Theme app extension | Search section, fits badge (3 states), fitment table (block + `[sparefit-table]` in theme tabs), My Selection embed (4 positions, icons incl. custom upload, colours, count, hover hint, panel) all match the prototype on Dawn and one non-Dawn theme |
 | M8 | Storefront page | Theme picker + embed status per theme; feature table with Type / Placement / Status / Action and deep links; tab settings write to the metafield; previews match the storefront |
 | M9 | Dashboard, Settings, Plans | Setup guide steps reflect real state; overview counts real; Shopify App Pricing upgrade/downgrade works on a dev store; limits enforced |
 | M10 | Compliance + performance | GDPR webhooks; purge job; storefront script within Built for Shopify thresholds (verify current limits); Lighthouse impact measured on Dawn |
 | M11 | Pilot + submission | Bilstein NL data live on a staging store; App Store listing, screenshots, privacy policy; submitted |
+| M12 | Backoffice + dynamic plans (Billing API) | `/backoffice` sign-in (env credentials); edit the four plans (name, description, shown, free, monthly/yearly price, trial days, limits, features, card lines); Plans page and every limit read them; paid plans create a Billing API charge with the plan's price and remaining trial; free plan cancels the charge (confirm modal); `app_subscriptions/update` webhook; e2e covers backoffice edit → new price/trial on the next charge |
 
 ## 6. Rules that come from the design work (do not undo)
 

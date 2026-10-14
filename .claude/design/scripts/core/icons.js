@@ -8,6 +8,7 @@ const I = {
   link:'<path d="M8.5 11.5l3-3M7.5 9 5.5 11a2.5 2.5 0 003.5 3.5l2-2M12.5 11l2-2A2.5 2.5 0 0011 5.5L9 7.5"/>', store:'<path d="M3 8l1.5-4h11L17 8M4 8v9h12V8M3 8h14"/>',
   settings:'<circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
   plans:'<rect x="3" y="5" width="14" height="10" rx="2"/><path d="M3 8.5h14"/>',
+  chart:'<path d="M3 17h14M6 14V9M10 14V5M14 14v-3"/>',
   car:'<path d="M3 13v-2.5L5 6h10l2 4.5V13z"/><circle cx="6.5" cy="13.5" r="1.5"/><circle cx="13.5" cy="13.5" r="1.5"/>',
   phone:'<rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M9 15h2"/>',
   beauty:'<rect x="7" y="8" width="6" height="9.5" rx="1.5"/><path d="M8 8V5.5l4-3V8"/>',

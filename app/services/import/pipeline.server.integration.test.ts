@@ -54,7 +54,7 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
   let otherShopId: string;
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(os.tmpdir(), "ff-storage-"));
+    dir = await mkdtemp(path.join(os.tmpdir(), "sp-storage-"));
     setStorageForTests(new LocalStorage(dir));
   });
 
@@ -103,7 +103,6 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
     await saveMapping(shopId, job.id, {
       choices: opts.choices ?? choices,
       hasHeader: true,
-      lookForSkus: true,
       mode,
     });
     await runPreview(job.id);
@@ -239,7 +238,6 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
       saveMapping(shopId, job.id, {
         choices: choices.map((c) => (c === "attachment" ? "skip" : c)),
         hasHeader: true,
-        lookForSkus: true,
         mode: "upsert",
       }),
     ).rejects.toThrow("Map the Attachment column");
@@ -292,7 +290,7 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
     ).toBe("cancelled");
   });
 
-  it(`keeps the files of the ${KEEP_FILES} newest imports`, async () => {
+  it(`lists the plan's ${KEEP_FILES} newest imports and keeps older files (no delete on a lower limit)`, async () => {
     const keys: string[] = [];
     for (let i = 0; i < KEEP_FILES + 2; i++) {
       const { job } = await importFile(
@@ -313,8 +311,9 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
       "f3.csv",
       "f2.csv",
     ]);
-    expect(await storage().size(keys[0])).toBeNull();
-    expect(await storage().size(keys[1])).toBeNull();
+    // Files are only deleted past the technical cap (100), never by the plan's limit.
+    expect(await storage().size(keys[0])).not.toBeNull();
+    expect(await storage().size(keys[1])).not.toBeNull();
     expect(await storage().size(keys[6])).not.toBeNull();
   });
 });

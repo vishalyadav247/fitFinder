@@ -4,13 +4,12 @@ S.mapping = () => {
   const sp = setup();
   // Prototype data saved before these lists existed gets the sample products.
   if (!sp.looseProducts) { sp.looseProducts = makeSetup(sp.type).looseProducts; sp.universal = sp.universal || []; }
-  // Unlinked rows, grouped by attachment (one line per SKU / link, with how many rows use it).
+  // Unlinked rows, grouped by attachment (one line per SKU, with how many rows use it).
   const groups = [];
   sp.rows.filter((r) => !r.mapped).forEach((r) => {
     const g = groups.find((x) => x.part === r.part);
     if (g) g.rows.push(r); else groups.push({ part: r.part, rows: [r] });
   });
-  const kind = (a) => /\/collections\//.test(a) ? 'Collection link' : /\/products\//.test(a) ? 'Product link' : 'SKU';
   const fits = (r) => sp.fields.map((f) => showValue(f, r.v[f.id])).join(' · ');
   const loose = (sp.looseProducts || []).filter((p) => !(sp.universal || []).some((u) => u.sku === p.sku));
   const universal = sp.universal || [];
@@ -21,12 +20,12 @@ S.mapping = () => {
     <s-section padding="none" accessibilityLabel="Unlinked rows">
       <s-box padding="base"><s-stack gap="small-100">
         <s-stack direction="inline" gap="small-200" alignItems="center"><h2 class="sec-title">Unlinked rows</h2><s-badge tone="${groups.length ? 'warning' : 'success'}">${groups.length} to link</s-badge></s-stack>
-        <s-text color="subdued">Each filter row points to a product through its Attachment (usually a SKU). We couldn't find these in your store, so shoppers don't see them in search results.</s-text>
+        <s-text color="subdued">Each filter row points to a product through the SKU in its Attachment. We couldn't find these SKUs in your store, so shoppers don't see them in search results. Choose product replaces the SKU with that product's SKU.</s-text>
       </s-stack></s-box>
-      ${groups.length ? `<s-table><s-table-header-row><s-table-header listSlot="primary">Attachment</s-table-header><s-table-header>Type</s-table-header><s-table-header>Fits</s-table-header><s-table-header format="numeric">Rows</s-table-header><s-table-header>Action</s-table-header></s-table-header-row>
-        <s-table-body>${groups.map((g) => `<s-table-row><s-table-cell><s-text type="strong">${esc(g.part)}</s-text></s-table-cell><s-table-cell>${kind(g.part)}</s-table-cell>
+      ${groups.length ? `<s-table><s-table-header-row><s-table-header listSlot="primary">Attachment</s-table-header><s-table-header>Fits</s-table-header><s-table-header format="numeric">Rows</s-table-header><s-table-header>Action</s-table-header></s-table-header-row>
+        <s-table-body>${groups.map((g) => `<s-table-row><s-table-cell><s-text type="strong">${esc(g.part)}</s-text></s-table-cell>
           <s-table-cell><s-text color="subdued">${esc(fits(g.rows[0]))}${g.rows.length > 1 ? ` +${g.rows.length - 1} more` : ''}</s-text></s-table-cell><s-table-cell>${g.rows.length}</s-table-cell>
-          <s-table-cell><s-button data-act="map" data-id="${g.rows[0].id}" data-part="${esc(g.part)}">${kind(g.part) === 'Collection link' ? 'Choose collection' : 'Choose product'}</s-button></s-table-cell></s-table-row>`).join('')}</s-table-body></s-table>`
+          <s-table-cell><s-button data-act="map" data-id="${g.rows[0].id}" data-part="${esc(g.part)}">Choose product</s-button></s-table-cell></s-table-row>`).join('')}</s-table-body></s-table>`
         : '<s-box padding="base" paddingBlockStart="none"><s-banner tone="success" heading="Every row is linked to a product"></s-banner></s-box>'}
     </s-section>
 

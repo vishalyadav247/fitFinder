@@ -17,14 +17,14 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>FitFinder</h1>
+        <h1 className={styles.heading}>SpareFit – Parts Finder</h1>
         <p className={styles.text}>
           A &ldquo;find what fits&rdquo; search for your Shopify store: shoppers
           pick their vehicle, phone or profile and only see the products that
           fit.
         </p>
         <p className={styles.text}>
-          Install FitFinder from the Shopify App Store, then open it from your
+          Install SpareFit from the Shopify App Store, then open it from your
           Shopify admin under Apps.
         </p>
         <ul className={styles.list}>

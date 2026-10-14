@@ -47,7 +47,7 @@ export async function uploadIcon(
   icon: Ok,
   { pollMs = POLL_MS, upload = fetch } = {},
 ): Promise<string> {
-  const filename = `fitfinder-my-selection-icon.${icon.extension}`;
+  const filename = `sparefit-my-selection-icon.${icon.extension}`;
   const resource = icon.kind === "png" ? "IMAGE" : "FILE";
   const { stagedUploadsCreate } = await gqlData<{
     stagedUploadsCreate: {

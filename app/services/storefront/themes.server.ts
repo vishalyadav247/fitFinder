@@ -1,4 +1,4 @@
-// Theme integration, Admin GraphQL side: the shop's themes and what FitFinder has in one of them
+// Theme integration, Admin GraphQL side: the shop's themes and what SpareFit has in one of them
 // (themes.ts analyses the files). Needs read_themes. The result is cached in theme_status
 // (the Dashboard reads the live theme's embed state from there in M9).
 // Docs: https://shopify.dev/docs/api/admin-graphql/2026-10/queries/themes,

@@ -1,6 +1,6 @@
 // Prototype-only colour theme picker. Themes are defined in styles/tokens.css.
 (function () {
-  const KEY = 'fitfinder-theme';
+  const KEY = 'sparefit-theme';
   const select = document.getElementById('theme-select');
   let theme = 'sky'; // chosen theme for the app (2026-10-05)
   try { theme = localStorage.getItem(KEY) || theme; } catch (e) {}

@@ -16,7 +16,7 @@ export type SearchPlan =
 const SEARCHABLE = /^[^"\\]+$/;
 
 /**
- * Search the theme for the SKUs, or use FitFinder's own results page when nothing fits or the
+ * Search the theme for the SKUs, or use SpareFit's own results page when nothing fits or the
  * list is too long for one search. Products without a usable SKU can't be searched for; they are
  * left out and counted in `missing`.
  */

@@ -103,7 +103,7 @@ function mapStep(sp) {
   const rows = Math.max(0, ...cols.map((c) => c.samples.length));
   return `<s-stack gap="base">
       <s-stack gap="none">
-        <s-text type="strong">Map the columns in your file to your search fields (${esc(structure)}) and the Attachment.</s-text>
+        <s-text type="strong">Map the columns in your file to your search fields (${esc(structure)}) and the Attachment (the product SKU).</s-text>
         <s-text color="subdued">Columns you don't map are ignored. The first rows of your file are shown below. We filled in the mapping from your last import.</s-text>
       </s-stack>
       <s-checkbox label="Column titles in the first row" data-act="map-titles"${state.mapNoTitles ? '' : ' checked'}></s-checkbox>
@@ -112,8 +112,7 @@ function mapStep(sp) {
         <tr class="mg-titles">${cols.map((c) => `<td>${esc(c.name)}</td>`).join('')}</tr></thead>
         <tbody>${Array.from({ length: rows }, (_, i) => `<tr>${cols.map((c) => `<td>${esc(c.samples[i] || '')}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>
-      <s-checkbox label="Look for SKUs in the Attachment column" details="Check it if the Attachment column has product SKUs. It can make the import take longer. Leave it off for product or collection links." data-act="map-skus"${state.mapNoSkus ? '' : ' checked'}></s-checkbox>
-      <div id="map-error" hidden><s-banner tone="critical" heading="Map the Attachment column">Each row needs an Attachment: the product SKU, product link or collection link it points to.</s-banner></div>
+      <div id="map-error" hidden><s-banner tone="critical" heading="Map the Attachment column">Each row needs an Attachment: the SKU of the product it points to.</s-banner></div>
       <s-text color="subdued">${sp.fields.some((f) => f.type === 'years') ? `${esc(sp.fields.filter((f) => f.type === 'years').map((f) => f.label).join(', '))} can use one column (like 2015-2020) or two columns: the left one is from, the right one is to. ` : ''}Missing a field? Add it under Fields shoppers pick, then map a column to it.</s-text>
     </s-stack>`;
 }

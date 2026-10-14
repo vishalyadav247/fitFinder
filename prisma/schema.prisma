@@ -1,4 +1,4 @@
-// FitFinder data model. See .claude/BUILD-PLAN.md §3 and .claude/specs/data-model.md.
+// SpareFit data model. See .claude/BUILD-PLAN.md §3 and .claude/specs/data-model.md.
 // Every app table carries shopId and cascades on shop delete, so a shop purge is one delete.
 
 generator client {
@@ -32,17 +32,20 @@ model Session {
 }
 
 model Shop {
-  id            String    @id @default(cuid())
-  domain        String    @unique
-  installedAt   DateTime  @default(now()) @map("installed_at")
-  uninstalledAt DateTime? @map("uninstalled_at")
+  id             String    @id @default(cuid())
+  domain         String    @unique
+  installedAt    DateTime  @default(now()) @map("installed_at")
+  uninstalledAt  DateTime? @map("uninstalled_at")
   // Last token exchange or admin visit. An uninstall webhook triggered before this is stale
   // (the shop has reinstalled since) and is ignored.
-  lastAuthAt    DateTime  @default(now()) @map("last_auth_at")
-  plan          String    @default("starter")
-  trialEndsAt   DateTime? @map("trial_ends_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  lastAuthAt     DateTime  @default(now()) @map("last_auth_at")
+  // A plan key (plans.key), or "none" before the first plan is picked (app/services/billing.ts).
+  plan           String    @default("none")
+  trialEndsAt    DateTime? @map("trial_ends_at")
+  // The Billing API subscription that is active (app_subscriptions.shopify_id), or null.
+  subscriptionId String?   @map("subscription_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   searchConfig       SearchConfig?
   searchFields       SearchField[]
@@ -55,8 +58,10 @@ model Shop {
   themeStatuses      ThemeStatus[]
   catalogProducts    CatalogProduct[]
   catalogVariants    CatalogVariant[]
-  catalogCollections CatalogCollection[]
   catalogSync        CatalogSync?
+  searchStats        SearchStat[]
+  fitCheckStats      FitCheckStat[]
+  appSubscriptions   AppSubscription[]
 
   @@index([uninstalledAt])
   @@map("shops")
@@ -115,7 +120,7 @@ model FitmentRow {
   yearFrom   Int?     @map("year_from")
   // null = open range ("2016-")
   yearTo     Int?     @map("year_to")
-  // SKU, product URL/handle or collection URL/handle
+  // the product SKU this row fits (matched to a variant SKU, case and outer spaces ignored)
   attachment String
   // hash(values + years + attachment): upsert key and dedupe
   rowHash    String   @map("row_hash")
@@ -133,34 +138,24 @@ model FitmentRow {
   @@map("fitment_rows")
 }
 
-enum LinkKind {
-  sku
-  product
-  collection
-}
-
 enum LinkMethod {
   auto
   manual
 }
 
 model ProductLink {
-  id           String     @id @default(cuid())
-  shopId       String     @map("shop_id")
-  attachment   String
-  kind         LinkKind
-  productId    String?    @map("product_id")
-  variantId    String?    @map("variant_id")
-  collectionId String?    @map("collection_id")
-  method       LinkMethod @default(auto)
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id         String     @id @default(cuid())
+  shopId     String     @map("shop_id")
+  attachment String
+  productId  String     @map("product_id")
+  variantId  String?    @map("variant_id")
+  method     LinkMethod @default(auto)
+  updatedAt  DateTime   @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@unique([shopId, attachment])
   @@index([shopId, productId])
-  // Storefront fits: links of a product OR of its collections (one bitmap OR, no table scan).
-  @@index([shopId, collectionId])
   @@map("product_links")
 }
 
@@ -218,7 +213,6 @@ model ImportJob {
   columns       Json?
   delimiter     String?
   encoding      String?
-  lookForSkus   Boolean      @default(true) @map("look_for_skus")
   hasHeader     Boolean      @default(true) @map("has_header")
   status        ImportStatus @default(uploaded)
   // Each queued step carries this number; a worker only runs the step it was queued for.
@@ -284,6 +278,9 @@ model StorefrontSettings {
   // A publish in progress holds this lease (one UPDATE claims it; nothing stays open while
   // Shopify answers). Expires on its own if the process dies.
   publishingUntil DateTime? @map("publishing_until")
+  // What the first dropdown list in the app metafield sparefit.first was computed for (install
+  // time, data version, first field, year). The admin queues a background publish when it differs.
+  firstPublished  String?   @map("first_published")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -307,7 +304,7 @@ model ThemeStatus {
 }
 
 // ---------------------------------------------------------------- linking (M6)
-// Copy of the store's products, variants and collections, so rows link to products in SQL
+// Copy of the store's products and variants, so rows link to products in SQL
 // (specs/product-mapping.md). Filled by a bulk operation (Check links again, first visit) and kept
 // fresh by products/* webhooks. Ids are Admin GraphQL gids.
 
@@ -345,19 +342,6 @@ model CatalogVariant {
   @@map("catalog_variants")
 }
 
-model CatalogCollection {
-  shopId       String @map("shop_id")
-  collectionId String @map("collection_id")
-  handle       String
-  title        String
-
-  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
-
-  @@id([shopId, collectionId])
-  @@index([shopId, handle])
-  @@map("catalog_collections")
-}
-
 enum LinkCheckStatus {
   queued
   running
@@ -388,4 +372,99 @@ model CatalogSync {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@map("catalog_syncs")
+}
+
+// The four plans, edited in the backoffice (specs/backoffice.md). Global, not per shop. limits and
+// toggles are JSON objects keyed as in app/services/plan-features.ts (a limit of null = unlimited).
+model Plan {
+  key          String   @id
+  position     Int
+  name         String
+  description  String   @default("")
+  isFree       Boolean  @default(false) @map("is_free")
+  priceMonthly Decimal  @default(0) @map("price_monthly") @db.Decimal(10, 2)
+  priceYearly  Decimal? @map("price_yearly") @db.Decimal(10, 2)
+  trialDays    Int      @default(14) @map("trial_days")
+  visible      Boolean  @default(true)
+  limits       Json     @default("{}")
+  toggles      Json     @default("{}")
+  bullets      String[] @default([])
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedBy    String?  @map("updated_by")
+
+  @@map("plans")
+}
+
+// A Billing API charge the app created, so a Shopify subscription maps back to our plan even after
+// the plan is renamed. Price and trial are what the merchant approved. activatedAt/endedAt give
+// the trial days a shop has used (kept across reinstalls until the shop is purged).
+model AppSubscription {
+  id          String    @id @default(cuid())
+  shopId      String    @map("shop_id")
+  shopifyId   String    @unique @map("shopify_id")
+  planKey     String    @map("plan_key")
+  interval    String
+  price       Decimal   @db.Decimal(10, 2)
+  trialDays   Int       @map("trial_days")
+  status      String    @default("PENDING")
+  activatedAt DateTime? @map("activated_at")
+  endedAt     DateTime? @map("ended_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+  @@map("app_subscriptions")
+}
+
+// ---------------------------------------------------------------- analytics
+// Storefront use, counted per UTC day for the Analytics page (specs/analytics.md). Counts only:
+// nothing about the shopper (no ids, IPs or sessions). Rows older than 180 days are deleted by
+// the daily purge job.
+
+// One row per selection per day: "Show {products}" clicks (app proxy /search).
+model SearchStat {
+  shopId       String   @map("shop_id")
+  day          DateTime @db.Date
+  // md5 of the picks, so the key stays short however long the values are
+  selectionKey String   @map("selection_key")
+  // { [searchFieldId]: value } as the shopper picked it (strings)
+  picks        Json
+  searches     Int      @default(0)
+  // searches where no product fitted (universal products don't count)
+  noResults    Int      @default(0) @map("no_results")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, day, selectionKey])
+  @@map("search_stats")
+}
+
+// One row per product per day: fits badge checks with the shopper's selection (app proxy /fits).
+model FitCheckStat {
+  shopId    String   @map("shop_id")
+  day       DateTime @db.Date
+  productId String   @map("product_id")
+  fits      Int      @default(0)
+  noFit     Int      @default(0) @map("no_fit")
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([shopId, day, productId])
+  @@map("fit_check_stats")
+}
+
+// The backoffice super admin once the profile has been saved (specs/backoffice.md). Until then
+// the BACKOFFICE_EMAIL / BACKOFFICE_PASSWORD env values sign in. One row (id 1). `version` goes
+// up on every password or email change, which signs out other sessions.
+model BackofficeAdmin {
+  id           Int      @id @default(1)
+  name         String   @default("")
+  email        String
+  passwordHash String   @map("password_hash")
+  version      Int      @default(1)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("backoffice_admins")
 }

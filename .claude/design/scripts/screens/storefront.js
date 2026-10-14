@@ -50,7 +50,7 @@ function sfWidget(sp, mobile) {
     ${results}</div>`;
 }
 
-// Previews show only FitFinder's part (no browser or store frame). Mobile narrows it to phone width.
+// Previews show only SpareFit's part (no browser or store frame). Mobile narrows it to phone width.
 const browser = (inner, mobile) => `<div class="pv-stage ${mobile ? 'mobile' : ''}">${inner}</div>`;
 
 // The store's themes (real app: GraphQL `themes` query). The live theme is what shoppers see.
@@ -96,7 +96,7 @@ S.store = () => {
       <s-box></s-box>
       <s-stack direction="inline" gap="small-300" alignItems="center" justifyContent="end" paddingBlockEnd="small-300"><s-text type="strong">App embed</s-text><s-badge tone="${th.embed ? 'success' : 'critical'}">${th.embed ? 'On' : 'Off'}</s-badge><s-switch label="App embed" labelAccessibilityVisibility="exclusive" accessibilityLabel="Turn the app embed on or off in the theme editor" data-act="sf-embed"${th.embed ? ' checked' : ''}></s-switch></s-stack>
     </s-grid></s-box>
-    ${th.live ? '' : `<s-box paddingInline="base" paddingBlockEnd="base"><s-banner tone="info" heading="${esc(theme.name)} isn't your live theme">You can set FitFinder up here now. Shoppers see it once you publish this theme.</s-banner></s-box>`}
+    ${th.live ? '' : `<s-box paddingInline="base" paddingBlockEnd="base"><s-banner tone="info" heading="${esc(theme.name)} isn't your live theme">You can set SpareFit up here now. Shoppers see it once you publish this theme.</s-banner></s-box>`}
     <s-table>
       <s-table-header-row><s-table-header listSlot="primary">Feature</s-table-header><s-table-header>Type</s-table-header><s-table-header>Placement</s-table-header><s-table-header>Status</s-table-header><s-table-header>Action</s-table-header></s-table-header-row>
       <s-table-body>${items.map(([name, type, where, on, kind]) => `<s-table-row>
@@ -211,8 +211,8 @@ S.store = () => {
             <ol class="steps-ol">
               <li>In the theme editor, open a product page and select your tabs section (the one with Description, Specifications …).</li>
               <li>Add a tab, name it for example “Fits these ${esc(sp.noun)}s”, and paste this code as its content:
-                <span class="code-row"><code>[fitfinder-table]</code><s-button variant="tertiary" icon="clipboard" data-act="copy-code" data-code="[fitfinder-table]">Copy</s-button></span></li>
-              <li>Save. FitFinder replaces the code with the table on every product page. Your theme decides how the tabs look: tabs on desktop, often an accordion on phones.</li>
+                <span class="code-row"><code>[sparefit-table]</code><s-button variant="tertiary" icon="clipboard" data-act="copy-code" data-code="[sparefit-table]">Copy</s-button></span></li>
+              <li>Save. SpareFit replaces the code with the table on every product page. Your theme decides how the tabs look: tabs on desktop, often an accordion on phones.</li>
             </ol>
             <s-text color="subdued">Needs the app embed (Theme integration). Products with no rows follow “When a product has no rows” below.</s-text>
             <s-stack direction="inline"><s-button icon="external">Open theme editor</s-button></s-stack>

@@ -1,10 +1,10 @@
-/* FitFinder loading screen (AppLoading.tsx). Shown while the app boots (server HTML painted,
+/* SpareFit loading screen (AppLoading.tsx). Shown while the app boots (server HTML painted,
    React not hydrated yet) and while a page change is in flight. The mark is a tiny search that
    finds the fit: fields fill in, the search runs, a lens settles on the product that fits.
    Served as a <link> from app.tsx, so a hydration problem can't unstyle it. Sky theme colours
    (theme.css) with fallbacks. One loop = 3.2 s; every timeline below shares it. */
 
-.ff-load {
+.sp-load {
   position: fixed;
   inset: 0;
   z-index: 2147483000;
@@ -21,17 +21,17 @@
     sans-serif;
   color: #1e293b;
   -webkit-font-smoothing: antialiased;
-  --sky: var(--ff-p, #0284c7);
-  --sky-mid: var(--ff-p-mid, #0ea5e9);
-  --sky-soft: var(--ff-p-soft, #e0f2fe);
-  --indigo: var(--ff-a, #6366f1);
+  --sky: var(--sp-p, #0284c7);
+  --sky-mid: var(--sp-p-mid, #0ea5e9);
+  --sky-soft: var(--sp-p-soft, #e0f2fe);
+  --indigo: var(--sp-a, #6366f1);
   --fit: #16a34a;
   --loop: 3.2s;
 }
 
 /* Boot: opaque, the app isn't ready yet. A dotted "catalogue" grid under two soft lights.
    Failsafe: if the page never hydrates, the overlay fades out by itself after 10 s. */
-.ff-load--boot {
+.sp-load--boot {
   background:
     radial-gradient(
       620px 380px at 18% 12%,
@@ -46,9 +46,9 @@
     radial-gradient(circle, rgba(2, 132, 199, 0.13) 1px, transparent 1.6px) 0
       0 / 22px 22px,
     #f5f9fc;
-  animation: ff-load-failsafe 0.26s ease 10s forwards;
+  animation: sp-load-failsafe 0.26s ease 10s forwards;
 }
-@keyframes ff-load-failsafe {
+@keyframes sp-load-failsafe {
   to {
     opacity: 0;
     visibility: hidden;
@@ -57,19 +57,19 @@
 }
 
 /* Page change: the previous page stays visible behind a frosted veil. */
-.ff-load--nav {
+.sp-load--nav {
   background: rgba(245, 249, 252, 0.8);
   backdrop-filter: blur(6px) saturate(1.1);
   -webkit-backdrop-filter: blur(6px) saturate(1.1);
 }
 
-.ff-load--leaving {
+.sp-load--leaving {
   opacity: 0;
   pointer-events: none;
   transition: opacity 260ms ease;
 }
 
-.ff-load__inner {
+.sp-load__inner {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -80,7 +80,7 @@
 
 /* Drawn at 248 px and scaled to 70 % (about 174 px), so the lens and tile maths below stay in
    whole pixels. */
-.ff-load__panel {
+.sp-load__panel {
   position: relative;
   box-sizing: border-box;
   width: 248px;
@@ -93,9 +93,9 @@
     0 0 0 1px rgba(15, 23, 42, 0.05),
     0 22px 48px -18px rgba(2, 132, 199, 0.45),
     0 6px 14px -6px rgba(15, 23, 42, 0.1);
-  animation: ff-load-float 4.8s ease-in-out infinite;
+  animation: sp-load-float 4.8s ease-in-out infinite;
 }
-@keyframes ff-load-float {
+@keyframes sp-load-float {
   0%,
   100% {
     transform: translateY(0) rotate(-0.6deg);
@@ -105,13 +105,13 @@
   }
 }
 
-.ff-load__fields {
+.sp-load__fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) 26px;
   gap: 6px;
   margin-bottom: 14px;
 }
-.ff-load__field {
+.sp-load__field {
   position: relative;
   height: 26px;
   border-radius: 8px;
@@ -120,7 +120,7 @@
   overflow: hidden;
 }
 /* The picked value: a bar that slides in, field after field. */
-.ff-load__field i {
+.sp-load__field i {
   position: absolute;
   left: 6px;
   top: 50%;
@@ -130,16 +130,16 @@
   border-radius: 99px;
   background: linear-gradient(90deg, var(--sky-mid), var(--sky));
 }
-.ff-load__field--1 i {
-  animation: ff-load-pick-1 var(--loop) ease-out infinite;
+.sp-load__field--1 i {
+  animation: sp-load-pick-1 var(--loop) ease-out infinite;
 }
-.ff-load__field--2 i {
-  animation: ff-load-pick-2 var(--loop) ease-out infinite;
+.sp-load__field--2 i {
+  animation: sp-load-pick-2 var(--loop) ease-out infinite;
 }
-.ff-load__field--3 i {
-  animation: ff-load-pick-3 var(--loop) ease-out infinite;
+.sp-load__field--3 i {
+  animation: sp-load-pick-3 var(--loop) ease-out infinite;
 }
-@keyframes ff-load-pick-1 {
+@keyframes sp-load-pick-1 {
   0%,
   4% {
     width: 0;
@@ -152,7 +152,7 @@
     width: 0;
   }
 }
-@keyframes ff-load-pick-2 {
+@keyframes sp-load-pick-2 {
   0%,
   14% {
     width: 0;
@@ -165,7 +165,7 @@
     width: 0;
   }
 }
-@keyframes ff-load-pick-3 {
+@keyframes sp-load-pick-3 {
   0%,
   24% {
     width: 0;
@@ -179,15 +179,15 @@
   }
 }
 
-.ff-load__go {
+.sp-load__go {
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   background: linear-gradient(135deg, var(--sky-mid), var(--indigo));
-  animation: ff-load-press var(--loop) ease-in-out infinite;
+  animation: sp-load-press var(--loop) ease-in-out infinite;
 }
-.ff-load__go svg {
+.sp-load__go svg {
   width: 14px;
   height: 14px;
   fill: none;
@@ -196,7 +196,7 @@
   stroke-linecap: round;
 }
 /* Pressed once every field is picked. */
-@keyframes ff-load-press {
+@keyframes sp-load-press {
   0%,
   36%,
   46%,
@@ -212,14 +212,14 @@
 
 /* ── Results: three tiles, one fits ───────────────────────────────────────── */
 
-.ff-load__tiles {
+.sp-load__tiles {
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, 64px);
   gap: 12px;
   justify-content: space-between;
 }
-.ff-load__tile {
+.sp-load__tile {
   position: relative;
   height: 58px;
   border-radius: 12px;
@@ -230,13 +230,13 @@
     #ffffff;
   box-shadow: inset 0 0 0 1px #e2e8f0;
 }
-.ff-load__tile--miss {
-  animation: ff-load-miss var(--loop) ease infinite;
+.sp-load__tile--miss {
+  animation: sp-load-miss var(--loop) ease infinite;
 }
-.ff-load__tile--fit {
-  animation: ff-load-fit var(--loop) ease infinite;
+.sp-load__tile--fit {
+  animation: sp-load-fit var(--loop) ease infinite;
 }
-@keyframes ff-load-miss {
+@keyframes sp-load-miss {
   0%,
   66%,
   100% {
@@ -247,7 +247,7 @@
     opacity: 0.4;
   }
 }
-@keyframes ff-load-fit {
+@keyframes sp-load-fit {
   0%,
   66%,
   100% {
@@ -263,7 +263,7 @@
   }
 }
 
-.ff-load__tick {
+.sp-load__tick {
   position: absolute;
   top: -8px;
   right: -8px;
@@ -276,9 +276,9 @@
   background: var(--fit);
   box-shadow: 0 4px 10px -2px rgba(22, 163, 74, 0.55);
   transform: scale(0);
-  animation: ff-load-tick var(--loop) cubic-bezier(0.2, 1.4, 0.4, 1) infinite;
+  animation: sp-load-tick var(--loop) cubic-bezier(0.2, 1.4, 0.4, 1) infinite;
 }
-.ff-load__tick svg {
+.sp-load__tick svg {
   width: 13px;
   height: 13px;
   fill: none;
@@ -287,7 +287,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-@keyframes ff-load-tick {
+@keyframes sp-load-tick {
   0%,
   68% {
     transform: scale(0);
@@ -304,7 +304,7 @@
 
 /* The lens: sweeps right across the results, then comes back to the one that fits. Tile centres
    are 32 / 108 / 184 px; the lens is 30 px wide. */
-.ff-load__lens {
+.sp-load__lens {
   position: absolute;
   top: 6px;
   left: 17px;
@@ -315,9 +315,9 @@
   background: rgba(224, 242, 254, 0.55);
   box-shadow: 0 6px 14px -4px rgba(2, 132, 199, 0.5);
   opacity: 0;
-  animation: ff-load-lens var(--loop) ease-in-out infinite;
+  animation: sp-load-lens var(--loop) ease-in-out infinite;
 }
-.ff-load__lens::after {
+.sp-load__lens::after {
   content: "";
   position: absolute;
   right: -9px;
@@ -328,7 +328,7 @@
   background: var(--sky);
   transform: rotate(45deg);
 }
-@keyframes ff-load-lens {
+@keyframes sp-load-lens {
   0%,
   40% {
     opacity: 0;
@@ -355,14 +355,14 @@
 
 /* ── Wordmark and status ──────────────────────────────────────────────────── */
 
-.ff-load__name {
+.sp-load__name {
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.3px;
   color: #0f172a;
   margin-bottom: 4px;
 }
-.ff-load__name span {
+.sp-load__name span {
   background: linear-gradient(90deg, var(--sky-mid), var(--indigo));
   -webkit-background-clip: text;
   background-clip: text;
@@ -370,7 +370,7 @@
 }
 
 /* Rotating hints on first open: one line, three messages. */
-.ff-load__hints {
+.sp-load__hints {
   position: relative;
   width: 240px;
   height: 16px;
@@ -378,19 +378,19 @@
   font-size: 12px;
   color: #475569;
 }
-.ff-load__hints span {
+.sp-load__hints span {
   position: absolute;
   inset: 0;
   opacity: 0;
-  animation: ff-load-hint 4.8s ease-in-out infinite;
+  animation: sp-load-hint 4.8s ease-in-out infinite;
 }
-.ff-load__hints span:nth-child(2) {
+.sp-load__hints span:nth-child(2) {
   animation-delay: 1.6s;
 }
-.ff-load__hints span:nth-child(3) {
+.sp-load__hints span:nth-child(3) {
   animation-delay: 3.2s;
 }
-@keyframes ff-load-hint {
+@keyframes sp-load-hint {
   0% {
     opacity: 0;
     transform: translateY(6px);
@@ -407,7 +407,7 @@
   }
 }
 
-.ff-load__status {
+.sp-load__status {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -418,22 +418,22 @@
   letter-spacing: 0.02em;
   color: var(--sky);
 }
-.ff-load__dot {
+.sp-load__dot {
   width: 3px;
   height: 3px;
   margin-left: 1px;
   border-radius: 50%;
   background: currentColor;
   opacity: 0.25;
-  animation: ff-load-blink 1.4s infinite;
+  animation: sp-load-blink 1.4s infinite;
 }
-.ff-load__dot:nth-of-type(2) {
+.sp-load__dot:nth-of-type(2) {
   animation-delay: 0.2s;
 }
-.ff-load__dot:nth-of-type(3) {
+.sp-load__dot:nth-of-type(3) {
   animation-delay: 0.4s;
 }
-@keyframes ff-load-blink {
+@keyframes sp-load-blink {
   0%,
   100% {
     opacity: 0.25;
@@ -447,40 +447,40 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* The failsafe stays, without the fade. */
-  .ff-load--boot {
+  .sp-load--boot {
     animation-duration: 0s;
   }
-  .ff-load__panel,
-  .ff-load__field i,
-  .ff-load__go,
-  .ff-load__tile,
-  .ff-load__tick,
-  .ff-load__lens,
-  .ff-load__hints span,
-  .ff-load__dot,
-  .ff-load--leaving {
+  .sp-load__panel,
+  .sp-load__field i,
+  .sp-load__go,
+  .sp-load__tile,
+  .sp-load__tick,
+  .sp-load__lens,
+  .sp-load__hints span,
+  .sp-load__dot,
+  .sp-load--leaving {
     animation: none;
     transition: none;
   }
-  .ff-load__field--1 i {
+  .sp-load__field--1 i {
     width: 62%;
   }
-  .ff-load__field--2 i {
+  .sp-load__field--2 i {
     width: 48%;
   }
-  .ff-load__field--3 i {
+  .sp-load__field--3 i {
     width: 70%;
   }
-  .ff-load__tile--miss {
+  .sp-load__tile--miss {
     opacity: 0.4;
   }
-  .ff-load__tile--fit {
+  .sp-load__tile--fit {
     box-shadow: inset 0 0 0 2px var(--fit);
   }
-  .ff-load__tick {
+  .sp-load__tick {
     transform: scale(1);
   }
-  .ff-load__hints span:first-child {
+  .sp-load__hints span:first-child {
     opacity: 1;
   }
 }

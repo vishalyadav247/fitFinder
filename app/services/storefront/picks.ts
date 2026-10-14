@@ -81,7 +81,7 @@ export function sortOptions(type: FieldType, values: string[]): string[] {
 /**
  * Short name of a selection, as My Selection and the fits badge show it: the year, the first
  * dropdown and the last dropdown, e.g. "2008 AUDI A6 C6 Avant (4F5)" (prototype storefront.js).
- * The same rule is in the theme extension's fitfinder.js (label()).
+ * The same rule is in the theme extension's sparefit.js (label()).
  */
 export function selectionLabel(
   fields: { id: string; type: FieldType }[],

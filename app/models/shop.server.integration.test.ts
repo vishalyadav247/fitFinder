@@ -1,4 +1,4 @@
-// Runs against the real Postgres in DATABASE_URL (local: Docker container fitfinder-db).
+// Runs against the real Postgres in DATABASE_URL (local: Docker container sparefit-db).
 // Skipped when no database is configured.
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
@@ -83,7 +83,7 @@ describe.skipIf(!hasDb)("shops lifecycle (Postgres)", () => {
       },
     });
     await db.productLink.create({
-      data: { shopId, attachment: "SKU-1", kind: "sku" },
+      data: { shopId, attachment: "SKU-1", productId: "gid://1" },
     });
     await db.universalProduct.create({
       data: { shopId, productId: "gid://1" },

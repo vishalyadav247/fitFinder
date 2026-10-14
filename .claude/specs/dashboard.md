@@ -13,7 +13,7 @@ Home screen. Explains the app in one glance, guides setup to "live", and shows f
 - Left: category chip (icon + store type), heading = the store's search heading (e.g. "Find parts for your vehicle"), one-line description built from the field names, buttons **Add search to your store** (→ Storefront) and **Open search setup** (→ Search setup; wording from the prototype).
 - Right (300px): frosted-glass "How it works" panel — vertical timeline with 3 glowing outline icons:
   1. Shopper picks their {noun} — field names joined by ›
-  2. FitFinder matches — `{rows} filter rows`
+  2. SpareFit matches — `{rows} filter rows`
   3. Only {parts / accessories / products} that fit — "Fewer wrong orders and returns"
 - Animation: steps fade up once on load; none if the user prefers reduced motion. Nothing loops.
 - Phone: panel moves under the text.
@@ -46,15 +46,15 @@ Heading "Overview", then 4 small cards in one row (2 per row on phones), styled 
 | Unlinked SKUs | count; "Needs linking" (warning) when > 0 | {pct}% of SKUs linked | Product mapping |
 | Products without filter data | count | Not shown in any search | Product mapping |
 
-Not on the dashboard on purpose: search field count (shown in the banner) and plan (Shopify billing page).
+Not on the dashboard on purpose: search field count (shown in the banner) and plan (Plans page).
 
 ### Over the plan's limits
 When the shop's usage is over its plan (rows or linked products), a warning `s-banner` sits right under the banner (above the setup guide; it arrives with the streamed part, so it must not push the page down): "You're over your plan's limits" — "The {plan} plan allows {limits}. New rows or links are refused until you upgrade or remove some." + **Compare plans** (→ Plans).
 
 ## Data / backend
-The banner renders at once (store type, heading, field names; "{n} filter rows" fills in, "Filter rows" while loading or on error). The setup guide, overview and over-limit banner are **streamed** (React Router `<Await>`) because they need the Partner API, the live theme and counts over every row; a placeholder of about the same height (spinner) shows meanwhile, and an error shows "The overview couldn't be loaded" (critical banner). On a 727k-row shop the counts take 0.3–0.9 s each, in parallel (M10).
-The `/app` loader (no separate API): `dashboardFacts` in `app/services/dashboard.server.ts` — row count, distinct SKUs and unlinked SKUs (`rowCounts`), products without filter data, distinct values of the first three list fields, the live theme's status (theme files, same rules as Storefront; unknown when the theme can't be read: "—" and "Couldn't check your theme"), and the plan (`shopPlan`, Partner API). Step texts and cards are pure (`app/services/dashboard.ts`).
-- Step 5 texts: not chosen "Pick the plan that suits your catalog. Starter is free; paid plans start with a 14-day free trial."; on a trial "You are on the {Plan} trial, {n} days left. Change or cancel your plan any time."; otherwise "You are on the {Plan} plan. Change it any time as your catalog grows."
+The banner renders at once (store type, heading, field names; "{n} filter rows" fills in, "Filter rows" while loading or on error). The setup guide, overview and over-limit banner are **streamed** (React Router `<Await>`) because they need the Billing API read (`currentAppInstallation`), the live theme and counts over every row; a placeholder of about the same height (spinner) shows meanwhile, and an error shows "The overview couldn't be loaded" (critical banner). On a 727k-row shop the counts take 0.3–0.9 s each, in parallel (M10).
+The `/app` loader (no separate API): `dashboardFacts` in `app/services/dashboard.server.ts` — row count, distinct SKUs and unlinked SKUs (`rowCounts`), products without filter data, distinct values of the first three list fields, the live theme's status (theme files, same rules as Storefront; unknown when the theme can't be read: "—" and "Couldn't check your theme"), and the plan (`shopPlan`, Billing API read (`currentAppInstallation`)). Step texts and cards are pure (`app/services/dashboard.ts`).
+- Step 5 texts: not chosen "Pick the plan that suits your catalog." + the plans' line (`planHint` in `app/services/dashboard.server.ts`, see `specs/plans.md` › Behaviour: "{Free plan} is free; paid plans start with a {n}-day free trial." and its variants, trial = this shop's remaining days); on a trial "You are on the {Plan} trial, {n} days left. Change or cancel your plan any time."; else "You are on the {Plan} plan. Change it any time as your catalog grows."
 - "Blocks added" counts the 4 Storefront features: Search section, Fits badge, Fitment table (block, or the code in theme tabs), My Selection (embed on and switched on).
 
 ## Build notes

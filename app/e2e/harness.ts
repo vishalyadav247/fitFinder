@@ -2,6 +2,7 @@
 // the fake Shopify in front of `fetch` before @shopify/shopify-api captures fetch at import.
 // Routes are then called the way React Router calls them (loader/action with a Request), with an
 // App Bridge session token like the embedded admin sends, so authentication is the library's own.
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,11 +10,17 @@ import {
   API_KEY,
   API_SECRET,
   APP_URL,
+  APP_HANDLE,
   FakeShopify,
-  PARTNER,
   SCOPES,
   sessionToken,
 } from "./fake-shopify";
+
+/** The backoffice super admin of the e2e run (env set below). */
+export const BACKOFFICE = {
+  email: "owner@e2e.test",
+  password: randomBytes(12).toString("hex"),
+};
 
 try {
   process.loadEnvFile(".env");
@@ -38,7 +45,7 @@ if (
   );
 }
 
-const TEMP_PREFIX = "fitfinder-e2e-";
+const TEMP_PREFIX = "sparefit-e2e-";
 export const storageDir = mkdtempSync(path.join(tmpdir(), TEMP_PREFIX));
 
 Object.assign(process.env, {
@@ -52,10 +59,10 @@ Object.assign(process.env, {
   JOBS_INLINE: "true",
   // No daily purge or sweep of every shop: they would act on the whole database.
   JOBS_SCHEDULES: "false",
-  SHOPIFY_PARTNER_ORG_ID: PARTNER.orgId,
-  SHOPIFY_PARTNER_API_ACCESS_TOKEN: PARTNER.token,
-  SHOPIFY_APP_GID: PARTNER.appGid,
-  SHOPIFY_APP_HANDLE: PARTNER.handle,
+  SHOPIFY_APP_HANDLE: APP_HANDLE,
+  SHOPIFY_BILLING_TEST: "",
+  BACKOFFICE_EMAIL: BACKOFFICE.email,
+  BACKOFFICE_PASSWORD: BACKOFFICE.password,
 });
 delete process.env.STORAGE_DRIVER;
 delete process.env.SHOP_CUSTOM_DOMAIN;
@@ -213,10 +220,10 @@ export async function cleanLeftovers() {
 }
 
 export async function stopJobs() {
-  const boss = await global.fitfinderBoss?.catch(() => undefined);
+  const boss = await global.sparefitBoss?.catch(() => undefined);
   await boss?.stop({ graceful: false, timeout: 5000 }).catch(() => {});
-  global.fitfinderBoss = undefined;
-  global.fitfinderWorkers = undefined;
+  global.sparefitBoss = undefined;
+  global.sparefitWorkers = undefined;
   const { default: prisma } = await import("../db.server");
   await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS pgboss_e2e CASCADE`);
 }

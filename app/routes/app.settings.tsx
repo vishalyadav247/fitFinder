@@ -1,4 +1,4 @@
-// Settings: store type, what FitFinder stores, help.
+// Settings: store type, what SpareFit stores, help.
 // Spec: .claude/specs/settings.md · Prototype: .claude/design/scripts/screens/settings.js
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
@@ -55,7 +55,7 @@ export default function SettingsPage() {
           </SectionTitle>
           <s-stack gap="small-300">
             <s-text>
-              FitFinder only stores what it needs to run your search. Your
+              SpareFit only stores what it needs to run your search. Your
               products in Shopify are never changed by the app.
             </s-text>
             <s-unordered-list>

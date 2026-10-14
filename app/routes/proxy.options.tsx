@@ -1,4 +1,4 @@
-// App proxy GET /apps/fitfinder/options?field={id}&{fieldId}={value}… → { options: string[] }:
+// App proxy GET /apps/sparefit/options?field={id}&{fieldId}={value}… → { options: string[] }:
 // the values for one dropdown given the picks of the fields before it (specs/storefront.md).
 import type { LoaderFunctionArgs } from "react-router";
 import { json, proxyContext } from "../services/storefront/proxy.server";

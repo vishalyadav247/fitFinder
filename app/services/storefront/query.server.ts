@@ -1,7 +1,7 @@
 // Storefront reads behind the app proxy (specs/storefront.md, data-model.md › Storefront API):
 //   options — values for the next dropdown, given the picks of the fields before it;
 //   fits    — the fits badge state and fitment table rows of one product;
-//   results — the products (and collections) that fit a full selection.
+//   results — the products that fit a full selection.
 // Matching rules: a list pick matches the row's value exactly; a year pick matches when it lies in
 // the row's year range (open range = up to now). For optional fields a row without a value
 // matches any pick (a part without an engine fits every engine). Every query is scoped by shop.
@@ -28,7 +28,6 @@ const READ_TIMEOUT = "8s";
 export const MAX_OPTIONS = 5000;
 export const MAX_TABLE_ROWS = 1000;
 export const RESULTS_PAGE_SIZE = 16; // Liquid all_products: 20 unique handles per page
-export const MAX_COLLECTIONS = 10;
 
 /**
  * Reads with a statement timeout, so a pathological query can't hold a connection, and in one of
@@ -153,13 +152,35 @@ export async function fieldOptions(
   return values;
 }
 
+const PUBLISH_READ_TIMEOUT = "30s";
+
+/**
+ * The first dropdown's values for the background publish (sync.server.ts › publishFirstList):
+ * not cached, outside the storefront query slots (storefront traffic can't hold it up, and it
+ * can't take a slot from shoppers) and with a longer timeout than a shopper request gets.
+ */
+export function firstFieldValues(search: ShopSearch): Promise<string[]> {
+  return queryOptions(search, search.fields[0], new Map(), (work) =>
+    prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe(
+          `SET LOCAL statement_timeout = '${PUBLISH_READ_TIMEOUT}'`,
+        );
+        return work(tx);
+      },
+      { timeout: 35_000 },
+    ),
+  );
+}
+
 async function queryOptions(
   search: ShopSearch,
   field: { id: string; type: FieldType },
   picks: Picks,
+  read: <T>(work: (tx: Tx) => Promise<T>) => Promise<T> = timedRead,
 ): Promise<string[]> {
   const where = picksWhere(search.fields, picks);
-  const rows = await timedRead((tx) =>
+  const rows = await read((tx) =>
     field.type === "year_range"
       ? tx.$queryRaw<{ v: string }[]>`
           SELECT DISTINCT generate_series(r.year_from,
@@ -194,26 +215,18 @@ export interface FitsResult {
   total: number;
 }
 
-const linkedAttachments = (
-  shopId: string,
-  productId: string,
-  collectionIds: string[],
-) => Prisma.sql`SELECT l.attachment FROM product_links l
-  WHERE l.shop_id = ${shopId}
-    AND (l.product_id = ${productId} OR l.collection_id = ANY(${collectionIds}::text[]))`;
+const linkedAttachments = (shopId: string, productId: string) =>
+  Prisma.sql`SELECT l.attachment FROM product_links l
+    WHERE l.shop_id = ${shopId} AND l.product_id = ${productId}`;
 
-/**
- * Badge state and table rows for a product (Admin gid) and the collections it's in (gids from
- * Liquid's product.collections; collection links fit every product of the collection).
- */
+/** Badge state and table rows for a product (Admin gid). */
 export async function productFits(
   search: ShopSearch,
   productId: string,
-  collectionIds: string[],
   picks: Picks,
 ): Promise<FitsResult> {
   const { shopId } = search;
-  const linked = linkedAttachments(shopId, productId, collectionIds);
+  const linked = linkedAttachments(shopId, productId);
   return timedRead(async (tx) => {
     const [rows, [{ total }], universal] = await Promise.all([
       tx.$queryRaw<
@@ -264,7 +277,6 @@ export async function productFits(
 
 export interface ResultsPage {
   products: { handle: string; universal: boolean }[];
-  collections: { handle: string; title: string }[];
   total: number;
   page: number;
   pageCount: number;
@@ -280,8 +292,9 @@ export async function searchResults(
   const matching = Prisma.sql`SELECT DISTINCT f.attachment FROM fitment_rows f
     WHERE f.shop_id = ${shopId} ${picksWhere(search.fields, picks)}`;
   return timedRead(async (tx) => {
-    const [products, collections] = await Promise.all([
-      tx.$queryRaw<{ handle: string; universal: boolean; total: number }[]>`
+    const products = await tx.$queryRaw<
+      { handle: string; universal: boolean; total: number }[]
+    >`
         WITH m AS (${matching}),
         hits AS (
           SELECT l.product_id, false AS universal FROM product_links l
@@ -297,14 +310,7 @@ export async function searchResults(
           GROUP BY c.handle, c.title, c.product_id)
         SELECT handle, universal, (count(*) OVER ())::int AS total FROM p
         ORDER BY universal, title, product_id
-        LIMIT ${RESULTS_PAGE_SIZE} OFFSET ${(page - 1) * RESULTS_PAGE_SIZE}`,
-      tx.$queryRaw<{ handle: string; title: string }[]>`
-        SELECT DISTINCT c.handle, c.title FROM product_links l
-        JOIN (${matching}) m ON m.attachment = l.attachment
-        JOIN catalog_collections c ON c.shop_id = l.shop_id AND c.collection_id = l.collection_id
-        WHERE l.shop_id = ${shopId}
-        ORDER BY c.title LIMIT ${MAX_COLLECTIONS}`,
-    ]);
+        LIMIT ${RESULTS_PAGE_SIZE} OFFSET ${(page - 1) * RESULTS_PAGE_SIZE}`;
     // Past the last page there is no row to carry the total (0); the route goes back to page 1.
     const total = products[0]?.total ?? 0;
     return {
@@ -312,7 +318,6 @@ export async function searchResults(
         handle,
         universal,
       })),
-      collections,
       total,
       page,
       pageCount: Math.max(1, Math.ceil(total / RESULTS_PAGE_SIZE)),
@@ -329,6 +334,8 @@ export interface FitSkus {
   products: number;
   /** Fitting products without any SKU: the theme's search can't find them. */
   withoutSku: number;
+  /** Fitting products that aren't universal (they fit this selection through its rows). */
+  specific: number;
 }
 
 /**
@@ -346,36 +353,44 @@ export async function fitSkus(
     WHERE f.shop_id = ${shopId} ${picksWhere(search.fields, picks)}`;
   return timedRead(async (tx) => {
     const rows = await tx.$queryRaw<
-      { sku: string | null; products: number; without_sku: number }[]
+      {
+        sku: string | null;
+        products: number;
+        without_sku: number;
+        specific: number;
+      }[]
     >`
       WITH m AS (${matching}),
       hits AS (
-        SELECT l.product_id, l.variant_id FROM product_links l
+        SELECT l.product_id, l.variant_id, false AS universal FROM product_links l
         JOIN m ON m.attachment = l.attachment
         WHERE l.shop_id = ${shopId} AND l.product_id IS NOT NULL
         UNION ALL
-        SELECT u.product_id, NULL FROM universal_products u WHERE u.shop_id = ${shopId}),
+        SELECT u.product_id, NULL, true FROM universal_products u WHERE u.shop_id = ${shopId}),
       p AS (
-        SELECT c.product_id, c.title, min(h.variant_id) AS variant_id
+        SELECT c.product_id, c.title, min(h.variant_id) AS variant_id,
+               bool_and(h.universal) AS universal
         FROM hits h JOIN catalog_products c
           ON c.shop_id = ${shopId} AND c.product_id = h.product_id
         WHERE c.status = 'ACTIVE'
         GROUP BY c.product_id, c.title),
       s AS (
-        SELECT p.title, p.product_id, coalesce(
+        SELECT p.title, p.product_id, p.universal, coalesce(
           (SELECT v.sku FROM catalog_variants v WHERE v.shop_id = ${shopId}
              AND v.variant_id = p.variant_id AND v.sku <> ''),
           (SELECT v.sku FROM catalog_variants v WHERE v.shop_id = ${shopId}
              AND v.product_id = p.product_id AND v.sku <> '' ORDER BY v.variant_id LIMIT 1)) AS sku
         FROM p)
       SELECT sku, (count(*) OVER ())::int AS products,
-             (count(*) FILTER (WHERE sku IS NULL) OVER ())::int AS without_sku
+             (count(*) FILTER (WHERE sku IS NULL) OVER ())::int AS without_sku,
+             (count(*) FILTER (WHERE NOT universal) OVER ())::int AS specific
       FROM s ORDER BY (sku IS NULL), title, product_id
       LIMIT ${limit + 1}`;
     return {
       skus: rows.map((r) => r.sku).filter((s): s is string => !!s),
       products: rows[0]?.products ?? 0,
       withoutSku: rows[0]?.without_sku ?? 0,
+      specific: rows[0]?.specific ?? 0,
     };
   });
 }

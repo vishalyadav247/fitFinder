@@ -1,0 +1,26 @@
+{%- comment -%}
+  Fits badge (specs/storefront.md › Fits badge): whether this product fits the shopper's
+  selection. Shows "before a selection" right away; sp-product.js checks the selection.
+  Products without filter rows show no badge; in the theme editor it stays visible
+  (data-sp-editor), so merchants can see and place it on any product.
+{%- endcomment -%}
+{%- assign sp = app.metafields.sparefit.config.value -%}
+{%- if sp and product -%}
+  <script type="application/json" data-sp-config>{{ sp | json }}</script>
+  <div class="sp-badge-wrap" data-sp-badge data-product="{{ product.id }}"{% if request.design_mode %} data-sp-editor{% endif %}>
+    <div class="sp-fit sp-fit--ask">{{ sp.s.askText | escape }}</div>
+  </div>
+{%- elsif request.design_mode -%}
+  <p class="sp-note">{% if sp %}{{ 'sparefit.product_only' | t }}{% else %}{{ 'sparefit.setup_needed' | t }}{% endif %}</p>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "SpareFit fits badge",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "javascript": "sp-product.js",
+  "stylesheet": "sp-product.css",
+  "settings": []
+}
+{% endschema %}

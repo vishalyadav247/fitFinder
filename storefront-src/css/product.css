@@ -1,5 +1,5 @@
 /* Fits badge: soft background per state */
-.ff-fit {
+.sp-fit {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -9,23 +9,23 @@
   font-size: 14px;
   margin-block: 8px;
 }
-.ff-fit small {
+.sp-fit small {
   font-weight: 500;
   font-size: 13px;
 }
-.ff-fit--ok {
+.sp-fit--ok {
   background: #dcfce7;
   color: #14532d;
 }
-.ff-fit--no {
+.sp-fit--no {
   background: #fee2e2;
   color: #7f1d1d;
 }
-.ff-fit--ask {
+.sp-fit--ask {
   background: #eaf4ff;
   color: #00527c;
 }
-.ff-fit__link {
+.sp-fit__link {
   font-size: 13px;
   font-weight: 600;
   color: inherit;
@@ -33,13 +33,13 @@
 }
 
 /* Fitment table: collapsible row like the theme's, open table, or inside the theme's tabs */
-.ff-table-wrap {
+.sp-table-wrap {
   margin-block: 0;
 }
-.ff-acc {
+.sp-acc {
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
 }
-.ff-acc summary {
+.sp-acc summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -48,55 +48,55 @@
   list-style: none;
   font-weight: 600;
 }
-.ff-acc summary::-webkit-details-marker {
+.sp-acc summary::-webkit-details-marker {
   display: none;
 }
-.ff-acc summary i {
+.sp-acc summary i {
   display: flex;
   transition: transform 0.2s;
 }
-.ff-acc[open] summary i {
+.sp-acc[open] summary i {
   transform: rotate(180deg);
 }
-.ff-acc__body {
+.sp-acc__body {
   padding-bottom: 12px;
 }
-.ff-ft-open {
+.sp-ft-open {
   padding: 12px 0;
 }
-.ff-ft-open b {
+.sp-ft-open b {
   display: block;
   margin-bottom: 8px;
 }
-.ff-ft-scroll {
+.sp-ft-scroll {
   overflow-x: auto;
 }
-.ff-ft {
+.sp-ft {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
   margin: 0 0 8px;
 }
-.ff-ft th,
-.ff-ft td {
+.sp-ft th,
+.sp-ft td {
   text-align: left;
   padding: 7px 8px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
-.ff-ft th {
+.sp-ft th {
   font-weight: 600;
   opacity: 0.7;
 }
-.ff-ft--striped tbody tr:nth-child(odd) td {
+.sp-ft--striped tbody tr:nth-child(odd) td {
   background: rgba(0, 0, 0, 0.04);
 }
-.ff-ft--striped td,
-.ff-ft--plain td,
+.sp-ft--striped td,
+.sp-ft--plain td,
 /* The table sits in a box or above the row's own line: no second line under the last row. */
-.ff-ft tbody tr:last-child td {
+.sp-ft tbody tr:last-child td {
   border-bottom: 0;
 }
-.ff-ft-more {
+.sp-ft-more {
   border: 0;
   background: none;
   padding: 0;
@@ -108,7 +108,7 @@
   cursor: pointer;
   color: inherit;
 }
-.ff-ft-empty {
+.sp-ft-empty {
   margin: 0 0 8px;
 }
 

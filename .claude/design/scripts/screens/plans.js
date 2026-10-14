@@ -1,11 +1,16 @@
-// Screen: Plans — current plan with usage, and the plans (Shopify Managed Pricing in the real app). Spec: .claude/specs/plans.md
+// Screen: Plans — current plan with usage, and the plans. In the real app the plans come from the
+// backoffice (/backoffice, specs/backoffice.md) and paid plans create a Billing API charge. Spec: .claude/specs/plans.md
+// The values below are the seeded plans; Business is seeded hidden, so three cards show.
 const PLANS = [
-  { key: 'starter', name: 'Starter', month: 0, limits: { rows: 5000, products: 50 }, sub: '50 products · 5,000 rows',
-    items: ['Search section and Fits badge', 'CSV import with column mapping'] },
-  { key: 'growth', name: 'Growth', month: 29, limits: { rows: 500000, products: 5000 }, sub: '5,000 products · 500,000 rows',
-    items: ['Everything in Starter', 'Fitment table (also inside your theme tabs)', 'My Selection floating button', 'Universal products', 'Import history with 5 backups'] },
-  { key: 'pro', name: 'Pro', month: 99, limits: { rows: Infinity, products: Infinity }, sub: 'Unlimited products and rows',
-    items: ['Everything in Growth', 'Priority support'] }
+  { key: 'starter', name: 'Starter', month: 0, year: null, trial: 0, limits: { rows: 5000, products: 50 },
+    description: 'For trying SpareFit on a small catalog.',
+    items: ['50 linked products', '5,000 filter rows', '20 search fields', '5 import backups', 'Fits badge', 'Search section', 'CSV import with column mapping'] },
+  { key: 'growth', name: 'Growth', month: 29, year: 290, trial: 14, limits: { rows: 500000, products: 5000 },
+    description: 'For growing catalogs.',
+    items: ['5,000 linked products', '500,000 filter rows', '20 search fields', '5 import backups', 'Fits badge', 'Fitment table', 'My Selection floating button', 'Universal products', 'Everything in Starter'] },
+  { key: 'pro', name: 'Pro', month: 99, year: 990, trial: 14, limits: { rows: Infinity, products: Infinity },
+    description: 'For large catalogs.',
+    items: ['Unlimited linked products', 'Unlimited filter rows', '20 search fields', '5 import backups', 'Fits badge', 'Fitment table', 'My Selection floating button', 'Universal products', 'Priority support', 'Everything in Growth'] }
 ];
 
 S.plans = () => {
@@ -16,8 +21,8 @@ S.plans = () => {
   const meter = (label, used, max) => `<s-stack gap="small-100">
       <s-grid gridTemplateColumns="1fr auto" gap="base"><s-text>${label}</s-text><s-text color="subdued">${fmt(used)} of ${fmt(max)}</s-text></s-grid>
       <div class="meter"><span style="width:${max === Infinity ? 2 : Math.max(2, Math.min(100, used / max * 100))}%"></span></div></s-stack>`;
-  const price = (p) => p.month === 0 ? 'Free' : yearly ? '$' + (p.month * 10) : '$' + p.month;
-  const per = (p) => p.month === 0 ? '' : yearly ? ' / year' : ' / month';
+  const price = (p) => p.month === 0 ? 'Free' : yearly && p.year ? '$' + p.year : '$' + p.month;
+  const per = (p) => p.month === 0 ? '' : yearly && p.year ? ' / year' : ' / month';
 
   return `<s-page heading="Plans" inlineSize="base">
   <s-stack gap="base">
@@ -36,7 +41,7 @@ S.plans = () => {
     <s-text color="subdued">Every paid plan starts with a 14-day free trial.</s-text>
     <s-stack direction="inline" gap="small-200">
       <s-button variant="${yearly ? 'tertiary' : 'secondary'}" data-act="billing" data-val="month">Monthly</s-button>
-      <s-button variant="${yearly ? 'secondary' : 'tertiary'}" data-act="billing" data-val="year">Yearly · 2 months free</s-button>
+      <s-button variant="${yearly ? 'secondary' : 'tertiary'}" data-act="billing" data-val="year">Yearly</s-button>
     </s-stack>
   </s-grid>
 
@@ -44,7 +49,7 @@ S.plans = () => {
     ${PLANS.map((p) => `<s-section accessibilityLabel="${p.name}"><s-stack gap="base">
       <s-stack direction="inline" gap="small-200" alignItems="center"><h2 class="sec-title">${p.name}</h2>${p === current ? '<s-badge tone="success">Current plan</s-badge>' : ''}</s-stack>
       <p class="price">${price(p)}<span>${per(p)}</span></p>
-      <s-text color="subdued">${p.sub}</s-text>
+      <s-text color="subdued">${p.description}</s-text>
       <s-unordered-list>${p.items.map((x) => `<s-list-item>${x}</s-list-item>`).join('')}</s-unordered-list>
       ${p === current ? '<s-button disabled>Current plan</s-button>' : `<s-button${PLANS.indexOf(p) > PLANS.indexOf(current) ? ' variant="primary"' : ''} data-act="plan-pick" data-val="${p.key}">${PLANS.indexOf(p) > PLANS.indexOf(current) ? 'Upgrade to ' : 'Switch to '}${p.name}</s-button>`}
     </s-stack></s-section>`).join('')}

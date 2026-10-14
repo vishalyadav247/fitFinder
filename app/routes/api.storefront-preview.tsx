@@ -1,6 +1,6 @@
 // GET /api/storefront-preview?path=options|results&… — the Storefront page's live previews run
 // the real storefront scripts; their app proxy calls come here instead (admin session), with the
-// same parameters as /apps/fitfinder/options and /results.
+// same parameters as /apps/sparefit/options and /results.
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { isComplete, parsePicks } from "../services/storefront/picks";

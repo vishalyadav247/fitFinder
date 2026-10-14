@@ -2,13 +2,13 @@
 // sent with the page's loader data (each file once; preview-doc.ts combines them per preview).
 // The browser must not import them itself: in development the Shopify CLI proxy owns every
 // /extensions/* URL (theme extension dev server), so a client import of
-// extensions/fitfinder-theme/assets/* 404s and the whole page fails to hydrate.
-import embedCss from "../../../extensions/fitfinder-theme/assets/ff-embed.css?raw";
-import searchCss from "../../../extensions/fitfinder-theme/assets/ff-search.css?raw";
-import productCss from "../../../extensions/fitfinder-theme/assets/ff-product.css?raw";
-import searchJs from "../../../extensions/fitfinder-theme/assets/ff-search.js?raw";
-import productJs from "../../../extensions/fitfinder-theme/assets/ff-product.js?raw";
-import embedJs from "../../../extensions/fitfinder-theme/assets/ff-embed.js?raw";
+// extensions/sparefit-theme/assets/* 404s and the whole page fails to hydrate.
+import embedCss from "../../../extensions/sparefit-theme/assets/sp-embed.css?raw";
+import searchCss from "../../../extensions/sparefit-theme/assets/sp-search.css?raw";
+import productCss from "../../../extensions/sparefit-theme/assets/sp-product.css?raw";
+import searchJs from "../../../extensions/sparefit-theme/assets/sp-search.js?raw";
+import productJs from "../../../extensions/sparefit-theme/assets/sp-product.js?raw";
+import embedJs from "../../../extensions/sparefit-theme/assets/sp-embed.js?raw";
 import type { PreviewAssets } from "./preview-doc";
 
 export const PREVIEW_ASSETS: PreviewAssets = {

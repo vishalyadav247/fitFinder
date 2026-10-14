@@ -65,7 +65,6 @@ export function ImportCard({
       .filter((i) => i >= 0),
   );
   const [hasHeader, setHasHeader] = useState(resume?.hasHeader ?? true);
-  const [lookForSkus, setLookForSkus] = useState(resume?.lookForSkus ?? true);
   const [attachmentError, setAttachmentError] = useState(false);
   const [busy, setBusy] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -156,7 +155,6 @@ export function ImportCard({
           intent: "map",
           choices,
           hasHeader,
-          lookForSkus,
           mode,
         });
         if (!res.job)
@@ -206,7 +204,7 @@ export function ImportCard({
           Import CSV
         </SectionTitle>
         <s-stack gap="large">
-          <ol className="ff-stepper" aria-label="Import steps">
+          <ol className="sp-stepper" aria-label="Import steps">
             {STEPS.map((label, i) => {
               const done = step > i + 1;
               const cur = step === i + 1;
@@ -253,7 +251,6 @@ export function ImportCard({
               fields={fields}
               choices={choices}
               hasHeader={hasHeader}
-              lookForSkus={lookForSkus}
               attachmentError={attachmentError}
               onPick={(col, choice) => {
                 const r = pickColumn(choices, order, col, choice, fields);
@@ -262,7 +259,6 @@ export function ImportCard({
                 if (choice === ATTACHMENT) setAttachmentError(false);
               }}
               setHasHeader={setHasHeader}
-              setLookForSkus={setLookForSkus}
             />
           )}
           {step === 3 && job && (
@@ -439,11 +435,11 @@ function UploadStep({
 function ChosenFile({ file, onChange }: { file: File; onChange: () => void }) {
   const problem = fileProblem(file);
   return (
-    <div className={problem ? "ff-file is-bad" : "ff-file"}>
-      <span className="ff-file__ico" aria-hidden="true">
+    <div className={problem ? "sp-file is-bad" : "sp-file"}>
+      <span className="sp-file__ico" aria-hidden="true">
         {problem ? "!" : <Icon name="check" size={18} stroke={2.6} />}
       </span>
-      <span className="ff-file__text">
+      <span className="sp-file__text">
         <s-text type="strong">{file.name}</s-text>
         <s-text color="subdued">
           {problem ?? `${fileSize(file.size)} · Ready to import. Click Next.`}
@@ -463,21 +459,17 @@ function MapStep({
   fields,
   choices,
   hasHeader,
-  lookForSkus,
   attachmentError,
   onPick,
   setHasHeader,
-  setLookForSkus,
 }: {
   job: ImportJobView;
   fields: MapField[];
   choices: string[];
   hasHeader: boolean;
-  lookForSkus: boolean;
   attachmentError: boolean;
   onPick: (col: number, choice: string) => void;
   setHasHeader: (v: boolean) => void;
-  setLookForSkus: (v: boolean) => void;
 }) {
   const structure = fields.map((f) => f.label).join(" / ");
   const yearFields = fields.filter((f) => f.type === "year_range");
@@ -497,7 +489,7 @@ function MapStep({
       <s-stack gap="none">
         <s-text type="strong">
           Map the columns in your file to your search fields ({structure}) and
-          the Attachment.
+          the Attachment (the product SKU).
         </s-text>
         <s-text color="subdued">
           Columns you don&apos;t map are ignored. The first rows of your file
@@ -509,8 +501,8 @@ function MapStep({
         checked={hasHeader}
         onChange={(e) => setHasHeader(e.currentTarget.checked)}
       />
-      <div className="ff-map-scroll">
-        <table className={`ff-map-grid${hasHeader ? "" : " no-titles"}`}>
+      <div className="sp-map-scroll">
+        <table className={`sp-map-grid${hasHeader ? "" : " no-titles"}`}>
           <thead>
             <tr>
               {titles.map((name, col) => (
@@ -549,16 +541,9 @@ function MapStep({
           </tbody>
         </table>
       </div>
-      <s-checkbox
-        label="Look for SKUs in the Attachment column"
-        details="Check it if the Attachment column has product SKUs. It can make the import take longer. Leave it off for product or collection links."
-        checked={lookForSkus}
-        onChange={(e) => setLookForSkus(e.currentTarget.checked)}
-      />
       {attachmentError && (
         <s-banner tone="critical" heading="Map the Attachment column">
-          Each row needs an Attachment: the product SKU, product link or
-          collection link it points to.
+          Each row needs an Attachment: the SKU of the product it points to.
         </s-banner>
       )}
       <s-text color="subdued">

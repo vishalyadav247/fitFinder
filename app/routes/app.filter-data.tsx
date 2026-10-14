@@ -513,7 +513,7 @@ export default function FilterDataPage() {
           </s-box>
 
           {selected.length > 0 && (
-            <div className="ff-bulk">
+            <div className="sp-bulk">
               <s-text type="strong">
                 {selected.length.toLocaleString("en-US")} selected
               </s-text>
@@ -593,7 +593,7 @@ export default function FilterDataPage() {
                       <s-table-cell>{r.attachment}</s-table-cell>
                       <s-table-cell>
                         {r.linked ? (
-                          <s-badge tone="success">Mapped</s-badge>
+                          <s-text>{r.product || "Linked"}</s-text>
                         ) : (
                           <s-badge tone="warning">Unmatched</s-badge>
                         )}
@@ -638,10 +638,10 @@ export default function FilterDataPage() {
 
         <s-section accessibilityLabel="Clean up">
           <s-stack direction="inline" gap="small" alignItems="center">
-            <span className="ff-cu-ico">
+            <span className="sp-cu-ico">
               <s-icon type="eraser" size="small" />
             </span>
-            <h2 className="ff-sec-title">Clean up</h2>
+            <h2 className="sp-sec-title">Clean up</h2>
           </s-stack>
           <s-box paddingBlockStart="base">
             <s-grid
@@ -742,7 +742,7 @@ export default function FilterDataPage() {
       </s-modal>
 
       <s-modal id={ROW_MODAL} heading={editing ? "Edit row" : "Add row"}>
-        <div className="ff-add-grid" key={rowFormKey}>
+        <div className="sp-add-grid" key={rowFormKey}>
           {fields.map((f) => (
             <s-text-field
               key={f.id}
@@ -771,7 +771,9 @@ export default function FilterDataPage() {
         {editing?.linked && (
           <s-box paddingBlockStart="base">
             <s-text color="subdued">
-              Changing the SKU unlinks this row from its product.
+              {editing.product
+                ? `Linked to ${editing.product}. Changing the SKU unlinks it.`
+                : "Changing the SKU unlinks this row from its product."}
             </s-text>
           </s-box>
         )}

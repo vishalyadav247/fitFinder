@@ -1,8 +1,8 @@
-# FitFinder — Shopify App Development Proposal
+# SpareFit — Shopify App Development Proposal
 
 Oct 5, 2026 · replaces the Oct 1 version
 
-We ask for approval to build FitFinder (working name): a public Shopify app that lets shoppers find **products that fit what they own**: car parts that fit their vehicle, accessories that fit their phone, beauty products that suit their profile, or any catalogue where "does this fit?" matters. It combines the feature set that made EasySearch YMM a 4.9★ leader with the high-volume import engine already proven on the Bilstein NL store (727k fitment rows), and fixes the weaknesses EasySearch's own reviewers name.
+We ask for approval to build SpareFit (working name): a public Shopify app that lets shoppers find **products that fit what they own**: car parts that fit their vehicle, accessories that fit their phone, beauty products that suit their profile, or any catalogue where "does this fit?" matters. It combines the feature set that made EasySearch YMM a 4.9★ leader with the high-volume import engine already proven on the Bilstein NL store (727k fitment rows), and fixes the weaknesses EasySearch's own reviewers name.
 
 A clickable prototype of the full admin app is ready in `.claude/design/` (open `.claude/design/index.html`); every screen has a spec in `.claude/specs/`. This proposal describes what the prototype shows.
 
@@ -57,20 +57,20 @@ What EasySearch merchants complain about in 1–3★ reviews:
 | --- | --- | --- |
 | Search section | Section (app block) | Any page: home, collection, product … |
 | Fits badge | App block | Product page, in the product info: before a selection / fits / doesn't fit (+ link to parts that fit) |
-| Fitment table | App block, **or** inside the theme's own product tabs via the code `[fitfinder-table]` | Product page; tabs on desktop, accordion on mobile when the theme does that |
+| Fitment table | App block, **or** inside the theme's own product tabs via the code `[sparefit-table]` | Product page; tabs on desktop, accordion on mobile when the theme does that |
 | My Selection | App embed (floating) | Every page: a fixed tab on the window edge with the shopper's current selection; panel to switch, add or remove saved selections |
 
 Results use the store's own collection pages, so the theme renders product cards, prices, currency, stock and the cart.
 
 ## How we win
 
-| EasySearch weakness | FitFinder answer |
+| EasySearch weakness | SpareFit answer |
 | --- | --- |
 | Re-upload overwrites all data | Import modes: add and update (default), replace all, delete the listed rows, each with a review step (destructive ones confirmed) |
 | Export can't be edited and re-imported | Export uses exactly the import format; last 5 imported files kept as backups |
 | Fixed Year / Make / Model, automotive only | Any fields, any order, four store types including "Something else" |
 | Unrelated results reported | Exact-match filtering on the server; the fitment table shows why a part matched |
-| Trial and billing confusion | Shopify Managed Pricing handles the trial and plan changes |
+| Trial and billing confusion | Shopify approves every charge (Billing API); trials and prices come from the backoffice, used trial days are taken off |
 | Hard setup | Store type presets, sample data, a 5-step setup guide, column mapping that remembers, and "Add to theme" deep links |
 | My Garage only on the $75 plan | My Selection in the $29 plan |
 | Fitment table only as a separate block | Can live inside the merchant's existing Description / Specifications tabs |
@@ -86,12 +86,12 @@ The Bilstein NL finder already solves the hardest backend problem, importing and
 | CSV import | Streams 50k-row batches, progress, gzip, aborts cleanly | **Reuse**, plus column mapping, add/update/replace/delete modes, review step, backups |
 | Lookup queries | Compound index, Redis cache | **Reuse** the pattern, scoped per shop and per configurable field |
 | Fitment data | Fixed Bilstein columns | **Rebuild** as configurable fields (Dropdown or Year range) |
-| Product link | Part no. must equal the variant SKU | **Rebuild**: attachment = SKU, product link or collection link; unmatched list; universal products |
+| Product link | Part no. must equal the variant SKU | **Rebuild**: attachment = SKU (case and spaces ignored), manual link for SKUs that don't match; unmatched list; universal products |
 | Product data copy | MongoDB copy kept by webhooks | **Drop**: Shopify renders prices, currency and stock |
 | Storefront | 1,535-line jQuery script in the theme | **Rebuild** as a theme app extension (blocks + app embed) |
 | Admin | Separate React app with its own login | **Rebuild** as an embedded app (App Bridge, Polaris web components) |
 | Stores | One store, settings in `.env` | **Rebuild** multi-store, every record keyed by shop |
-| Compliance | Uninstall webhook only | **Add** Managed Pricing, GDPR webhooks, data purge 30 days after uninstall |
+| Compliance | Uninstall webhook only | **Add** Billing API plans, GDPR webhooks, data purge 30 days after uninstall |
 
 ## Architecture
 
@@ -99,11 +99,11 @@ The Bilstein NL finder already solves the hardest backend problem, importing and
  Embedded admin app (React Router + Polaris web components + App Bridge)      Theme app extension
  Onboarding · Dashboard · Search setup · Filter data · Storefront ·            Search section · Fits badge ·
  Product mapping · Settings · Plans                                            Fitment table · My Selection (embed)
-              │ session-token API                                                     │ app proxy /apps/fitfinder
+              │ session-token API                                                     │ app proxy /apps/sparefit
               ▼                                                                       ▼
- ┌──────────────────────────────── FitFinder backend (Node, hosted) ────────────────────────────────┐
+ ┌──────────────────────────────── SpareFit backend (Node, hosted) ────────────────────────────────┐
  │ Import jobs (streamed CSV, mapping,     Fitment API (dropdown options,     Billing + webhooks       │
- │ modes, backups) — Bilstein engine       fit checks, results) + cache       (Managed Pricing, GDPR,  │
+ │ modes, backups) — Bilstein engine       fit checks, results) + cache       (Billing API, GDPR,      │
  │                                                                            uninstall, products/*)   │
  │ Postgres: shops, fields, fitment rows, product links, imports, settings — all keyed by shop        │
  │ Object storage: last 5 import files per shop                                                        │
@@ -117,7 +117,7 @@ Storefront settings are mirrored to an app metafield, so blocks render without a
 
 ## Pricing
 
-Three plans through Shopify Managed Pricing, each paid plan with a 14-day trial; yearly = two months free. A starting proposal to validate with the first merchants.
+Four plan slots, edited by the super admin in the backoffice (`/backoffice`, agreed 2026-10-13): any plan can be free, paid plans have a trial (default 14 days), prices, limits and features are set per plan; billed through the Billing API. Seeded with the three plans below (a fourth, Business, is hidden). A starting proposal to validate with the first merchants.
 
 | Plan | Monthly | Yearly | Limits | Includes |
 | --- | --- | --- | --- | --- |
@@ -137,7 +137,7 @@ About 14 weeks to App Store submission with two full-stack developers; Shopify r
 | 3–5 | Search setup (fields) and the import pipeline: upload, column mapping, modes, review, history and backups |
 | 6–7 | Filter data (rows, edit, delete, export, clean up) and product linking (automatic + Product mapping page) |
 | 8–10 | Theme app extension: search section, fits badge, fitment table (block and theme tabs), My Selection embed; Storefront page with previews; app proxy API |
-| 11 | Dashboard (setup guide, overview), Settings, Plans with Managed Pricing |
+| 11 | Dashboard (setup guide, overview), Settings, Plans (Billing API) |
 | 12 | GDPR, uninstall purge, performance (Built for Shopify thresholds), accessibility |
 | 13–14 | Bilstein NL pilot on real data (727k rows), fixes, App Store listing and submission |
 
@@ -149,22 +149,22 @@ About 14 weeks to App Store submission with two full-stack developers; Shopify r
 | --- | --- | --- |
 | Few reviews at launch | Low App Store ranking | Bilstein NL as first public install; review request after a successful first import |
 | 700k+ rows per store drives hosting cost | Margin on low plans | Row limits per plan; per-shop indexes; cached dropdown values |
-| App Store rejection | Launch slips 2–4 weeks | Embedded admin, Managed Pricing, GDPR webhooks and theme app extension from day one; pre-submission checklist |
+| App Store rejection | Launch slips 2–4 weeks | Embedded admin, Billing API, GDPR webhooks and theme app extension from day one; pre-submission checklist |
 | Built for Shopify performance thresholds missed | No badge, lower trust | Small, deferred storefront script; no jQuery; settings from a metafield |
-| SKU-based linking fails when merchants rename SKUs | Missing results | Product / collection links as attachments; unlinked list after every import; `products/update` webhook re-checks links |
-| Themes without app-block support in the product tabs | Fitment table can't sit in tabs | `[fitfinder-table]` code replaced by the app embed works in any tab; block fallback |
+| SKU-based linking fails when merchants rename SKUs | Missing results | Unlinked list after every import with **Choose product**; `products/update` webhook re-checks links |
+| Themes without app-block support in the product tabs | Fitment table can't sit in tabs | `[sparefit-table]` code replaced by the app embed works in any tab; block fallback |
 | Multi-language stores | Shoppers see one language | Out of scope for MVP (texts fixed or set once); revisit with Shopify Translate & Adapt |
 
 ## Decisions needed
 
-- [ ] Approve building FitFinder as a new Shopify app (React Router template), reusing the Bilstein NL import engine
+- [ ] Approve building SpareFit as a new Shopify app (React Router template), reusing the Bilstein NL import engine
 - [ ] Approve the MVP scope shown in the prototype and the 14-week target
 - [ ] Approve the three-plan pricing as a starting point
 - [ ] Confirm Bilstein NL may be the first public install and case study
 
 Open questions:
 
-- Final app name: FitFinder is a working name; the storefront code `[fitfinder-table]` and app proxy path follow the final name.
+- Final app name: SpareFit is a working name; the storefront code `[sparefit-table]` and app proxy path follow the final name.
 - Team size and budget: the 14-week estimate assumes two full-stack developers.
 - Hosting: managed Postgres, cache and object storage provider and region (an EU region suits Bilstein NL).
 - Does the Bilstein NL store move to the public app at launch, or later?
@@ -178,4 +178,4 @@ Open questions:
 - [Shopify — Scaffold an app (React Router template)](https://shopify.dev/docs/apps/build/scaffold-app)
 - [Shopify — Theme app extensions configuration](https://shopify.dev/docs/apps/build/online-store/theme-app-extensions/configuration)
 - Bilstein NL product finder source code (internal review, September 2026)
-- FitFinder UI prototype and specs: `.claude/design/`, `.claude/specs/`
+- SpareFit UI prototype and specs: `.claude/design/`, `.claude/specs/`

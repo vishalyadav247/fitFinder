@@ -107,7 +107,11 @@ describe.skipIf(!process.env.DATABASE_URL)("applyStoreType (Postgres)", () => {
       });
     }
     await db.productLink.create({
-      data: { shopId: shopA, attachment: "SKU-1", kind: "sku" },
+      data: {
+        shopId: shopA,
+        attachment: "SKU-1",
+        productId: "gid://shopify/Product/1",
+      },
     });
     await db.universalProduct.create({
       data: { shopId: shopA, productId: "gid://shopify/Product/1" },

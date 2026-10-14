@@ -18,6 +18,8 @@ function onChange(e) {
     (sp.cols || []).forEach((c) => { if (el.value === 'years' && c.use === f.id) c.use = f.id + ':range'; if (el.value === 'list' && c.use.startsWith(f.id + ':')) c.use = c.use === f.id + ':to' ? 'skip' : f.id; });
     f.type = el.value; state.picks = {};
   }
+  else if (a === 'an-days') { state.anDays = el.value; }
+  else if (a === 'an-field') { state.anField = el.value; }
   else if (a === 'heading') { sp.heading = String(el.value).trim() || sp.heading; }
   else if (a === 'mode') { state.mode = (el.values && el.values[0]) || state.mode; return save(); }
   else if (a === 'sf') { sf()[el.dataset.key] = String(el.value ?? ''); }
@@ -37,7 +39,6 @@ function onChange(e) {
   }
   else if (a === 'export-scope') { state.exportScope = (el.values && el.values[0]) || 'all'; return save(); }
   else if (a === 'map-col') { mapColumn(el.dataset.col, el.value); return; }
-  else if (a === 'map-skus') { state.mapNoSkus = !el.checked; return save(); }
   else if (a === 'map-titles') { state.mapNoTitles = !el.checked; const g = document.querySelector('.map-grid'); if (g) g.classList.toggle('no-titles', state.mapNoTitles); return save(); }
   else if (a === 'sel') { const id = el.dataset.id; state.sel = (state.sel || []).filter((x) => x !== id).concat(el.checked ? [id] : []); state.exportScope = null; }
   else return;
@@ -106,7 +107,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled || el.hasAttribute('disabled')) return;
   const a = el.dataset.act;
-  if (['pick', 'field-ph', 'field-label', 'field-type', 'field-req', 'heading', 'mode', 'sel', 'q', 'export-scope', 'map-col', 'map-titles', 'map-skus', 'sf', 'sf-col', 'sf-icon-upload', 'sf-bool', 'sf-embed'].includes(a)) return;
+  if (['pick', 'field-ph', 'field-label', 'field-type', 'field-req', 'heading', 'mode', 'sel', 'q', 'export-scope', 'map-col', 'map-titles', 'sf', 'sf-col', 'sf-icon-upload', 'sf-bool', 'sf-embed'].includes(a)) return;
   if (a === 'choose') { state.choice = el.dataset.tpl; return render(); }
   if (a === 'confirm-setup') { state.setup = makeSetup(state.choice); state.picks = {}; state.searched = false; state.screen = 'home'; window.scrollTo(0, 0); return render(); }
   if (a === 'ask') { state.confirm = { kind: el.dataset.confirm, id: el.dataset.id, field: el.dataset.field }; state.openModal = 'confirm-modal'; return render(); }
@@ -123,7 +124,7 @@ document.addEventListener('click', (e) => {
     }
     case 'copy-code': { const code = el.dataset.code; try { navigator.clipboard.writeText(code); } catch (e) { /* prototype: clipboard may be blocked on file:// */ } showToast('Copied ' + code); return; }
     case 'billing': state.billing = el.dataset.val; break;
-    case 'plan-pick': state.flash = 'Opens Shopify to approve the plan change'; break; // real app: Shopify's hosted plan page (Managed Pricing)
+    case 'plan-pick': state.flash = 'Opens Shopify to approve the plan change'; break; // real app: Billing API charge → Shopify's approval page; a free plan asks to confirm first (specs/plans.md)
     case 'sf-set': sf()[el.dataset.key] = el.dataset.val; break;
     case 'change-type': state.choice = sp.type; state.screen = 'onboarding'; window.scrollTo(0, 0); break;
     case 'field-add': sp.fields.push({ id: nid('f'), label: 'New field', type: 'list', required: false }); state.flash = 'Field added. Map a column to it on your next import.'; break;
@@ -167,9 +168,11 @@ document.addEventListener('click', (e) => {
       sp.rows = tmp.rows.map((r) => { const v = {}; tmp.fields.forEach((tf, i) => { if (target[i]) v[target[i].id] = r.v[tf.id]; }); return { id: nid('r'), v, part: r.part, mapped: r.mapped }; });
       state.sel = []; state.flash = sp.rows.length + ' sample rows restored'; break;
     }
-    case 'map': { // real app: Shopify resource picker (collection picker for collection links); every row with this attachment gets the chosen product
+    case 'map': { // real app: Shopify product picker; every row with this attachment takes the chosen product's store SKU
       const part = el.dataset.part || (sp.rows.find((x) => x.id === el.dataset.id) || {}).part;
-      sp.rows.forEach((r) => { if (r.part === part) r.mapped = true; }); state.flash = part + (/\/collections\//.test(part) && !/\/products\//.test(part) ? ' linked to a collection' : ' linked to a product'); break;
+      const sku = 'STORE-' + String(Math.floor(Math.random() * 900) + 100);
+      sp.rows.forEach((r) => { if (r.part === part) { r.part = sku; r.mapped = true; r.product = 'Sample product'; } });
+      state.flash = part + ' replaced by ' + sku + ' (Sample product)'; break;
     }
     case 'relink': state.flash = 'Links checked. No new matches'; break;
     case 'loose-add': state.screen = 'data'; state.editing = null; state.prefillSku = el.dataset.sku; state.openModal = 'row-modal'; window.scrollTo(0, 0); break;

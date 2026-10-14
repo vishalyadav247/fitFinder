@@ -1,6 +1,6 @@
 ---
 name: build-milestone
-description: Build one FitFinder milestone (M1–M11 from .claude/BUILD-PLAN.md) end to end — plan from the specs and prototype, verify Shopify APIs against current docs, implement, test, review with the project subagents, and record progress. Use when the user says "build M3", "next milestone", "continue the build", etc.
+description: Build one SpareFit milestone (M1–M11 from .claude/BUILD-PLAN.md) end to end — plan from the specs and prototype, verify Shopify APIs against current docs, implement, test, review with the project subagents, and record progress. Use when the user says "build M3", "next milestone", "continue the build", etc.
 argument-hint: "[M1..M11 — omit to continue the next unfinished milestone]"
 ---
 

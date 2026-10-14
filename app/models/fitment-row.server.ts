@@ -135,6 +135,7 @@ interface DbRow {
   year_to: number | null;
   attachment: string;
   linked: boolean;
+  product: string | null;
 }
 
 const toView = (r: DbRow): RowView => ({
@@ -144,6 +145,7 @@ const toView = (r: DbRow): RowView => ({
   yearTo: r.year_to,
   attachment: r.attachment,
   linked: r.linked,
+  product: r.product,
 });
 
 export interface RowPage {
@@ -201,8 +203,15 @@ export async function listRows(
   const [rows, matching] = await Promise.all([
     timedRead(
       (tx) => tx.$queryRaw<DbRow[]>`
-        SELECT f.id, f."values", f.year_from, f.year_to, f.attachment, ${linkedSql("f")} AS linked
+        SELECT f.id, f."values", f.year_from, f.year_to, f.attachment,
+               l.product_id IS NOT NULL AS linked, l.title AS product
         FROM fitment_rows f
+        LEFT JOIN LATERAL (
+          SELECT p.product_id, c.title FROM product_links p
+          LEFT JOIN catalog_products c
+            ON c.shop_id = p.shop_id AND c.product_id = p.product_id AND c.status <> 'DELETED'
+          WHERE p.shop_id = f.shop_id AND p.attachment = f.attachment
+          LIMIT 1) l ON true
         WHERE f.shop_id = ${shopId} AND f.id = ANY(ARRAY(
           SELECT f.id FROM fitment_rows f
           WHERE f.shop_id = ${shopId} ${filter}
@@ -229,7 +238,7 @@ export async function listRows(
 // ------------------------------------------------------------------ write
 
 /** Runs a write under the shop's setup lock, with timeouts that say "nothing changed". */
-async function withSetupLock<T>(
+export async function withSetupLock<T>(
   shopId: string,
   work: (tx: Tx) => Promise<T>,
 ): Promise<T> {
@@ -358,6 +367,36 @@ export async function saveRow(
   }
 }
 
+/**
+ * Product mapping › Choose product: every row with the attachment `from` gets the store SKU `to`
+ * (rehashed). A row that would then equal a row already using `to` is dropped instead, so the
+ * unique (shop_id, row_hash) index holds. Run under the setup lock. Returns the rows that now use
+ * `to` and the rows dropped as copies.
+ */
+export async function replaceAttachmentRows(
+  tx: Tx,
+  shopId: string,
+  from: string,
+  to: string,
+): Promise<{ changed: number; dropped: number }> {
+  if (from === to) return { changed: 0, dropped: 0 };
+  const dropped = await tx.$executeRaw`
+    DELETE FROM fitment_rows f
+    WHERE f.shop_id = ${shopId} AND f.attachment = ${from} AND EXISTS (
+      SELECT 1 FROM fitment_rows g
+      WHERE g.shop_id = f.shop_id AND g.attachment = ${to} AND g."values" = f."values"
+        AND g.year_from IS NOT DISTINCT FROM f.year_from
+        AND g.year_to IS NOT DISTINCT FROM f.year_to)`;
+  const changed = await tx.$executeRaw`
+    UPDATE fitment_rows f SET
+      attachment = s.attachment, row_hash = ${rowHashSql(CURRENT, "s")}, updated_at = now()
+    FROM (
+      SELECT r.id, r."values", r.year_from, r.year_to, ${to}::text AS attachment
+      FROM fitment_rows r WHERE r.shop_id = ${shopId} AND r.attachment = ${from}) s
+    WHERE f.id = s.id AND f.shop_id = ${shopId}`;
+  return { changed, dropped };
+}
+
 /** Deletes the given rows of this shop; returns how many were deleted. */
 export function deleteRows(shopId: string, ids: bigint[]): Promise<number> {
   return withSetupLock(
@@ -438,7 +477,8 @@ export async function* exportRows(
   let after = BigInt(0);
   for (;;) {
     const rows = await prisma.$queryRaw<DbRow[]>`
-      SELECT f.id, f."values", f.year_from, f.year_to, f.attachment, false AS linked
+      SELECT f.id, f."values", f.year_from, f.year_to, f.attachment, false AS linked,
+             NULL::text AS product
       FROM fitment_rows f
       WHERE f.shop_id = ${shopId} AND f.id > ${after} ${scopeFilter(scope, ids)}
       ORDER BY f.id

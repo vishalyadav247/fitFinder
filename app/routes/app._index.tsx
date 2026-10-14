@@ -10,11 +10,12 @@ import { getSearchConfig } from "../models/search-config.server";
 import prisma from "../db.server";
 import { linkedProductCount, shopPlan } from "../services/billing.server";
 import {
-  effectivePlan,
   formatLimit,
   LIMIT_LABEL,
+  limitsOf,
   overLimits,
 } from "../services/billing";
+import { shopPlanView } from "../models/plan.server";
 import { dashboardFacts } from "../services/dashboard.server";
 import { guideSteps, overviewCards } from "../services/dashboard";
 import { STORE_TYPES } from "../services/store-types";
@@ -36,12 +37,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     select: { label: true },
   });
 
-  // The setup guide and overview need the plan (Partner API), the live theme (Admin API) and
+  // The setup guide and overview need the plan (Billing API read), the live theme (Admin API) and
   // counts over every filter row: streamed in after the banner shows (seconds on a 700k-row shop).
-  // Back from Shopify's plan page (welcome link): read the new plan right away.
-  const force = new URL(request.url).searchParams.has("plan_handle");
+  // Back from Shopify's approval page (returnUrl ?charge=1): read the new plan right away.
+  const force = new URL(request.url).searchParams.has("charge");
   const details = (async () => {
-    // The plan read (Partner API), the counts and the plan meter's count run side by side.
+    // The plan read, the counts and the plan meter's count run side by side.
     const plan = shopPlan(admin.graphql, shop.id, { force });
     // Awaited by dashboardFacts; this only keeps a failure from going unhandled if it stops early.
     plan.catch(() => {});
@@ -49,15 +50,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       dashboardFacts(admin.graphql, shop.id, plan),
       linkedProductCount(shop.id),
     ]);
-    if (!facts) throw new Error("FitFinder isn't set up for this store.");
+    if (!facts) throw new Error("SpareFit isn't set up for this store.");
     const used = { rows: facts.rowCount, products };
-    const current = effectivePlan(facts.plan);
+    const limits = limitsOf(await shopPlanView(shop.id));
     return {
       facts,
-      over: overLimits(used, current.limits).map(
-        (k) => `${formatLimit(current.limits[k])} ${LIMIT_LABEL[k]}`,
+      over: overLimits(used, limits).map(
+        (k) => `${formatLimit(limits[k])} ${LIMIT_LABEL[k]}`,
       ),
-      planName: current.name,
+      planName: facts.planName,
     };
   })();
   // Logged here; the page shows the error element.
@@ -106,37 +107,37 @@ export default function DashboardPage() {
 
   return (
     <s-page inlineSize="base">
-      <section className="ff-hero">
+      <section className="sp-hero">
         <div>
-          <span className="ff-eyebrow">
+          <span className="sp-eyebrow">
             <Icon name={preset.icon} size={14} /> {preset.label}
           </span>
           <h1>{data.heading}</h1>
-          <p className="ff-lead">
+          <p className="sp-lead">
             Shoppers pick their {data.noun} by{" "}
             {fieldNames.map((l) => l.toLowerCase()).join(", ")} and only see{" "}
             {data.things} that fit. Fewer wrong orders, fewer returns.
           </p>
-          <div className="ff-hero-actions">
+          <div className="sp-hero-actions">
             <button
               type="button"
-              className="ff-hbtn main"
+              className="sp-hbtn main"
               onClick={() => navigate("/app/storefront")}
             >
               Add search to your store
             </button>
             <button
               type="button"
-              className="ff-hbtn alt"
+              className="sp-hbtn alt"
               onClick={() => navigate("/app/search-setup")}
             >
               Open search setup
             </button>
           </div>
         </div>
-        <div className="ff-how">
-          <p className="ff-how-title">How it works</p>
-          <ol className="ff-how-list">
+        <div className="sp-how">
+          <p className="sp-how-title">How it works</p>
+          <ol className="sp-how-list">
             {(
               [
                 [
@@ -144,7 +145,7 @@ export default function DashboardPage() {
                   `Shopper picks their ${data.noun}`,
                   fieldNames.join(" › "),
                 ],
-                ["rows", "FitFinder matches", rowsLine],
+                ["rows", "SpareFit matches", rowsLine],
                 [
                   "check",
                   `Only ${data.things} that fit`,
@@ -152,8 +153,8 @@ export default function DashboardPage() {
                 ],
               ] as const
             ).map(([icon, title, sub], i) => (
-              <li key={title} className={`ff-how-step s${i + 1}`}>
-                <span className="ff-how-ico">
+              <li key={title} className={`sp-how-step s${i + 1}`}>
+                <span className="sp-how-ico">
                   <Icon name={icon} size={16} stroke={2.2} />
                 </span>
                 <div>
@@ -185,7 +186,7 @@ export default function DashboardPage() {
 /** Same height as the guide and overview, so nothing jumps when they arrive. */
 function DetailsPlaceholder() {
   return (
-    <div className="ff-details-loading">
+    <div className="sp-details-loading">
       <s-section accessibilityLabel="Setup guide">
         <s-stack alignItems="center" gap="small">
           <s-spinner size="base" accessibilityLabel="Loading your setup" />
@@ -213,7 +214,7 @@ function DashboardDetails({
   const [cur, setCur] = useState(Math.max(0, firstOpen));
 
   // The guide's collapsed state is kept per shop in this browser.
-  const closedKey = `fitfinder:guide-closed:${shop}`;
+  const closedKey = `sparefit:guide-closed:${shop}`;
   const [closed, setClosed] = useState<boolean | null>(null);
   useEffect(() => {
     try {
@@ -253,10 +254,10 @@ function DashboardDetails({
       )}
 
       <s-section padding="none" accessibilityLabel="Setup guide">
-        <div className="ff-guide">
-          <div className="ff-g-head">
+        <div className="sp-guide">
+          <div className="sp-g-head">
             <div
-              className="ff-g-ring"
+              className="sp-g-ring"
               role="img"
               aria-label={`${doneCount} of 5 steps done`}
             >
@@ -267,9 +268,9 @@ function DashboardDetails({
                 aria-hidden="true"
               >
                 <defs>
-                  <linearGradient id="ff-gr" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" style={{ stopColor: "var(--ff-p)" }} />
-                    <stop offset="1" style={{ stopColor: "var(--ff-a)" }} />
+                  <linearGradient id="sp-gr" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" style={{ stopColor: "var(--sp-p)" }} />
+                    <stop offset="1" style={{ stopColor: "var(--sp-a)" }} />
                   </linearGradient>
                 </defs>
                 <circle
@@ -304,7 +305,7 @@ function DashboardDetails({
             </div>
             <button
               type="button"
-              className="ff-g-toggle"
+              className="sp-g-toggle"
               onClick={toggle}
               aria-expanded={closed === false}
               aria-label={`${closed !== false ? "Show" : "Hide"} setup guide`}
@@ -318,7 +319,7 @@ function DashboardDetails({
           </div>
           {closed === false && (
             <>
-              <div className="ff-g-seg" aria-hidden="true">
+              <div className="sp-g-seg" aria-hidden="true">
                 {steps.map((s, i) => (
                   <span
                     key={s.label}
@@ -326,7 +327,7 @@ function DashboardDetails({
                   />
                 ))}
               </div>
-              <ol className="ff-g-steps" aria-label="Setup steps">
+              <ol className="sp-g-steps" aria-label="Setup steps">
                 {steps.map((s, i) => (
                   <li key={s.label}>
                     <button
@@ -341,37 +342,37 @@ function DashboardDetails({
                       aria-current={i === cur ? "step" : undefined}
                       onClick={() => setCur(i)}
                     >
-                      <span className="ff-gs-ico">
+                      <span className="sp-gs-ico">
                         <Icon
                           name={s.done ? "check" : s.icon}
                           size={14}
                           stroke={2.4}
                         />
                       </span>
-                      <span className="ff-gs-status">
+                      <span className="sp-gs-status">
                         {STATUS(s.done, i === firstOpen)}
                       </span>
-                      <span className="ff-gs-label">{s.label}</span>
+                      <span className="sp-gs-label">{s.label}</span>
                     </button>
                   </li>
                 ))}
               </ol>
-              <div className="ff-g-panel">
-                <span className="ff-g-watermark" aria-hidden="true">
+              <div className="sp-g-panel">
+                <span className="sp-g-watermark" aria-hidden="true">
                   <Icon name={step.icon} size={104} stroke={1.2} />
                 </span>
-                <div className="ff-g-body">
-                  <p className="ff-g-kicker">
+                <div className="sp-g-body">
+                  <p className="sp-g-kicker">
                     <span
-                      className={`ff-g-dot${step.done ? " is-done" : ""}`}
+                      className={`sp-g-dot${step.done ? " is-done" : ""}`}
                       aria-hidden="true"
                     />
                     Step {cur + 1} ·{" "}
                     {step.done ? "Completed" : `About ${step.minutes} min`}
                   </p>
                   <h3>{step.title}</h3>
-                  <p className="ff-g-desc">{step.description}</p>
-                  <div className="ff-g-actions">
+                  <p className="sp-g-desc">{step.description}</p>
+                  <div className="sp-g-actions">
                     <s-button
                       variant={step.done ? "secondary" : "primary"}
                       onClick={() => navigate(step.to)}
@@ -388,7 +389,7 @@ function DashboardDetails({
                     )}
                   </div>
                 </div>
-                <div className="ff-g-nav">
+                <div className="sp-g-nav">
                   <button
                     type="button"
                     aria-label="Previous step"
@@ -412,23 +413,23 @@ function DashboardDetails({
         </div>
       </s-section>
 
-      <div className="ff-ov-title">
+      <div className="sp-ov-title">
         <SectionTitle icon="chart-vertical">Overview</SectionTitle>
       </div>
-      <div className="ff-ov">
+      <div className="sp-ov">
         {cards.map((c) => (
           <button
             key={c.label}
             type="button"
-            className="ff-ov-card"
+            className="sp-ov-card"
             onClick={() => navigate(c.to)}
           >
-            <span className="ff-ov-label">{c.label}</span>
-            <span className="ff-ov-value">
-              <span className="ff-ov-number">{c.value}</span>
+            <span className="sp-ov-label">{c.label}</span>
+            <span className="sp-ov-value">
+              <span className="sp-ov-number">{c.value}</span>
               {c.badge && <s-badge tone={c.badge.tone}>{c.badge.text}</s-badge>}
             </span>
-            <span className="ff-ov-line">{c.line}</span>
+            <span className="sp-ov-line">{c.line}</span>
           </button>
         ))}
       </div>

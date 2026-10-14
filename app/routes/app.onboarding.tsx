@@ -146,8 +146,8 @@ export default function Onboarding() {
 
   return (
     <s-page inlineSize="base">
-      <PageHeader title="Welcome to FitFinder" />
-      <div className="ff-onboarding">
+      <PageHeader title="Welcome to SpareFit" />
+      <div className="sp-onboarding">
         <s-stack gap="base">
           {changing && (
             <s-banner
@@ -174,7 +174,7 @@ export default function Onboarding() {
                 remove fields any time.
               </s-paragraph>
               <div
-                className="ff-types"
+                className="sp-types"
                 role="radiogroup"
                 aria-label="Store type"
               >
@@ -188,15 +188,15 @@ export default function Onboarding() {
                         cardRefs.current[index] = el;
                       }}
                       type="button"
-                      className="ff-type"
+                      className="sp-type"
                       role="radio"
                       aria-checked={selected}
                       tabIndex={selected ? 0 : -1}
                       onClick={() => setChoice(key)}
                       onKeyDown={(e) => onCardKey(e, index)}
                     >
-                      <span className="ff-type-top">
-                        <span className={`ff-tile ${t.tile}`}>
+                      <span className="sp-type-top">
+                        <span className={`sp-tile ${t.tile}`}>
                           <Icon name={t.icon} />
                         </span>
                         {selected && (
@@ -206,7 +206,7 @@ export default function Onboarding() {
                         )}
                       </span>
                       <b>{t.label}</b>
-                      <span className="ff-type-blurb">{t.blurb}</span>
+                      <span className="sp-type-blurb">{t.blurb}</span>
                     </button>
                   );
                 })}
@@ -215,13 +215,13 @@ export default function Onboarding() {
           </s-section>
 
           <s-section accessibilityLabel="Your shoppers will search by">
-            <h2 className="ff-sec-title">Your shoppers will search by</h2>
+            <h2 className="sp-sec-title">Your shoppers will search by</h2>
             <s-stack gap="base">
-              <span className="ff-chips">
+              <span className="sp-chips">
                 {preset.fields.map((f, i) => (
-                  <span key={f.label} className="ff-chips">
+                  <span key={f.label} className="sp-chips">
                     {i > 0 && (
-                      <span aria-hidden="true" className="ff-chip-sep">
+                      <span aria-hidden="true" className="sp-chip-sep">
                         ›
                       </span>
                     )}

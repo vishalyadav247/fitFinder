@@ -1,5 +1,5 @@
 // Publishes the storefront config (config.ts) to an app-data metafield on the app installation,
-// which the theme app extension reads as app.metafields.fitfinder.config. Runs from the admin
+// which the theme app extension reads as app.metafields.sparefit.config. Runs from the admin
 // layout loader, the Storefront page and after every Storefront setting change, and only writes
 // when the document changed since the last publish (hash in storefront_settings.published_hash).
 // One publish per shop at a time (a lease in storefront_settings.publishing_until); the holder
@@ -8,6 +8,7 @@
 // https://shopify.dev/docs/api/admin-graphql/2026-10/mutations/metafieldsSet (json ≤ 128 KB).
 import { createHash } from "node:crypto";
 import prisma from "../../db.server";
+import { shopPlanView } from "../../models/plan.server";
 import {
   gqlData,
   ShopifyApiError,
@@ -16,9 +17,14 @@ import {
 import {
   buildStorefrontConfig,
   CONFIG_KEY,
+  byPosition,
   CONFIG_NAMESPACE,
+  FIRST_KEY,
+  type FirstList,
   type StorefrontConfig,
 } from "./config";
+import { defaultGqlFor } from "../linking/link-runs.server";
+import { firstFieldValues, type ShopSearch } from "./query.server";
 
 const MAX_BYTES = 120_000;
 // A publish lease outlives the slowest pair of Admin API calls (throttle retries included).
@@ -30,16 +36,18 @@ const MAX_ROUNDS = 3;
 export async function loadStorefrontConfig(
   shopId: string,
 ): Promise<StorefrontConfig | null> {
-  const [config, fields, settings] = await Promise.all([
+  const [config, fields, settings, plan] = await Promise.all([
     prisma.searchConfig.findUnique({ where: { shopId } }),
     prisma.searchField.findMany({ where: { shopId } }),
     prisma.storefrontSettings.findUnique({ where: { shopId } }),
+    shopPlanView(shopId),
   ]);
   if (!config) return null;
   return buildStorefrontConfig({
     config,
     fields,
     stored: settings?.settings,
+    features: plan.toggles,
   });
 }
 
@@ -87,7 +95,11 @@ export async function storefrontConfigPublished(shopId: string) {
   return !state || state.published;
 }
 
-async function writeMetafield(gql: AdminGraphql, json: string) {
+async function writeMetafield(
+  gql: AdminGraphql,
+  json: string,
+  key: string = CONFIG_KEY,
+) {
   const { currentAppInstallation } = await gqlData<{
     currentAppInstallation: { id: string };
   }>(gql, INSTALLATION);
@@ -98,7 +110,7 @@ async function writeMetafield(gql: AdminGraphql, json: string) {
       {
         ownerId: currentAppInstallation.id,
         namespace: CONFIG_NAMESPACE,
-        key: CONFIG_KEY,
+        key,
         type: "json",
         value: json,
       },
@@ -183,6 +195,133 @@ export async function publishStorefrontConfig(
     }
   }
   return wrote;
+}
+
+// ---------------------------------------------------------------- first dropdown list
+// The first dropdown's values go to their own app metafield (config.ts › FirstList), written
+// only by the background job (storefront-publish): admin requests never run the values query,
+// they only compare the cheap target key below and queue the job when it differs.
+
+/** Printed on every page with a search block: above this the widget asks the proxy instead. */
+export const MAX_FIRST_BYTES = 16_000;
+
+/**
+ * What the published list must have been computed for: the installation (a reinstall starts
+ * without our metafields), the data version (bumped by every row and field change), the first
+ * field, and the year (open year ranges such as "2016-" gain a year on 1 January).
+ */
+async function firstListTarget(
+  shopId: string,
+  year = new Date().getUTCFullYear(),
+) {
+  const [shop, config, fields] = await Promise.all([
+    prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { installedAt: true, uninstalledAt: true },
+    }),
+    prisma.searchConfig.findUnique({
+      where: { shopId },
+      select: { dataVersion: true },
+    }),
+    prisma.searchField.findMany({
+      where: { shopId },
+      select: {
+        id: true,
+        label: true,
+        type: true,
+        required: true,
+        position: true,
+      },
+    }),
+  ]);
+  if (!shop || shop.uninstalledAt || !config) return null;
+  const ordered = fields.sort(byPosition);
+  return {
+    key: [
+      shop.installedAt.toISOString(),
+      config.dataVersion,
+      ordered[0]?.id ?? "-",
+      year,
+    ].join("|"),
+    search: { shopId, dataVersion: config.dataVersion, fields: ordered },
+  };
+}
+
+const firstPublished = async (shopId: string) =>
+  (
+    await prisma.storefrontSettings.findUnique({
+      where: { shopId },
+      select: { firstPublished: true },
+    })
+  )?.firstPublished ?? null;
+
+/** Whether the theme's first dropdown list is out of date. Cheap: no values query. */
+export async function firstListBehind(
+  shopId: string,
+  year?: number,
+): Promise<boolean> {
+  const [target, published] = await Promise.all([
+    firstListTarget(shopId, year),
+    firstPublished(shopId),
+  ]);
+  return target !== null && target.key !== published;
+}
+
+/**
+ * Writes the first dropdown list when it's out of date; returns whether it wrote. Runs in the
+ * storefront-publish job (one per shop at a time). A values query that fails or a list that is
+ * too large publishes `v: null` (the widget asks the proxy), so a shop whose query keeps timing
+ * out costs one attempt per change, not one per admin visit. A change landing mid-way leaves an
+ * older key recorded, so the next check queues another publish.
+ */
+export async function publishFirstList(
+  gql: AdminGraphql,
+  shopId: string,
+  values: (search: ShopSearch) => Promise<string[]> = firstFieldValues,
+): Promise<boolean> {
+  const target = await firstListTarget(shopId);
+  if (!target || target.key === (await firstPublished(shopId))) return false;
+  const field = target.search.fields[0];
+  const list: FirstList = { f: field?.id ?? null, v: null };
+  if (field) {
+    try {
+      const found = await values(target.search);
+      if (Buffer.byteLength(JSON.stringify(found)) <= MAX_FIRST_BYTES) {
+        list.v = found;
+      }
+    } catch (error) {
+      console.error("first dropdown list not read; the widget asks the proxy", {
+        shopId,
+        error,
+      });
+    }
+  }
+  await writeMetafield(gql, JSON.stringify(list), FIRST_KEY);
+  await prisma.$executeRaw`
+    INSERT INTO storefront_settings (shop_id, first_published, updated_at)
+    VALUES (${shopId}, ${target.key}, now())
+    ON CONFLICT (shop_id) DO UPDATE SET first_published = EXCLUDED.first_published`;
+  return true;
+}
+
+/**
+ * The storefront-publish job: the config and the first dropdown list, with the shop's offline
+ * Admin API access. Uninstalled shops are skipped. Throws when Shopify refuses, so the job
+ * retries.
+ */
+export async function publishForShop(
+  shopId: string,
+  gqlFor: (domain: string) => Promise<AdminGraphql> = defaultGqlFor,
+): Promise<boolean> {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { domain: true, uninstalledAt: true },
+  });
+  if (!shop || shop.uninstalledAt) return false;
+  const gql = await gqlFor(shop.domain);
+  const config = await publishStorefrontConfig(gql, shopId);
+  const first = await publishFirstList(gql, shopId);
+  return config || first;
 }
 
 export type PublishOutcome = "published" | "pending" | "behind";

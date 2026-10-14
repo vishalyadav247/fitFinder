@@ -57,11 +57,11 @@ s-table-row[hidden]{display:none}
 .ov-card:hover .ov-label{color:#303030}
 
 /* Toast: look-alike of the Shopify admin toast (real app: App Bridge shopify.toast.show). */
-.ff-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:10px 12px 10px 16px;border-radius:12px;background:#1A1A1A;color:#FFFFFF;font-size:13px;font-weight:550;box-shadow:0 8px 24px rgba(0,0,0,.24);animation:toastIn .2s ease-out}
-.ff-toast.is-error{background:#8E0B21}
-.ff-toast button{border:0;background:none;color:#B5B5B5;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
-.ff-toast button:hover{color:#FFFFFF}
-.ff-toast.out{opacity:0;transition:opacity .4s}
+.sp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:10px 12px 10px 16px;border-radius:12px;background:#1A1A1A;color:#FFFFFF;font-size:13px;font-weight:550;box-shadow:0 8px 24px rgba(0,0,0,.24);animation:toastIn .2s ease-out}
+.sp-toast.is-error{background:#8E0B21}
+.sp-toast button{border:0;background:none;color:#B5B5B5;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.sp-toast button:hover{color:#FFFFFF}
+.sp-toast.out{opacity:0;transition:opacity .4s}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
 
 
@@ -83,3 +83,16 @@ s-table-row[hidden]{display:none}
 .fhead{background:#F7F7F7;border-block:1px solid #EBEBEB;font-size:12px;font-weight:600;color:#616161;padding-block:6px}
 .frow{border-bottom:1px solid #EBEBEB}
 @media (max-width:760px){.fgrid{grid-template-columns:36px minmax(0,1fr) minmax(0,1fr)}.fhead span:nth-child(n+4){display:none}.frow>:nth-child(n+4){grid-column:2 / -1}}
+
+/* Analytics (specs/analytics.md): stat cards, one-series column chart, share bars */
+.an-card{cursor:default}
+.an-readout{margin:0 0 12px;font-size:13px;color:#616161}.an-readout b{color:#303030}
+.an-plot{position:relative;height:160px;margin-left:40px}
+.an-grid{position:absolute;left:0;right:0;border-top:1px solid #EBEBEB}.an-grid.is-base{border-top-color:#C9C9C9}
+.an-grid i{position:absolute;right:calc(100% + 8px);top:-8px;font-style:normal;font-size:11px;color:#8A8A8A}
+.an-bars{position:absolute;inset:0;display:flex;gap:2px}
+.an-bar{flex:1 1 0;min-width:0;display:flex;align-items:flex-end;padding:0;border:0;background:transparent}
+.an-bar span{display:block;width:100%;max-width:28px;margin:0 auto;border-radius:4px 4px 0 0;background:var(--p-400,#38BDF8)}
+.an-bar:hover span{background:var(--p)}
+.an-axis{display:flex;justify-content:space-between;margin:8px 0 0 40px;font-size:11px;color:#8A8A8A}
+.an-share{width:120px}

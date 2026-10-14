@@ -24,11 +24,10 @@ Opened by **Import new file** in Import history, **Import CSV** on Filter data a
 
 1. **Upload file** — `s-drop-zone` (.csv / .csv.gz, up to 100 MB); once a file is picked it is replaced by a green row with a tick, the file name and "{size} · Ready to import. Click Next." (red with the reason when the file can't be used) + **Change file**. **Next** stays disabled until a usable file is chosen. Done steps in the stepper show a white tick · **Download a CSV template** · `s-choice-list` "What should this import do?": *Add and update rows* (recommended; "New rows are added. Rows already in your data stay.") / *Replace all rows* / *Delete the rows listed in this file* ("Removes rows that match the file exactly. Rows not in the file stay.").
 2. **Map columns** (EasySearch-style column mapping)
-   - "Map the columns in your file to your search fields (Make / Year / Model) and the Attachment." + subdued "Columns you don't map are ignored. The first rows of your file are shown below. We filled in the mapping from your last import."
+   - "Map the columns in your file to your search fields (Make / Year / Model) and the Attachment (the product SKU)." + subdued "Columns you don't map are ignored. The first rows of your file are shown below. We filled in the mapping from your last import."
    - `s-checkbox` **Column titles in the first row** (on by default; off = the first row is treated as data).
    - Preview table, scrolls sideways: a **Map column** `s-select` above every column, then the column titles row, then the first 3 rows.
-   - Options are exactly the search fields plus **Attachment**: **Map column** (ignore) · Make · Year · Model … · **Attachment** (what each row links to: a product SKU, a product link or a collection link).
-   - `s-checkbox` **Look for SKUs in the Attachment column** (on by default) — "Check it if the Attachment column has product SKUs. It can make the import take longer. Leave it off for product or collection links."
+   - Options are exactly the search fields plus **Attachment**: **Map column** (ignore) · Make · Year · Model … · **Attachment** (the SKU of the product each row fits; SKU only).
    - Each option belongs to one column, except a **Year range** field, which takes one column (ranges like 2015-2020) or two columns (left = from, right = to). Picking an option on one column too many resets the oldest one to Map column. A subdued line under the table explains the Year rule.
    - Pre-filled from the last import's mapping, then by header name.
    - **Next** without an Attachment column shows critical banner "Map the Attachment column" and stays on the step.

@@ -22,6 +22,10 @@ vi.mock("../services/billing.server", () => ({
 }));
 vi.mock("../services/storefront/sync.server", () => ({
   publishStorefrontConfig: vi.fn(async () => false),
+  firstListBehind: vi.fn(async () => false),
+}));
+vi.mock("../services/jobs.server", () => ({
+  queueStorefrontPublish: vi.fn(async () => {}),
 }));
 vi.mock("../models/search-config.server", async (importOriginal) => {
   const real =

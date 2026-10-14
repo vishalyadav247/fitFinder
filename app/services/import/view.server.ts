@@ -13,7 +13,6 @@ export interface ImportJobView {
   /** Saved mapping as UI choices per column (null before the mapping step). */
   choices: string[] | null;
   hasHeader: boolean;
-  lookForSkus: boolean;
   processedRows: number;
   counts: {
     added: number;
@@ -53,7 +52,6 @@ export function jobView(job: ImportJob, fields: SearchField[]): ImportJobView {
         })
       : null,
     hasHeader: job.hasHeader,
-    lookForSkus: job.lookForSkus,
     processedRows: job.processedRows,
     counts: {
       added: job.added,

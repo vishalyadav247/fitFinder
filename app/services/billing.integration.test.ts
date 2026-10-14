@@ -1,5 +1,5 @@
-// Plans (M9) against the real Postgres in DATABASE_URL: the plan read from the Partner API is
-// stored and cached per shop, and the number limits are enforced on field adds, row adds,
+// Plans against the real Postgres in DATABASE_URL: charges created through the Billing API (a
+// fake Admin API) map back to plans, the plan is stored and cached per shop, and the number limits are enforced on field adds, row adds,
 // imports (rolled back), manual links and universal products. Another shop is never affected.
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -22,7 +22,7 @@ const { applyFieldIntent, FieldRuleError } =
   await import("../models/search-field.server");
 const { saveRow, FitmentRuleError } =
   await import("../models/fitment-row.server");
-const { linkManually, addUniversal, LinkRuleError } =
+const { linkChosenProduct, addUniversal, LinkRuleError } =
   await import("../models/product-link.server");
 const catalog = await import("./linking/catalog.server");
 const storageMod = await import("./storage.server");
@@ -30,15 +30,70 @@ const pipeline = await import("./import/pipeline.server");
 const billing = await import("./billing.server");
 const { coverage } = await import("./dashboard.server");
 
-const config = { orgId: "1", token: "t", appGid: "gid://shopify/App/9" };
-const gql = async () => ({
-  json: async () => ({ data: { shop: { id: "gid://shopify/Shop/1" } } }),
-});
-const partner = (sub: unknown, calls: { n: number }) =>
-  (async () => {
-    calls.n++;
-    return new Response(JSON.stringify({ data: { activeSubscription: sub } }));
-  }) as unknown as typeof fetch;
+const plansMod = await import("../models/plan.server");
+const subs = await import("./subscription.server");
+const { TEST_PLANS, withPlan } = await import("../tests/plans-fixture");
+
+/** A fake Admin API for the Billing API calls: active charges per test, created/cancelled log. */
+function fakeAdmin() {
+  const state = {
+    active: [] as { id: string; status: string; createdAt: string }[],
+    created: [] as Record<string, unknown>[],
+    cancelled: [] as string[],
+    reads: 0,
+    fail: false,
+  };
+  let n = 0;
+  const gql = async (
+    query: string,
+    opts?: { variables?: Record<string, unknown> },
+  ) => {
+    const v = opts?.variables ?? {};
+    let data: unknown;
+    if (state.fail) {
+      return { json: async () => ({ errors: [{ message: "boom" }] }) };
+    }
+    if (query.includes("ActiveSubscriptions")) {
+      state.reads++;
+      data = { currentAppInstallation: { activeSubscriptions: state.active } };
+    } else if (query.includes("ShopPlanKind")) {
+      data = { shop: { plan: { partnerDevelopment: true } } };
+    } else if (query.includes("SubscriptionCreate")) {
+      state.created.push(v);
+      const id = `gid://shopify/AppSubscription/${++n}-${Date.now()}`;
+      data = {
+        appSubscriptionCreate: {
+          appSubscription: { id, status: "PENDING", trialDays: v.trialDays },
+          confirmationUrl: `https://admin.shopify.com/confirm/${n}`,
+          userErrors: [],
+        },
+      };
+    } else if (query.includes("SubscriptionCancel")) {
+      state.cancelled.push(String(v.id));
+      state.active = state.active.filter((x) => x.id !== v.id);
+      data = {
+        appSubscriptionCancel: {
+          appSubscription: { id: v.id, status: "CANCELLED" },
+          userErrors: [],
+        },
+      };
+    } else {
+      throw new Error("unexpected query " + query.slice(0, 60));
+    }
+    return { json: async () => ({ data }) };
+  };
+  /** Shopify approves charge `id` (it becomes the active one). */
+  const approve = (id: string) => {
+    state.active = [
+      { id, status: "ACTIVE", createdAt: new Date().toISOString() },
+    ];
+  };
+  return {
+    gql: gql as unknown as Parameters<typeof billing.shopPlan>[0],
+    state,
+    approve,
+  };
+}
 
 describe.skipIf(!process.env.DATABASE_URL)(
   "plans and limits (Postgres)",
@@ -48,7 +103,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let dir: string;
 
     beforeAll(async () => {
-      dir = await mkdtemp(path.join(os.tmpdir(), "ff-billing-"));
+      plansMod.setPlansForTests(TEST_PLANS);
+      dir = await mkdtemp(path.join(os.tmpdir(), "sp-billing-"));
       storageMod.setStorageForTests(new storageMod.LocalStorage(dir));
     });
     afterAll(async () => {
@@ -56,10 +112,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
         where: { domain: { in: [DOMAIN, OTHER] } },
       });
       storageMod.setStorageForTests(undefined);
+      plansMod.setPlansForTests(undefined);
       await rm(dir, { recursive: true, force: true });
     });
     beforeEach(async () => {
       billing.clearPlanCache();
+      plansMod.setPlansForTests(TEST_PLANS);
       await prisma.shop.deleteMany({
         where: { domain: { in: [DOMAIN, OTHER] } },
       });
@@ -68,6 +126,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       for (const id of [shopId, otherId]) {
         await applyStoreType(id, "phones", { replace: false });
       }
+    });
+
+    const starterWithUniversal = withPlan("starter", {
+      toggles: { ...TEST_PLANS[0].toggles, universalProducts: true },
     });
 
     const setPlan = (id: string, plan: string) =>
@@ -79,203 +141,297 @@ describe.skipIf(!process.env.DATABASE_URL)(
     SELECT ${id}, '{}'::jsonb, 'FILL-' || g, md5('fill' || g), now()
     FROM generate_series(1, ${n}) g`;
 
-    describe("plan from the Partner API", () => {
-      it("stores the plan and trial, and caches the read for 5 minutes", async () => {
-        const calls = { n: 0 };
-        const fetcher = partner(
-          {
-            billingPeriod: "EVERY_30_DAYS",
-            trialEndsAt: "2026-10-20T00:00:00Z",
-            items: [{ handle: "growth" }],
-          },
-          calls,
+    describe("plan from the Billing API", () => {
+      const shopRef = () => ({ id: shopId, domain: DOMAIN });
+      const daysUntil = (d: Date | null) =>
+        d ? Math.round((d.getTime() - Date.now()) / 86_400_000) : 0;
+      const record = async () =>
+        (await prisma.appSubscription.findMany({ where: { shopId } }))[0];
+
+      it("creates a charge with the plan's price and trial, then stores the approved plan", async () => {
+        const admin = fakeAdmin();
+        const { confirmationUrl, trialDays } = await subs.startSubscription(
+          admin.gql,
+          shopRef(),
+          "growth",
+          "monthly",
         );
-        const now = Date.now();
-        const first = await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher,
-          now,
+        expect(confirmationUrl).toMatch(/^https:\/\/admin\.shopify\.com\//);
+        expect(trialDays).toBe(14);
+        expect(admin.state.created[0]).toMatchObject({
+          trialDays: 14,
+          test: true,
+          returnUrl:
+            "https://admin.shopify.com/store/vitest-billing/apps/sparefit/app/plans?charge=1",
+          lineItems: [
+            {
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: 29, currencyCode: "USD" },
+                  interval: "EVERY_30_DAYS",
+                },
+              },
+            },
+          ],
         });
-        expect(first).toMatchObject({
-          plan: "growth",
-          connected: true,
-          fresh: true,
+        // Not approved yet: no plan.
+        expect(
+          (await billing.shopPlan(admin.gql, shopId, { force: true })).plan,
+        ).toBe("none");
+        const pending = await record();
+        expect(pending).toMatchObject({
+          planKey: "growth",
+          status: "PENDING",
+          trialDays: 14,
         });
-        expect(first.trialEndsAt?.toISOString()).toBe(
-          "2026-10-20T00:00:00.000Z",
-        );
+
+        admin.approve(pending.shopifyId);
+        const state = await billing.shopPlan(admin.gql, shopId, {
+          force: true,
+          bypassThrottle: true,
+        });
+        expect(state.plan).toBe("growth");
+        expect(daysUntil(state.trialEndsAt)).toBe(14);
         const shop = await prisma.shop.findUniqueOrThrow({
           where: { id: shopId },
         });
-        expect(shop.plan).toBe("growth");
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher,
-          now: now + 60_000,
+        expect(shop).toMatchObject({
+          plan: "growth",
+          subscriptionId: pending.shopifyId,
         });
-        expect(calls.n).toBe(1);
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher,
-          now: now + 6 * 60_000,
-        });
-        // A forced read right after a read is absorbed (at most one per 10 s)…
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher,
-          now: now + 6 * 60_000 + 5_000,
-          force: true,
-        });
-        expect(calls.n).toBe(2);
-        // …later it goes through.
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher,
-          now: now + 6 * 60_000 + 11_000,
-          force: true,
-        });
-        expect(calls.n).toBe(3);
         expect(
           (await prisma.shop.findUniqueOrThrow({ where: { id: otherId } }))
             .plan,
         ).toBe("none");
       });
 
-      it("marks a shop without a subscription and keeps the stored plan on failures", async () => {
-        const calls = { n: 0 };
+      it("uses the backoffice's current price and trial for new charges", async () => {
+        plansMod.setPlansForTests(
+          withPlan("growth", {
+            priceMonthly: 39,
+            priceYearly: 390,
+            trialDays: 7,
+          }),
+        );
+        const admin = fakeAdmin();
+        await subs.startSubscription(admin.gql, shopRef(), "growth", "yearly");
+        expect(admin.state.created[0]).toMatchObject({
+          trialDays: 7,
+          lineItems: [
+            {
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: 390 },
+                  interval: "ANNUAL",
+                },
+              },
+            },
+          ],
+        });
+      });
+
+      it("refuses free, hidden and unknown plans and missing yearly prices", async () => {
+        const admin = fakeAdmin();
+        for (const key of ["starter", "business", "nope"]) {
+          await expect(
+            subs.startSubscription(admin.gql, shopRef(), key, "monthly"),
+          ).rejects.toThrow(subs.BillingError);
+        }
+        plansMod.setPlansForTests(withPlan("growth", { priceYearly: null }));
+        await expect(
+          subs.startSubscription(admin.gql, shopRef(), "growth", "yearly"),
+        ).rejects.toThrow(subs.BillingError);
+        expect(admin.state.created).toHaveLength(0);
+      });
+
+      it("doesn't give a new trial for days already used", async () => {
+        const admin = fakeAdmin();
+        await subs.startSubscription(admin.gql, shopRef(), "growth", "monthly");
+        const first = await record();
+        // Approved 10 days ago, ended now.
+        await prisma.appSubscription.update({
+          where: { id: first.id },
+          data: {
+            status: "CANCELLED",
+            activatedAt: new Date(Date.now() - 10 * 86_400_000),
+            endedAt: new Date(),
+          },
+        });
+        expect(await subs.trialDaysUsed(shopId)).toBe(10);
+        const again = await subs.startSubscription(
+          admin.gql,
+          shopRef(),
+          "pro",
+          "monthly",
+        );
+        expect(again.trialDays).toBe(4);
+        expect(await subs.trialDaysUsed(otherId)).toBe(0);
+      });
+
+      it("moves to the free plan: cancels the charge and keeps the free plan", async () => {
+        const admin = fakeAdmin();
+        await subs.startSubscription(admin.gql, shopRef(), "pro", "monthly");
+        const charge = await record();
+        admin.approve(charge.shopifyId);
+        await billing.shopPlan(admin.gql, shopId, { force: true });
+        await subs.switchToFree(admin.gql, shopId, "starter");
+        expect(admin.state.cancelled).toEqual([charge.shopifyId]);
+        const shop = await prisma.shop.findUniqueOrThrow({
+          where: { id: shopId },
+        });
+        expect(shop).toMatchObject({ plan: "starter", subscriptionId: null });
+        const ended = await prisma.appSubscription.findUniqueOrThrow({
+          where: { id: charge.id },
+        });
+        expect(ended.endedAt).not.toBeNull();
+        // A later read keeps the free plan (no active charge).
         expect(
           (
-            await billing.shopPlan(gql, shopId, {
-              config,
-              fetcher: partner(null, calls),
+            await billing.shopPlan(admin.gql, shopId, {
+              force: true,
+              bypassThrottle: true,
+            })
+          ).plan,
+        ).toBe("starter");
+        await expect(
+          subs.switchToFree(admin.gql, shopId, "growth"),
+        ).rejects.toThrow(subs.BillingError);
+      });
+
+      it("drops a paid plan whose charge is no longer active", async () => {
+        const admin = fakeAdmin();
+        await subs.startSubscription(admin.gql, shopRef(), "growth", "monthly");
+        const charge = await record();
+        admin.approve(charge.shopifyId);
+        await billing.shopPlan(admin.gql, shopId, { force: true });
+        admin.state.active = [];
+        expect(
+          (
+            await billing.shopPlan(admin.gql, shopId, {
+              force: true,
+              bypassThrottle: true,
             })
           ).plan,
         ).toBe("none");
-        await setPlan(shopId, "pro");
-        const failing = (async () =>
-          new Response("{}", { status: 503 })) as unknown as typeof fetch;
-        const state = await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: failing,
+        const ended = await prisma.appSubscription.findUniqueOrThrow({
+          where: { id: charge.id },
+        });
+        expect(ended.endedAt).not.toBeNull();
+      });
+
+      it("adopts an active charge it has no record of, by its name", async () => {
+        const admin = fakeAdmin();
+        admin.state.active = [
+          {
+            id: "gid://shopify/AppSubscription/lost-1",
+            name: "SpareFit Pro",
+            status: "ACTIVE",
+            createdAt: new Date().toISOString(),
+            lineItems: [
+              {
+                plan: {
+                  pricingDetails: {
+                    __typename: "AppRecurringPricing",
+                    interval: "EVERY_30_DAYS",
+                    price: { amount: "99.0" },
+                  },
+                },
+              },
+            ],
+          },
+        ] as never;
+        const state = await billing.shopPlan(admin.gql, shopId, {
           force: true,
+        });
+        expect(state.plan).toBe("pro");
+        expect(await record()).toMatchObject({
+          planKey: "pro",
+          shopifyId: "gid://shopify/AppSubscription/lost-1",
+        });
+      });
+
+      it("counts a started trial day as used", async () => {
+        const admin = fakeAdmin();
+        await subs.startSubscription(admin.gql, shopRef(), "growth", "monthly");
+        const charge = await record();
+        await prisma.appSubscription.update({
+          where: { id: charge.id },
+          data: {
+            activatedAt: new Date(Date.now() - 2 * 3600_000),
+            endedAt: new Date(),
+          },
+        });
+        expect(await subs.trialDaysUsed(shopId)).toBe(1);
+      });
+
+      it("records webhook statuses", async () => {
+        const admin = fakeAdmin();
+        await subs.startSubscription(admin.gql, shopRef(), "growth", "monthly");
+        const charge = await record();
+        await subs.recordStatus(shopId, charge.shopifyId, "active");
+        let row = await prisma.appSubscription.findUniqueOrThrow({
+          where: { id: charge.id },
+        });
+        expect(row.status).toBe("ACTIVE");
+        expect(row.activatedAt).not.toBeNull();
+        await subs.recordStatus(shopId, charge.shopifyId, "CANCELLED");
+        row = await prisma.appSubscription.findUniqueOrThrow({
+          where: { id: charge.id },
+        });
+        expect(row.status).toBe("CANCELLED");
+        expect(row.endedAt).not.toBeNull();
+      });
+
+      it("caches reads and keeps the stored plan on failures", async () => {
+        const admin = fakeAdmin();
+        const now = Date.now();
+        await billing.shopPlan(admin.gql, shopId, { now });
+        await billing.shopPlan(admin.gql, shopId, { now: now + 30_000 });
+        expect(admin.state.reads).toBe(1);
+        // "No plan" is re-read after a minute.
+        await billing.shopPlan(admin.gql, shopId, { now: now + 90_000 });
+        expect(admin.state.reads).toBe(2);
+        await setPlan(shopId, "pro");
+        admin.state.fail = true;
+        const state = await billing.shopPlan(admin.gql, shopId, {
+          force: true,
+          bypassThrottle: true,
+          now: now + 100_000,
         });
         expect(state).toMatchObject({ plan: "pro", fresh: false });
       });
 
       it("shares one read between parallel loaders", async () => {
-        const calls = { n: 0 };
-        const fetcher = partner(
-          {
-            billingPeriod: null,
-            trialEndsAt: null,
-            items: [{ handle: "pro" }],
-          },
-          calls,
-        );
+        const admin = fakeAdmin();
         await Promise.all([
-          billing.shopPlan(gql, shopId, { config, fetcher }),
-          billing.shopPlan(gql, shopId, { config, fetcher }),
+          billing.shopPlan(admin.gql, shopId),
+          billing.shopPlan(admin.gql, shopId),
         ]);
-        expect(calls.n).toBe(1);
-      });
-
-      it("works without billing credentials (stored plan, not connected)", async () => {
-        // A new (or reinstalled) shop has no plan until the Partner API says so.
-        expect(
-          await billing.shopPlan(gql, shopId, { config: null }),
-        ).toMatchObject({
-          connected: false,
-          plan: "none",
-        });
-      });
-
-      it("waits a minute after a failed read, unless forced", async () => {
-        const calls = { n: 0 };
-        const failing = (async () => {
-          calls.n++;
-          return new Response("{}", { status: 429 });
-        }) as unknown as typeof fetch;
-        const now = Date.now();
-        await billing.shopPlan(gql, shopId, { config, fetcher: failing, now });
-        const again = await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: failing,
-          now: now + 30_000,
-        });
-        expect(again.fresh).toBe(false);
-        expect(calls.n).toBe(1);
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: failing,
-          now: now + 30_000,
-          force: true,
-        });
-        expect(calls.n).toBe(2);
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: failing,
-          now: now + 120_000,
-        });
-        expect(calls.n).toBe(3);
-      });
-
-      it("doesn't let an older read overwrite a newer forced one", async () => {
-        let release!: () => void;
-        const gate = new Promise<void>((r) => (release = r));
-        const slowNone = (async () => {
-          await gate; // answers after the forced read
-          return new Response(
-            JSON.stringify({ data: { activeSubscription: null } }),
-          );
-        }) as unknown as typeof fetch;
-        const growth = partner(
-          {
-            billingPeriod: null,
-            trialEndsAt: null,
-            items: [{ handle: "growth" }],
-          },
-          { n: 0 },
-        );
-        const old = billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: slowNone,
-        });
-        const forced = await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: growth,
-          force: true,
-        });
-        expect(forced.plan).toBe("growth");
-        release();
-        await old;
-        const shop = await prisma.shop.findUniqueOrThrow({
-          where: { id: shopId },
-        });
-        expect(shop.plan).toBe("growth");
-      });
-
-      it("keeps 'no subscription' for a minute only", async () => {
-        const calls = { n: 0 };
-        const none = partner(null, calls);
-        const now = Date.now();
-        await billing.shopPlan(gql, shopId, { config, fetcher: none, now });
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: none,
-          now: now + 30_000,
-        });
-        expect(calls.n).toBe(1);
-        await billing.shopPlan(gql, shopId, {
-          config,
-          fetcher: none,
-          now: now + 90_000,
-        });
-        expect(calls.n).toBe(2);
+        expect(admin.state.reads).toBe(1);
       });
     });
 
     describe("limits", () => {
-      it("doesn't limit search fields by plan (only the 20-field cap)", async () => {
+      it("limits search fields by plan", async () => {
+        plansMod.setPlansForTests(
+          withPlan("starter", {
+            limits: { ...TEST_PLANS[0].limits, searchFields: 4 },
+          }),
+        );
+        await applyFieldIntent(shopId, { intent: "add" });
+        await expect(
+          applyFieldIntent(shopId, { intent: "add" }),
+        ).rejects.toThrow("The Starter plan allows up to 4 search fields.");
+        // Another shop on Pro isn't affected.
+        await setPlan(otherId, "pro");
+        await applyFieldIntent(otherId, { intent: "add" });
+        await applyFieldIntent(otherId, { intent: "add" });
+        expect(
+          await prisma.searchField.count({ where: { shopId: otherId } }),
+        ).toBe(5);
+      });
+
+      it("allows up to the 20-field cap when the plan allows more", async () => {
         await setPlan(shopId, "none");
         // Phones preset: Brand, Series, Model (3 fields); Starter can go to 5 and on.
         await applyFieldIntent(shopId, { intent: "add" });
@@ -324,7 +480,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await pipeline.saveMapping(shopId, job.id, {
           choices,
           hasHeader: true,
-          lookForSkus: true,
           mode: "upsert",
         });
         await pipeline.runPreview(job.id);
@@ -340,7 +495,31 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(await prisma.fitmentRow.count({ where: { shopId } })).toBe(4999);
       });
 
+      it("refuses universal products when the plan doesn't include them", async () => {
+        await catalog.replaceCatalog(
+          shopId,
+          [
+            {
+              productId: "gid://shopify/Product/1",
+              title: "P1",
+              handle: "p-1",
+              status: "ACTIVE",
+              variants: [],
+            },
+          ],
+          await catalog.dbNow(),
+        );
+        await expect(
+          addUniversal(shopId, ["gid://shopify/Product/1"]),
+        ).rejects.toThrow(
+          "Universal products isn't included in the Starter plan.",
+        );
+        await setPlan(shopId, "growth");
+        expect(await addUniversal(shopId, ["gid://shopify/Product/1"])).toBe(1);
+      });
+
       it("counts linked and universal products against the limit", async () => {
+        plansMod.setPlansForTests(starterWithUniversal);
         const products = Array.from({ length: 52 }, (_, i) => ({
           productId: `gid://shopify/Product/${i + 1}`,
           title: `P${i + 1}`,
@@ -348,12 +527,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           status: "ACTIVE",
           variants: [],
         }));
-        await catalog.replaceCatalog(
-          shopId,
-          products,
-          [],
-          await catalog.dbNow(),
-        );
+        await catalog.replaceCatalog(shopId, products, await catalog.dbNow());
         const ids = products.map((p) => p.productId);
         expect(await addUniversal(shopId, ids.slice(0, 49))).toBe(49);
         await expect(addUniversal(shopId, ids.slice(49, 51))).rejects.toThrow(
@@ -375,17 +549,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
           });
           expect(saved.ok).toBe(true);
         }
+        // Choose product: the rows take the chosen variant's SKU (S{n}).
         const target = (n: number) => ({
-          type: "product" as const,
           productId: ids[n],
-          variantId: null,
+          variantId: `gid://shopify/ProductVariant/${n + 1}`,
+          sku: `S${n}`,
         });
-        await linkManually(shopId, "L1", target(49)); // the 50th product
-        await expect(linkManually(shopId, "L2", target(50))).rejects.toThrow(
-          LinkRuleError,
-        );
-        await linkManually(shopId, "L2", target(0)); // already universal: no new product
-        await linkManually(shopId, "L1", target(50)); // replaces L1's own product: still 50
+        await linkChosenProduct(shopId, "L1", target(49)); // the 50th product
+        await expect(
+          linkChosenProduct(shopId, "L2", target(50)),
+        ).rejects.toThrow(LinkRuleError);
+        await linkChosenProduct(shopId, "L2", target(0)); // already universal: no new product
+        await linkChosenProduct(shopId, "S49", target(50)); // replaces its own product: still 50
         expect(await billing.linkedProductCount(shopId)).toBe(50);
         expect(await billing.linkedProductCount(otherId)).toBe(0);
 
@@ -397,18 +572,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await prisma.universalProduct.create({
           data: { shopId, productId: ids[51] },
         }); // 51 now
-        await linkManually(shopId, "L2", target(1)); // already counted
-        expect(await addUniversal(shopId, [ids[50]])).toBe(1); // linked via L1 already
+        await linkChosenProduct(shopId, "S0", target(1)); // already counted
+        expect(await addUniversal(shopId, [ids[50]])).toBe(1); // linked via S50 already
         await expect(addUniversal(shopId, [ids[51], ids[0]])).resolves.toBe(0);
 
         // A link whose rows are gone doesn't count (and can't be seen or removed).
         await prisma.fitmentRow.deleteMany({
-          where: { shopId, attachment: "L1" },
+          where: { shopId, attachment: "S50" },
         });
         expect(await billing.linkedProductCount(shopId)).toBe(51);
       });
 
       it("lets only one of two parallel universal adds pass the limit", async () => {
+        plansMod.setPlansForTests(starterWithUniversal);
         const products = Array.from({ length: 52 }, (_, i) => ({
           productId: `gid://shopify/Product/${i + 1}`,
           title: `P${i + 1}`,
@@ -416,12 +592,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           status: "ACTIVE",
           variants: [],
         }));
-        await catalog.replaceCatalog(
-          shopId,
-          products,
-          [],
-          await catalog.dbNow(),
-        );
+        await catalog.replaceCatalog(shopId, products, await catalog.dbNow());
         const ids = products.map((p) => p.productId);
         await addUniversal(shopId, ids.slice(0, 49));
         const results = await Promise.allSettled([
@@ -461,7 +632,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await pipeline.saveMapping(shopId, job.id, {
           choices,
           hasHeader: true,
-          lookForSkus: true,
           mode: "upsert",
         });
         await pipeline.runPreview(job.id);
@@ -491,7 +661,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await pipeline.saveMapping(shopId, job.id, {
           choices,
           hasHeader: true,
-          lookForSkus: true,
           mode: "replace",
         });
         await pipeline.runPreview(job.id);

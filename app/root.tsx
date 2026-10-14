@@ -19,7 +19,7 @@ export function ErrorBoundary() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>FitFinder</title>
+        <title>SpareFit – Parts Finder</title>
         <Meta />
         <Links />
       </head>
@@ -30,8 +30,8 @@ export function ErrorBoundary() {
           </h1>
           <p style={{ margin: 0 }}>
             {notFound
-              ? "This page doesn't exist. Open FitFinder from Apps in your Shopify admin."
-              : "Reload the page to try again. If it keeps happening, open FitFinder from Apps in your Shopify admin."}
+              ? "This page doesn't exist. Open SpareFit from Apps in your Shopify admin."
+              : "Reload the page to try again. If it keeps happening, open SpareFit from Apps in your Shopify admin."}
           </p>
         </div>
         <Scripts />

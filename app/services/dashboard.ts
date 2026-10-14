@@ -1,6 +1,6 @@
 // Dashboard content (specs/dashboard.md; texts from .claude/design/scripts/screens/dashboard.js):
 // the five setup guide steps with their real state, and the four overview cards. Pure.
-import { effectivePlan, trialDaysLeft, type ShopPlan } from "./billing";
+import { trialDaysLeft } from "./billing";
 
 export interface DashboardFacts {
   fields: { label: string; type: "list" | "years" }[];
@@ -16,9 +16,12 @@ export interface DashboardFacts {
   embedOn: boolean | null;
   /** Of the 4 storefront features; null when the theme couldn't be read. */
   blocksAdded: number | null;
-  plan: ShopPlan;
-  /** A plan is picked (billing connected and a subscription exists). */
+  /** The name of the plan whose limits apply (the fallback plan when none is picked). */
+  planName: string;
+  /** A plan is picked (a free plan, or an active charge). */
   planChosen: boolean;
+  /** The plan step's text before a plan is picked (from the plans set up in the backoffice). */
+  planHint: string;
   trialEndsAt: Date | null;
 }
 
@@ -39,7 +42,6 @@ const s = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 export function guideSteps(f: DashboardFacts, now = new Date()): GuideStep[] {
   const un = f.unlinkedSkus;
-  const plan = effectivePlan(f.plan);
   const days = trialDaysLeft(f.trialEndsAt, now);
   return [
     {
@@ -92,9 +94,9 @@ export function guideSteps(f: DashboardFacts, now = new Date()): GuideStep[] {
       title: "Choose a plan",
       description: f.planChosen
         ? days
-          ? `You are on the ${plan.name} trial, ${days} day${s(days, "", "s")} left. Change or cancel your plan any time.`
-          : `You are on the ${plan.name} plan. Change it any time as your catalog grows.`
-        : "Pick the plan that suits your catalog. Starter is free; paid plans start with a 14-day free trial.",
+          ? `You are on the ${f.planName} trial, ${days} day${s(days, "", "s")} left. Change or cancel your plan any time.`
+          : `You are on the ${f.planName} plan. Change it any time as your catalog grows.`
+        : f.planHint,
       cta: "Compare plans",
       to: "/app/plans",
       icon: "plans",

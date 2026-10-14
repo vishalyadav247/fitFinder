@@ -12,9 +12,9 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="ff-page-head">
-      <h1 className="ff-page-title">{title}</h1>
-      {children && <div className="ff-page-actions">{children}</div>}
+    <div className="sp-page-head">
+      <h1 className="sp-page-title">{title}</h1>
+      {children && <div className="sp-page-actions">{children}</div>}
     </div>
   );
 }

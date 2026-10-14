@@ -1,6 +1,6 @@
-// Linking against the real Postgres in DATABASE_URL (M6 "Done when"): auto-linking by SKU /
-// product link / collection link / handle, first match wins, manual links kept, webhooks, the
-// Product mapping lists, link check runs with a fake Admin API, and shop isolation.
+// Linking against the real Postgres in DATABASE_URL (M6 "Done when"): auto-linking by SKU only,
+// first match wins, manual links kept, webhooks, the Product mapping lists, link check runs with
+// a fake Admin API, and shop isolation.
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const DOMAIN = "vitest-linking.myshopify.com";
@@ -25,7 +25,6 @@ try {
 type Product = Parameters<typeof catalog.upsertProducts>[1][number];
 const P = (n: number) => `gid://shopify/Product/${n}`;
 const V = (n: number) => `gid://shopify/ProductVariant/${n}`;
-const C = (n: number) => `gid://shopify/Collection/${n}`;
 const product = (
   n: number,
   skus: string[],
@@ -39,11 +38,8 @@ const product = (
 });
 
 /** A full sync whose export started now: everything in the cache is older and replaced. */
-const loadCatalog = async (
-  shop: string,
-  products: Product[],
-  collections: Parameters<typeof catalog.replaceCatalog>[2],
-) => catalog.replaceCatalog(shop, products, collections, await catalog.dbNow());
+const loadCatalog = async (shop: string, products: Product[]) =>
+  catalog.replaceCatalog(shop, products, await catalog.dbNow());
 
 describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
   let shopId: string;
@@ -63,6 +59,11 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     });
     shopId = (await upsertShopOnInstall(DOMAIN)).id;
     otherShopId = (await upsertShopOnInstall(OTHER)).id;
+    // Universal products are a Growth feature (seeded plans).
+    await prisma.shop.updateMany({
+      where: { id: { in: [shopId, otherShopId] } },
+      data: { plan: "growth" },
+    });
     await applyStoreType(shopId, "automotive", { replace: false });
     await applyStoreType(otherShopId, "automotive", { replace: false });
     make = (await prisma.searchField.findFirstOrThrow({
@@ -82,6 +83,12 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
       })),
     });
 
+  /** A link made by hand before Choose product replaced SKUs (2026-10-09). */
+  const manualLink = (attachment: string, productId: string) =>
+    prisma.productLink.create({
+      data: { shopId, attachment, productId, method: "manual" },
+    });
+
   const links = async (shop = shopId) =>
     Object.fromEntries(
       (
@@ -91,110 +98,71 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
         })
       ).map((l) => [
         l.attachment,
-        `${l.kind}:${l.productId ?? l.collectionId}${l.variantId ? `:${l.variantId}` : ""}:${l.method}`,
+        `${l.productId}${l.variantId ? `:${l.variantId}` : ""}:${l.method}`,
       ]),
     );
 
-  it("links SKUs (case and spaces ignored), product and collection links", async () => {
-    await loadCatalog(
-      shopId,
-      [product(1, ["BRK-1", "brk-2"]), product(2, [], { handle: "disc" })],
-      [{ collectionId: C(5), handle: "audi-a4", title: "Audi A4" }],
-    );
+  it("links SKUs only (case and spaces ignored)", async () => {
+    await loadCatalog(shopId, [
+      product(1, ["BRK-1", "brk-2"]),
+      product(2, [], { handle: "disc" }),
+    ]);
+    const TAB = String.fromCharCode(9);
+    const NBSP = String.fromCharCode(160);
     await rows(shopId, [
       ["Audi", " brk-1 "],
       ["BMW", "BRK-2"],
-      ["Audi", "https://shop.example/products/Disc?x=1"],
+      ["Seat", `${TAB}brk-2${NBSP}`],
+      // Links and handles aren't attachments: they match nothing.
+      ["Audi", "https://shop.example/products/disc"],
       ["Audi", "/collections/audi-a4"],
+      ["Audi", "disc"],
       ["Audi", "NOPE"],
     ]);
-    expect(await relink(shopId)).toBe(4);
+    expect(await relink(shopId)).toBe(3);
     expect(await links()).toEqual({
-      " brk-1 ": `sku:${P(1)}:${V(100)}:auto`,
-      "BRK-2": `sku:${P(1)}:${V(101)}:auto`,
-      "https://shop.example/products/Disc?x=1": `product:${P(2)}:auto`,
-      "/collections/audi-a4": `collection:${C(5)}:auto`,
+      " brk-1 ": `${P(1)}:${V(100)}:auto`,
+      "BRK-2": `${P(1)}:${V(101)}:auto`,
+      [`${TAB}brk-2${NBSP}`]: `${P(1)}:${V(101)}:auto`,
     });
     // Nothing new the second time.
     expect(await relink(shopId)).toBe(0);
     expect(await rowCounts(shopId)).toMatchObject({
-      unlinkedRows: 1,
-      unlinkedSkus: 1,
-    });
-  });
-
-  it("reads bare attachments as a SKU first, then a handle, whatever the import setting", async () => {
-    await loadCatalog(
-      shopId,
-      [
-        product(1, ["pads", "TAB"], { handle: "front" }),
-        product(2, [], { handle: "pads" }),
-      ],
-      [],
-    );
-    const TAB = String.fromCharCode(9);
-    const NBSP = String.fromCharCode(160);
-    await rows(shopId, [
-      ["Audi", "Front"],
-      ["Audi", "pads"],
-      ["Audi", `${TAB}tab${NBSP}`],
-    ]);
-    // A handle-based import with "Look for SKUs" off doesn't reclassify the shop's SKU rows.
-    await prisma.importJob.create({
-      data: {
-        shopId,
-        fileName: "a.csv",
-        status: "completed",
-        lookForSkus: false,
-        finishedAt: new Date(),
-      },
-    });
-    await relink(shopId);
-    expect(await links()).toEqual({
-      Front: `product:${P(1)}:auto`,
-      pads: `sku:${P(1)}:${V(100)}:auto`,
-      [`${TAB}tab${NBSP}`]: `sku:${P(1)}:${V(101)}:auto`,
+      unlinkedRows: 4,
+      unlinkedSkus: 4,
     });
   });
 
   it("first match wins on duplicate SKUs: active products first, then the oldest", async () => {
-    await loadCatalog(
-      shopId,
-      [
-        product(3, ["DUP"], { status: "DRAFT" }),
-        product(9, ["DUP"]),
-        product(12, ["DUP"]),
-      ],
-      [],
-    );
+    await loadCatalog(shopId, [
+      product(3, ["DUP"], { status: "DRAFT" }),
+      product(9, ["DUP"]),
+      product(12, ["DUP"]),
+    ]);
     await rows(shopId, [["Audi", "DUP"]]);
     await relink(shopId);
-    expect(await links()).toEqual({ DUP: `sku:${P(9)}:${V(900)}:auto` });
+    expect(await links()).toEqual({ DUP: `${P(9)}:${V(900)}:auto` });
   });
 
   it("keeps manual links, follows SKU changes and deletes (webhooks)", async () => {
-    await loadCatalog(
-      shopId,
-      [product(1, ["A"]), product(2, ["B"]), product(4, ["A"])],
-      [],
-    );
+    await loadCatalog(shopId, [
+      product(1, ["A"]),
+      product(2, ["B"]),
+      product(4, ["A"]),
+    ]);
     await rows(shopId, [
       ["Audi", "A"],
       ["Audi", "B"],
       ["Audi", "X"],
     ]);
     await relink(shopId);
-    await mapping.linkManually(shopId, "X", {
-      type: "product",
-      productId: P(2),
-      variantId: null,
-    });
+    await manualLink("X", P(2));
     // A manual link is never changed by matching, even when the SKU starts to match.
     await catalog.upsertProducts(shopId, [product(1, ["A", "X"])], {
       replaceVariants: true,
     });
     await relinkProduct(shopId, product(1, ["A", "X"]));
-    expect((await links()).X).toBe(`sku:${P(2)}:manual`);
+    expect((await links()).X).toBe(`${P(2)}:manual`);
 
     // SKU B changes on product 2: its row is unlinked again.
     await catalog.upsertProducts(shopId, [product(2, ["B2"])], {
@@ -206,8 +174,8 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     // Product 1 deleted: A falls back to product 4 (same SKU); the manual link to 2 stays.
     await removeProduct(shopId, P(1));
     expect(await links()).toEqual({
-      A: `sku:${P(4)}:${V(400)}:auto`,
-      X: `sku:${P(2)}:manual`,
+      A: `${P(4)}:${V(400)}:auto`,
+      X: `${P(2)}:manual`,
     });
     // Product 2 deleted: its manual link goes too.
     await removeProduct(shopId, P(2));
@@ -215,48 +183,88 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
   });
 
   it("drops links and universal products whose product is gone after a full sync", async () => {
-    await loadCatalog(shopId, [product(1, ["A"]), product(2, [])], []);
+    await loadCatalog(shopId, [product(1, ["A"]), product(2, [])]);
     await rows(shopId, [
       ["Audi", "A"],
       ["Audi", "M"],
     ]);
     await relink(shopId);
-    await mapping.linkManually(shopId, "M", {
-      type: "product",
-      productId: P(2),
-      variantId: null,
-    });
+    await manualLink("M", P(2));
     await mapping.addUniversal(shopId, [P(2)]);
-    await loadCatalog(shopId, [product(1, ["A"])], []);
+    await loadCatalog(shopId, [product(1, ["A"])]);
     await relink(shopId, { pruneMissing: true });
-    expect(await links()).toEqual({ A: `sku:${P(1)}:${V(100)}:auto` });
+    expect(await links()).toEqual({ A: `${P(1)}:${V(100)}:auto` });
     expect(await prisma.universalProduct.count({ where: { shopId } })).toBe(0);
   });
 
   it("never links across shops", async () => {
-    await loadCatalog(otherShopId, [product(1, ["A"])], []);
+    await loadCatalog(otherShopId, [product(1, ["A"])]);
     await rows(shopId, [["Audi", "A"]]);
     await rows(otherShopId, [["Audi", "A"]]);
     await relink(shopId);
     expect(await links()).toEqual({});
     await relink(otherShopId);
     expect(await links(otherShopId)).toEqual({
-      A: `sku:${P(1)}:${V(100)}:auto`,
+      A: `${P(1)}:${V(100)}:auto`,
     });
     await expect(mapping.addUniversal(shopId, [P(1)])).resolves.toBe(0);
   });
 
+  it("Choose product: rows take the store SKU, copies are dropped, the old link goes", async () => {
+    await loadCatalog(shopId, [product(1, ["NEW-1"]), product(2, ["OLD"])]);
+    await rows(shopId, [
+      ["Audi", "OLD-9"],
+      ["BMW", "OLD-9"],
+      ["Audi", "NEW-1"], // the Audi row exists with the new SKU already
+    ]);
+    await relink(shopId);
+    await manualLink("OLD-9", P(2)); // a link made the old way
+    const changed = await mapping.linkChosenProduct(shopId, "OLD-9", {
+      productId: P(1),
+      variantId: V(100),
+      sku: "NEW-1",
+    });
+    expect(changed).toBe(1); // BMW; the Audi copy was dropped
+    const all = await prisma.fitmentRow.findMany({
+      where: { shopId },
+      orderBy: { id: "asc" },
+    });
+    expect(
+      all.map((r) => [
+        (r.values as Record<string, string>)[make],
+        r.attachment,
+      ]),
+    ).toEqual([
+      ["BMW", "NEW-1"],
+      ["Audi", "NEW-1"],
+    ]);
+    // The hash follows the new SKU: the row can't be added again.
+    expect(new Set(all.map((r) => r.rowHash)).size).toBe(2);
+    expect(await links()).toEqual({ "NEW-1": `${P(1)}:${V(100)}:auto` });
+    // Matching keeps it, and the old SKU in a re-import comes back unlinked.
+    await rows(shopId, [["Audi", "OLD-9"]]);
+    await relink(shopId);
+    expect(await links()).toEqual({ "NEW-1": `${P(1)}:${V(100)}:auto` });
+    expect((await rowCounts(shopId)).unlinkedSkus).toBe(1);
+    // Choosing the product whose SKU the rows already have just links them.
+    await prisma.productLink.deleteMany({ where: { shopId } });
+    expect(
+      await mapping.linkChosenProduct(shopId, "NEW-1", {
+        productId: P(1),
+        variantId: V(100),
+        sku: "NEW-1",
+      }),
+    ).toBe(2);
+    expect((await links())["NEW-1"]).toBe(`${P(1)}:${V(100)}:auto`);
+  });
+
   it("lists unlinked rows by attachment, products without data and universal products", async () => {
-    await loadCatalog(
-      shopId,
-      [
-        product(1, ["A"], { title: "Alpha" }),
-        product(2, ["", "B"], { title: "Beta" }),
-        product(3, [], { title: "Gamma" }),
-        product(4, ["D"], { title: "Draft", status: "DRAFT" }),
-      ],
-      [],
-    );
+    await loadCatalog(shopId, [
+      product(1, ["A"], { title: "Alpha" }),
+      product(2, ["", "B"], { title: "Beta" }),
+      product(3, [], { title: "Gamma" }),
+      product(4, ["D"], { title: "Draft", status: "DRAFT" }),
+    ]);
     await rows(shopId, [
       ["Audi", "A"],
       ["Audi", "Z"],
@@ -266,9 +274,9 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     await relink(shopId);
 
     const unlinked = await mapping.unlinkedGroups(shopId, 1);
-    expect(unlinked.items.map((g) => [g.attachment, g.rows, g.kind])).toEqual([
-      ["Z", 2, "sku"],
-      ["Y", 1, "sku"],
+    expect(unlinked.items.map((g) => [g.attachment, g.rows])).toEqual([
+      ["Z", 2],
+      ["Y", 1],
     ]);
     expect(unlinked.items[0].first.values[make]).toBe("Audi");
 
@@ -313,11 +321,11 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     await mapping.removeUniversal(shopId, P(3));
     expect((await mapping.universalProducts(shopId, 1)).total).toBe(0);
 
-    // Linking by hand removes the group and links every row with that attachment.
-    await mapping.linkManually(shopId, "Z", {
-      type: "product",
+    // Choose product removes the group: every row with that attachment takes the product's SKU.
+    await mapping.linkChosenProduct(shopId, "Z", {
       productId: P(3),
-      variantId: null,
+      variantId: V(300),
+      sku: "G-1",
     });
     expect(
       (await mapping.unlinkedGroups(shopId, 1)).items.map((g) => g.attachment),
@@ -325,16 +333,18 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     expect(
       (await mapping.productsWithoutData(shopId, 1)).items.map((p) => p.title),
     ).toEqual(["Beta"]);
-    // The manual link outlives its rows, but the product has no filter data any more.
-    await prisma.fitmentRow.deleteMany({ where: { shopId, attachment: "Z" } });
+    // The link outlives its rows, but the product has no filter data any more.
+    await prisma.fitmentRow.deleteMany({
+      where: { shopId, attachment: "G-1" },
+    });
     expect(
       (await mapping.productsWithoutData(shopId, 1)).items.map((p) => p.title),
     ).toEqual(["Beta", "Gamma"]);
     await expect(
-      mapping.linkManually(shopId, "gone", {
-        type: "product",
+      mapping.linkChosenProduct(shopId, "gone", {
         productId: P(3),
-        variantId: null,
+        variantId: V(300),
+        sku: "G-1",
       }),
     ).rejects.toThrow(mapping.LinkRuleError);
   });
@@ -366,14 +376,6 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
             },
           },
         },
-        CatalogCollections: {
-          data: {
-            collections: {
-              pageInfo: { hasNextPage: false, endCursor: null },
-              nodes: [{ id: C(1), handle: "audi", title: "Audi" }],
-            },
-          },
-        },
       };
       const gql = async (query: string) => {
         const name = Object.keys(bodies).find((k) => query.includes(k))!;
@@ -391,6 +393,7 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
         await rows(shopId, [
           ["Audi", "A"],
           ["Audi", "/collections/audi"],
+          ["Audi", "pads"],
         ]);
         expect((await runs.linkCheckState(shopId)).status).toBe("idle");
         const attempt = await runs.prepareLinkCheck(shopId, {
@@ -409,16 +412,14 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
         const state = await runs.linkCheckState(shopId);
         expect(state).toMatchObject({
           status: "completed",
-          newMatches: 2,
+          newMatches: 1,
           catalogReady: true,
         });
-        expect(await links()).toEqual({
-          A: `sku:${P(1)}:${V(100)}:auto`,
-          "/collections/audi": `collection:${C(1)}:auto`,
-        });
+        // Only the SKU links: not the collection link, nor the product's handle.
+        expect(await links()).toEqual({ A: `${P(1)}:${V(100)}:auto` });
         // Running the same attempt again (redelivery) is a no-op.
         await runs.runLinkCheck(shopId, attempt!, fakeAdmin());
-        expect((await runs.linkCheckState(shopId)).newMatches).toBe(2);
+        expect((await runs.linkCheckState(shopId)).newMatches).toBe(1);
       } finally {
         vi.unstubAllGlobals();
       }
@@ -447,7 +448,7 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     });
 
     it("syncs one product from Shopify: changed, then deleted", async () => {
-      await loadCatalog(shopId, [product(1, ["A"])], []);
+      await loadCatalog(shopId, [product(1, ["A"])]);
       await rows(shopId, [
         ["Audi", "A"],
         ["Audi", "B"],
@@ -467,7 +468,7 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
         json: async () => ({ data: { product: current } }),
       });
       await runs.syncProduct(shopId, P(1), gqlFor);
-      expect(await links()).toEqual({ B: `sku:${P(1)}:${V(100)}:auto` });
+      expect(await links()).toEqual({ B: `${P(1)}:${V(100)}:auto` });
       current = null;
       await runs.syncProduct(shopId, P(1), gqlFor);
       expect(await links()).toEqual({});
@@ -481,7 +482,7 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     });
 
     it("keeps webhook changes made while a full export ran", async () => {
-      await loadCatalog(shopId, [product(1, ["A"]), product(2, ["B"])], []);
+      await loadCatalog(shopId, [product(1, ["A"]), product(2, ["B"])]);
       await rows(shopId, [
         ["Audi", "A"],
         ["Audi", "B"],
@@ -498,7 +499,6 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
       await catalog.replaceCatalog(
         shopId,
         [product(1, ["A"]), product(2, ["B"])],
-        [],
         exportStartedAt,
       );
       await relink(shopId, { pruneMissing: true });
@@ -506,7 +506,7 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     });
 
     it("tells the merchant to retry when a link check holds the lock", async () => {
-      await loadCatalog(shopId, [product(1, ["A"])], []);
+      await loadCatalog(shopId, [product(1, ["A"])]);
       await rows(shopId, [["Audi", "X"]]);
       let release!: () => void;
       const held = new Promise<void>((r) => (release = r));
@@ -519,10 +519,10 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
       await isLocked;
       try {
         await expect(
-          mapping.linkManually(shopId, "X", {
-            type: "product",
+          mapping.linkChosenProduct(shopId, "X", {
             productId: P(1),
-            variantId: null,
+            variantId: V(100),
+            sku: "A",
           }),
         ).rejects.toThrow("Links are being checked right now");
       } finally {

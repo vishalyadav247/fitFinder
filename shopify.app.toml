@@ -3,7 +3,8 @@
 client_id = "7b77c7efd0009a88cfc875d912e97bf9"
 application_url = "https://example.com"
 embedded = true
-name = "fitFinder"
+name = "SpareFit – Parts Finder"
+handle = "sparefit"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
@@ -22,6 +23,11 @@ api_version = "2026-10"
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
+  # Billing API charges (agreed 2026-10-13): approved, declined, cancelled, frozen, expired.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/subscriptions_update"
+  topics = [ "app_subscriptions/update" ]
+
   # Mandatory compliance webhooks (M10). https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
   [[webhooks.subscriptions]]
   uri = "/webhooks/compliance"
@@ -32,13 +38,13 @@ api_version = "2026-10"
   uri = "/webhooks/products"
   topics = [ "products/create", "products/update", "products/delete" ]
 
-# Storefront data for the theme app extension (M7): /apps/fitfinder/* → {app url}/proxy/*.
-# Merchants can rename the prefix/subpath in their admin; the storefront uses /apps/fitfinder.
+# Storefront data for the theme app extension (M7): /apps/sparefit/* → {app url}/proxy/*.
+# Merchants can rename the prefix/subpath in their admin; the storefront uses /apps/sparefit.
 # https://shopify.dev/docs/apps/build/online-store/app-proxies
 [app_proxy]
 url = "/proxy"
 prefix = "apps"
-subpath = "fitfinder"
+subpath = "sparefit"
 
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]

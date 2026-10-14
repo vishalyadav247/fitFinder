@@ -22,8 +22,9 @@ const facts = (over: Partial<DashboardFacts> = {}): DashboardFacts => ({
   coverage: [],
   embedOn: false,
   blocksAdded: 0,
-  plan: "none",
+  planName: "Starter",
   planChosen: false,
+  planHint: "Pick the plan that suits your catalog.",
   trialEndsAt: null,
   ...over,
 });
@@ -50,7 +51,7 @@ describe("setup guide", () => {
         unlinkedSkus: 1,
         embedOn: true,
         planChosen: true,
-        plan: "growth",
+        planName: "Growth",
       }),
     );
     expect(steps.map((s) => s.done)).toEqual([true, true, false, true, true]);
@@ -70,7 +71,7 @@ describe("setup guide", () => {
         rowCount: 3,
         skus: 3,
         planChosen: true,
-        plan: "pro",
+        planName: "Pro",
         trialEndsAt: new Date("2026-10-08T00:00:00Z"),
       }),
       now,

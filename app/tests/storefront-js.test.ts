@@ -27,11 +27,12 @@ for (const [key, value] of Object.entries(stubs)) {
 const core = await import("../../storefront-src/core.js");
 const product = await import("../../storefront-src/product.js");
 const ms = await import("../../storefront-src/my-selection.js");
+const search = await import("../../storefront-src/search.js");
 const build = await import("../../scripts/build-theme-js.mjs");
 
 const config = {
   v: 1,
-  proxy: "/apps/fitfinder",
+  proxy: "/apps/sparefit",
   heading: "Find parts for your vehicle",
   noun: "vehicle",
   things: "parts",
@@ -80,7 +81,7 @@ beforeEach(() => {
   storage.clear();
   // the in-page copy core.js keeps when storage is blocked
   Object.assign(
-    (globalThis as Record<string, unknown>).__fitfinderStore as object,
+    (globalThis as Record<string, unknown>).__sparefitStore as object,
     { current: null, saved: [] },
   );
   events.length = 0;
@@ -110,7 +111,7 @@ describe("selections", () => {
       core.keyOf({ make: "AUDI", model: "A6" }),
     );
     expect(core.resultsUrl(sel("AUDI", "2008", "A6 C6"))).toBe(
-      "/apps/fitfinder/results?make=AUDI&year=2008&model=A6+C6",
+      "/apps/sparefit/results?make=AUDI&year=2008&model=A6+C6",
     );
   });
 });
@@ -141,10 +142,10 @@ describe("My Selection store", () => {
   });
 
   it("ignores broken or incomplete stored data", () => {
-    storage.set("fitfinder:selection:v1", "{not json");
+    storage.set("sparefit:selection:v1", "{not json");
     expect(core.getStore().saved).toEqual(expect.any(Array));
     storage.set(
-      "fitfinder:selection:v1",
+      "sparefit:selection:v1",
       JSON.stringify({
         current: { make: "A" },
         saved: [{ make: "A" }, sel("B", "2010", "X")],
@@ -224,10 +225,138 @@ describe("built theme assets", () => {
         `${name}: run npm run build:theme`,
       ).toBe(code);
     }
-    // ff-embed.css is render-blocking on every page (app embed): keep it lean.
-    const embed = await readFile(build.OUT + "ff-embed.css", "utf8");
+    // sp-embed.css is render-blocking on every page (app embed): keep it lean.
+    const embed = await readFile(build.OUT + "sp-embed.css", "utf8");
     expect(Buffer.byteLength(embed)).toBeLessThanOrEqual(8_000);
-    expect(embed).not.toContain(".ff-sfw");
-    expect(embed).not.toContain(".ff-ft");
+    expect(embed).not.toContain(".sp-sfw");
+    expect(embed).not.toContain(".sp-ft");
+  });
+});
+
+describe("search widget: first dropdown", () => {
+  /**
+   * Just enough of the search block for initSearch: the printed first list (null: none), the
+   * dropdowns and the search button. `change(i, value)` picks a value like a shopper.
+   */
+  function fakeWidget(printed: unknown) {
+    const selects = config.fields.map((_, i) => {
+      let options: string[] = [];
+      return {
+        disabled: true,
+        value: "",
+        get options() {
+          return options;
+        },
+        get length() {
+          return options.length + 1; // + the placeholder
+        },
+        set length(n: number) {
+          options = options.slice(0, n - 1);
+        },
+        insertAdjacentHTML(_where: string, html: string) {
+          for (const m of html.matchAll(
+            /<option( selected)?>([^<]*)<\/option>/g,
+          )) {
+            options.push(m[2]);
+            if (m[1]) this.value = m[2];
+          }
+        },
+        getAttribute: () => String(i),
+      };
+    });
+    const go = { disabled: true, addEventListener() {} };
+    let onChange: (e: unknown) => void = () => {};
+    const el = {
+      innerHTML: "",
+      closest: () => null,
+      querySelectorAll: () => selects,
+      querySelector: (s: string) =>
+        s === ".sp-sfw__go"
+          ? go
+          : s === "script[data-sp-first]" && printed !== undefined
+            ? { textContent: JSON.stringify(printed) }
+            : null,
+      addEventListener: (type: string, fn: (e: unknown) => void) => {
+        if (type === "change") onChange = fn;
+      },
+    };
+    const change = (i: number, value: string) =>
+      onChange({ target: { ...selects[i], value } });
+    return { el, selects, change };
+  }
+
+  const fetched: string[] = [];
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  beforeAll(() => {
+    Object.assign(document, { addEventListener() {} });
+    globalThis.fetch = (async (url: string) => {
+      fetched.push(url);
+      return { ok: true, json: async () => ({ options: ["FROM PROXY"] }) };
+    }) as unknown as typeof fetch;
+  });
+  beforeEach(() => {
+    fetched.length = 0;
+  });
+
+  it("fills the first dropdown from the page and asks the app nothing", async () => {
+    const { el, selects } = fakeWidget({ f: "make", v: ["AUDI", "BMW"] });
+    search.initSearch(el);
+    await tick();
+    expect(selects[0].options).toEqual(["AUDI", "BMW"]);
+    expect(selects[0].disabled).toBe(false);
+    // Year is required and not picked yet, so the later dropdowns wait: no request at all.
+    expect(fetched).toEqual([]);
+  });
+
+  it("an empty list from the page is used as is (no rows yet)", async () => {
+    const { el, selects } = fakeWidget({ f: "make", v: [] });
+    search.initSearch(el);
+    await tick();
+    expect(selects[0].options).toEqual([]);
+    expect(selects[0].disabled).toBe(true);
+    expect(fetched).toEqual([]);
+  });
+
+  it.each([
+    ["nothing printed", undefined],
+    ["no metafield yet (Liquid prints null)", null],
+    ["no list (too large or not read)", { f: "make", v: null }],
+    ["a list for another field (order changed)", { f: "year", v: ["2020"] }],
+  ])("asks the app proxy when %s", async (_name, printed) => {
+    const { el, selects } = fakeWidget(printed);
+    search.initSearch(el);
+    await tick();
+    // The proxy's answer (the page's answers are reused, so later cases may not fetch again).
+    expect(selects[0].options).toEqual(["FROM PROXY"]);
+    for (const url of fetched) {
+      expect(url).toBe("/apps/sparefit/options?field=make");
+    }
+  });
+
+  it("keeps a saved pick that is in the list and asks for the next dropdown with it", async () => {
+    core.setCurrent({ make: "BMW", year: "2016", model: "X3" });
+    const { el, selects } = fakeWidget({ f: "make", v: ["AUDI", "BMW"] });
+    search.initSearch(el);
+    await tick();
+    expect(selects[0].value).toBe("BMW");
+    expect(fetched[0]).toBe("/apps/sparefit/options?make=BMW&field=year");
+  });
+
+  it("drops a saved pick the list doesn't have (no longer in the data)", async () => {
+    core.setCurrent({ make: "SAAB", year: "2009", model: "9-3" });
+    const { el, selects } = fakeWidget({ f: "make", v: ["AUDI", "BMW"] });
+    search.initSearch(el);
+    await tick();
+    expect(selects[0].value).toBe("");
+    expect(fetched).toEqual([]); // Year waits for a make
+  });
+
+  it("a shopper's pick asks for the next dropdown only", async () => {
+    const { el, change } = fakeWidget({ f: "make", v: ["AUDI", "BMW"] });
+    search.initSearch(el);
+    await tick();
+    change(0, "AUDI");
+    await tick();
+    expect(fetched).toEqual(["/apps/sparefit/options?make=AUDI&field=year"]);
   });
 });

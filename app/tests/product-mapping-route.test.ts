@@ -2,12 +2,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const graphql = vi.fn();
-const linkManually = vi.fn();
+const linkChosenProduct = vi.fn();
 const addUniversal = vi.fn();
 const removeUniversal = vi.fn();
 const productTitle = vi.fn(async () => "Brake kit");
 const upsertProducts = vi.fn();
-const upsertCollections = vi.fn();
 const fetchProduct = vi.fn();
 const fetchResources = vi.fn();
 const requestLinkCheck = vi.fn(async () => true);
@@ -31,14 +30,13 @@ vi.mock("../services/linking/catalog.server", () => ({
   fetchProduct,
   fetchResources,
   upsertProducts,
-  upsertCollections,
 }));
 vi.mock("../models/product-link.server", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("../models/product-link.server")>();
   return {
     ...real,
-    linkManually,
+    linkChosenProduct,
     addUniversal,
     removeUniversal,
     productTitle,
@@ -95,7 +93,7 @@ describe("product mapping action", () => {
       const r = await post(body);
       expect(r.init?.status).toBe(400);
     }
-    expect(linkManually).not.toHaveBeenCalled();
+    expect(linkChosenProduct).not.toHaveBeenCalled();
     expect(addUniversal).not.toHaveBeenCalled();
   });
 
@@ -105,33 +103,63 @@ describe("product mapping action", () => {
     expect(r.data).toEqual({ ok: true, attempt: 3 });
   });
 
-  it("links to the product as read from Shopify, keeping a picked variant of it", async () => {
-    fetchProduct.mockResolvedValue(pads);
+  it("replaces the attachment with the SKU of the product read from Shopify", async () => {
+    const kit = {
+      ...pads,
+      variants: [
+        { variantId: "gid://shopify/ProductVariant/6", sku: " " },
+        { variantId: "gid://shopify/ProductVariant/7", sku: "P-1" },
+        { variantId: "gid://shopify/ProductVariant/8", sku: " P-2 " },
+      ],
+    };
+    fetchProduct.mockResolvedValue(kit);
     const r = await post({
       intent: "link",
-      attachment: "P-1",
+      attachment: "OLD-1",
       resourceId: pads.productId,
-      variantId: "gid://shopify/ProductVariant/7",
+      variantId: "gid://shopify/ProductVariant/8",
     });
     expect(fetchProduct).toHaveBeenCalledWith(graphql, pads.productId);
-    expect(upsertProducts).toHaveBeenCalledWith("shop_1", [pads], {
+    expect(upsertProducts).toHaveBeenCalledWith("shop_1", [kit], {
       replaceVariants: true,
     });
-    expect(linkManually).toHaveBeenCalledWith("shop_1", "P-1", {
-      type: "product",
+    // The picked variant's SKU (trimmed).
+    expect(linkChosenProduct).toHaveBeenCalledWith("shop_1", "OLD-1", {
       productId: pads.productId,
-      variantId: "gid://shopify/ProductVariant/7",
+      variantId: "gid://shopify/ProductVariant/8",
+      sku: "P-2",
     });
-    expect(r.data.toast).toBe("P-1 linked to a product");
+    expect(r.data.toast).toBe("OLD-1 replaced by P-2 (Pads)");
 
-    // A variant of another product is dropped.
-    await post({
+    // No variant picked, or one of another product: the first variant with a SKU.
+    const again = await post({
       intent: "link",
       attachment: "P-1",
       resourceId: pads.productId,
       variantId: "gid://shopify/ProductVariant/999",
     });
-    expect(linkManually.mock.lastCall?.[2]).toMatchObject({ variantId: null });
+    expect(linkChosenProduct.mock.lastCall?.[2]).toMatchObject({
+      variantId: "gid://shopify/ProductVariant/7",
+      sku: "P-1",
+    });
+    expect(again.data.toast).toBe("P-1 linked to Pads");
+  });
+
+  it("refuses a product without any SKU", async () => {
+    fetchProduct.mockResolvedValue({
+      ...pads,
+      variants: [{ variantId: "gid://shopify/ProductVariant/7", sku: "" }],
+    });
+    const r = await post({
+      intent: "link",
+      attachment: "OLD-1",
+      resourceId: pads.productId,
+    });
+    expect(r.init?.status).toBe(409);
+    expect(r.data.error).toBe(
+      "Pads has no SKU. Add one in Shopify, or choose another product.",
+    );
+    expect(linkChosenProduct).not.toHaveBeenCalled();
   });
 
   it("says so when the product no longer exists", async () => {
@@ -143,34 +171,21 @@ describe("product mapping action", () => {
     });
     expect(r.init?.status).toBe(409);
     expect(r.data.error).toBe("That product no longer exists.");
-    expect(linkManually).not.toHaveBeenCalled();
+    expect(linkChosenProduct).not.toHaveBeenCalled();
   });
 
-  it("links collection attachments to a collection", async () => {
-    fetchResources.mockResolvedValue({
-      products: [],
-      collections: [
-        {
-          collectionId: "gid://shopify/Collection/5",
-          handle: "a4",
-          title: "A4",
-        },
-      ],
-    });
+  it("links to products only, not collections", async () => {
     const r = await post({
       intent: "link",
       attachment: "/collections/a4",
       resourceId: "gid://shopify/Collection/5",
     });
-    expect(linkManually).toHaveBeenCalledWith("shop_1", "/collections/a4", {
-      type: "collection",
-      collectionId: "gid://shopify/Collection/5",
-    });
-    expect(r.data.toast).toBe("/collections/a4 linked to a collection");
+    expect(r.init?.status).toBe(400);
+    expect(linkChosenProduct).not.toHaveBeenCalled();
   });
 
   it("adds, marks and removes universal products with toasts", async () => {
-    fetchResources.mockResolvedValue({ products: [pads], collections: [] });
+    fetchResources.mockResolvedValue({ products: [pads] });
     addUniversal.mockResolvedValue(1);
     let r = await post({
       intent: "universal-add",
@@ -192,14 +207,14 @@ describe("product mapping action", () => {
 
   it("turns rule errors into 409 and other errors into 500", async () => {
     fetchProduct.mockResolvedValue(pads);
-    linkManually.mockRejectedValueOnce(new LinkRuleError("No rows."));
+    linkChosenProduct.mockRejectedValueOnce(new LinkRuleError("No rows."));
     let r = await post({
       intent: "link",
       attachment: "A",
       resourceId: pads.productId,
     });
     expect(r.init?.status).toBe(409);
-    linkManually.mockRejectedValueOnce(new Error("db down"));
+    linkChosenProduct.mockRejectedValueOnce(new Error("db down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     r = await post({
       intent: "link",

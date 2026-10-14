@@ -507,7 +507,7 @@ export default function SearchSetupPage() {
               </s-text>
             </s-stack>
           </s-box>
-          <div className="ff-fgrid ff-fhead" aria-hidden="true">
+          <div className="sp-fgrid sp-fhead" aria-hidden="true">
             <span>Order</span>
             <span>Field name</span>
             <span>Placeholder</span>
@@ -626,7 +626,7 @@ function FieldRow({
   const locked = saving && row.isNew;
 
   return (
-    <div className="ff-fgrid ff-frow">
+    <div className="sp-fgrid sp-frow">
       <span>
         <s-badge tone={row.isNew ? "info" : undefined}>
           {String(index + 1)}

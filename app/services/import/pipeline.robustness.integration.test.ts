@@ -72,7 +72,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let store: FailingDeleteStorage;
 
     beforeAll(async () => {
-      dir = await mkdtemp(path.join(os.tmpdir(), "ff-robust-"));
+      dir = await mkdtemp(path.join(os.tmpdir(), "sp-robust-"));
       store = new FailingDeleteStorage(dir);
       setStorageForTests(store);
     });
@@ -109,7 +109,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await saveMapping(shopId, job.id, {
         choices,
         hasHeader: true,
-        lookForSkus: true,
         mode,
       });
       await runPreview(job.id);
@@ -142,7 +141,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const input = {
         choices,
         hasHeader: true,
-        lookForSkus: true,
         mode: "upsert" as const,
       };
       const results = await Promise.allSettled([
@@ -164,7 +162,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await saveMapping(shopId, j.id, {
         choices,
         hasHeader: true,
-        lookForSkus: true,
         mode: "upsert",
       });
       const running = runPreview(j.id);
@@ -222,7 +219,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const attempt = await saveMapping(shopId, j.id, {
         choices,
         hasHeader: true,
-        lookForSkus: true,
         mode: "upsert",
       });
       await Promise.all([runPreview(j.id, attempt), runPreview(j.id, attempt)]);

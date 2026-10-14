@@ -1,44 +1,44 @@
-/* FitFinder theme: Sky (light blue), chosen 2026-10-05. Values from the prototype's
+/* SpareFit theme: Sky (light blue), chosen 2026-10-05. Values from the prototype's
    .claude/design/styles/tokens.css :root[data-theme="sky"]. Used only by the three custom areas
    (onboarding cards, dashboard banner, setup guide); everything else is plain Polaris. */
 :root {
-  --ff-p: #0284c7;
-  --ff-p-strong: #075985;
-  --ff-p-deep: #082f49;
-  --ff-p-mid: #0ea5e9;
-  --ff-p-400: #38bdf8;
-  --ff-p-soft: #e0f2fe;
-  --ff-p-softer: #f0f9ff;
-  --ff-p-softest: #f7fcff;
-  --ff-p-border: #bae6fd;
-  --ff-p-light: #7dd3fc;
-  --ff-a: #6366f1;
-  --ff-a-strong: #4f46e5;
-  --ff-a-soft: #e0e7ff;
-  --ff-a-softer: #eef2ff;
-  --ff-a-border: #c7d2fe;
-  --ff-a-light: #a5b4fc;
-  --ff-a-400: #818cf8;
-  --ff-s1: #7dd3fc;
-  --ff-glow1: rgba(56, 189, 248, 0.45);
-  --ff-glow2: rgba(129, 140, 248, 0.32);
-  --ff-glow3: rgba(45, 212, 191, 0.2);
-  --ff-wm: rgba(2, 132, 199, 0.06);
-  --ff-line: #e3e3e3;
+  --sp-p: #0284c7;
+  --sp-p-strong: #075985;
+  --sp-p-deep: #082f49;
+  --sp-p-mid: #0ea5e9;
+  --sp-p-400: #38bdf8;
+  --sp-p-soft: #e0f2fe;
+  --sp-p-softer: #f0f9ff;
+  --sp-p-softest: #f7fcff;
+  --sp-p-border: #bae6fd;
+  --sp-p-light: #7dd3fc;
+  --sp-a: #6366f1;
+  --sp-a-strong: #4f46e5;
+  --sp-a-soft: #e0e7ff;
+  --sp-a-softer: #eef2ff;
+  --sp-a-border: #c7d2fe;
+  --sp-a-light: #a5b4fc;
+  --sp-a-400: #818cf8;
+  --sp-s1: #7dd3fc;
+  --sp-glow1: rgba(56, 189, 248, 0.45);
+  --sp-glow2: rgba(129, 140, 248, 0.32);
+  --sp-glow3: rgba(45, 212, 191, 0.2);
+  --sp-wm: rgba(2, 132, 199, 0.06);
+  --sp-line: #e3e3e3;
   /* Card lift shared by s-section hosts and the Dashboard overview cards. */
-  --ff-card-shadow:
+  --sp-card-shadow:
     0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -8px rgba(2, 132, 199, 0.16);
 }
 
 /* Section titles: Polaris heading size, bolder (README rule 1). Used on every page. */
-.ff-sec-title {
+.sp-sec-title {
   margin: 0;
   font-size: 14px;
   line-height: 20px;
   font-weight: 750;
   color: #303030;
 }
-.ff-sec-gap {
+.sp-sec-gap {
   margin-bottom: 12px;
 }
 
@@ -49,7 +49,7 @@
 body {
   background: linear-gradient(
       180deg,
-      var(--ff-p-softer) 0,
+      var(--sp-p-softer) 0,
       rgba(240, 249, 255, 0) 360px
     )
     no-repeat;
@@ -58,15 +58,15 @@ body {
   s-section:not(s-section s-section, s-modal s-section) {
     display: block;
     border-radius: 12px;
-    box-shadow: var(--ff-card-shadow);
+    box-shadow: var(--sp-card-shadow);
   }
 }
-.ff-sec-head {
+.sp-sec-head {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.ff-sec-ico {
+.sp-sec-ico {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -74,12 +74,12 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: var(--ff-p-soft);
-  color: var(--ff-p); /* the icon itself uses tone="info" */
+  background: var(--sp-p-soft);
+  color: var(--sp-p); /* the icon itself uses tone="info" */
 }
 
 /* Page title inside the page (PageHeader); the admin title bar shows only the app name. */
-.ff-page-head {
+.sp-page-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,14 +87,14 @@ body {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
-.ff-page-title {
+.sp-page-title {
   margin: 0;
   font-size: 20px;
   line-height: 28px;
   font-weight: 700;
   color: #303030;
 }
-.ff-page-actions {
+.sp-page-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -102,22 +102,22 @@ body {
 }
 
 /* TableFooter: rows per page, right-aligned. */
-.ff-tf-size {
+.sp-tf-size {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
-.ff-tf-select {
+.sp-tf-select {
   inline-size: 76px;
 }
 
 /* Page tabs (Storefront, Product mapping): a segmented bar in the card style. The active tab is
    a dark Sky pill with white text and icon (line icons follow the text colour); counts sit in
    small pills (amber when there's something to do). */
-.ff-tabs {
+.sp-tabs {
   /* Hover background and the inactive tabs' outline share one colour. */
-  --ff-tab-hover: #e9edf1;
+  --sp-tab-hover: #e9edf1;
   display: flex;
   gap: 4px;
   padding: 4px;
@@ -125,15 +125,15 @@ body {
   background: #ffffff;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.06),
-    var(--ff-card-shadow);
+    var(--sp-card-shadow);
   overflow-x: auto;
   scrollbar-width: none;
   scroll-margin-top: 16px;
 }
-.ff-tabs::-webkit-scrollbar {
+.sp-tabs::-webkit-scrollbar {
   display: none;
 }
-.ff-tabs button {
+.sp-tabs button {
   flex: 1 0 auto;
   display: inline-flex;
   align-items: center;
@@ -145,7 +145,7 @@ body {
   border-radius: 9px;
   background: transparent;
   /* Inset, so the outline doesn't change the tab's size. */
-  box-shadow: inset 0 0 0 1px var(--ff-tab-hover);
+  box-shadow: inset 0 0 0 1px var(--sp-tab-hover);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -157,22 +157,22 @@ body {
     color 0.18s ease,
     box-shadow 0.18s ease;
 }
-.ff-tabs button:hover {
-  background: var(--ff-tab-hover);
+.sp-tabs button:hover {
+  background: var(--sp-tab-hover);
   color: #303030;
 }
-.ff-tabs button[aria-selected="true"] {
-  background: linear-gradient(180deg, var(--ff-p), var(--ff-p-strong));
+.sp-tabs button[aria-selected="true"] {
+  background: linear-gradient(180deg, var(--sp-p), var(--sp-p-strong));
   color: #ffffff;
   box-shadow:
-    inset 0 0 0 1px var(--ff-p-strong),
+    inset 0 0 0 1px var(--sp-p-strong),
     0 4px 10px -4px rgba(2, 132, 199, 0.55);
 }
-.ff-tabs button:focus-visible {
-  outline: 2px solid var(--ff-p);
+.sp-tabs button:focus-visible {
+  outline: 2px solid var(--sp-p);
   outline-offset: 1px;
 }
-.ff-tab-count {
+.sp-tab-count {
   min-width: 20px;
   padding: 0 7px;
   border-radius: 999px;
@@ -186,44 +186,44 @@ body {
     background-color 0.18s ease,
     color 0.18s ease;
 }
-.ff-tabs button[aria-selected="true"] .ff-tab-count {
+.sp-tabs button[aria-selected="true"] .sp-tab-count {
   background: rgba(255, 255, 255, 0.22);
   color: #ffffff;
 }
-.ff-tab-count.is-warning,
-.ff-tabs button[aria-selected="true"] .ff-tab-count.is-warning {
+.sp-tab-count.is-warning,
+.sp-tabs button[aria-selected="true"] .sp-tab-count.is-warning {
   background: #ffe8cc;
   color: #8a4b00;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ff-tabs button,
-  .ff-tab-count {
+  .sp-tabs button,
+  .sp-tab-count {
     transition: none;
   }
 }
 
 /* EmptyState: the large icon tile, rings in the tile's colour. */
-.ff-empty__tile {
+.sp-empty__tile {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: var(--ff-p-soft);
+  background: var(--sp-p-soft);
   box-shadow:
-    0 0 0 6px var(--ff-p-softer),
+    0 0 0 6px var(--sp-p-softer),
     0 10px 22px -10px rgba(2, 132, 199, 0.45);
 }
-.ff-empty__tile--success {
+.sp-empty__tile--success {
   background: #dcfce7;
   box-shadow:
     0 0 0 6px #f0fdf4,
     0 10px 22px -10px rgba(22, 163, 74, 0.45);
 }
-.ff-empty__tile s-icon {
+.sp-empty__tile s-icon {
   transform: scale(1.4);
 }
-.ff-empty__text {
+.sp-empty__text {
   text-align: center;
 }

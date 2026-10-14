@@ -46,6 +46,9 @@ import styles from "../styles/storefront.css?url";
 import { SectionTitle } from "../components/SectionTitle";
 import { Icon, type IconName } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
+import { getPlans, shopPlanView } from "../models/plan.server";
+import { planWith } from "../services/billing";
+import type { ToggleKey } from "../services/plan-features";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -91,7 +94,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }));
   const sample = await previewSample(shop.id, fieldTypes);
   const first = sample.selections[0];
+  // Features the plan doesn't include: the plan that adds them ("Needs Growth plan").
+  const [plan, plans] = await Promise.all([shopPlanView(shop.id), getPlans()]);
+  const needs = (key: ToggleKey) =>
+    plan.toggles[key] ? null : (planWith(plans, key)?.name ?? "a higher");
   return {
+    locked: {
+      badge: needs("fitsBadge"),
+      table: needs("fitmentTable"),
+      garage: needs("mySelection"),
+    },
     shop: session.shop,
     // eslint-disable-next-line no-undef
     apiKey: process.env.SHOPIFY_API_KEY || "",
@@ -441,7 +453,20 @@ export default function StorefrontPage() {
     },
   ];
 
+  const lockOf = (row: Row) =>
+    row.kind === "embed"
+      ? data.locked.garage
+      : row.name === "Fitment table"
+        ? data.locked.table
+        : row.key === "badge"
+          ? data.locked.badge
+          : null;
+
   const statusCell = (row: Row) => {
+    const lock = lockOf(row);
+    if (lock) {
+      return <s-badge tone="info">{`Needs ${lock} plan`}</s-badge>;
+    }
     if (data.themesError) return <s-badge>Not checked</s-badge>;
     if (!themeId) return <s-text color="subdued">No theme</s-text>;
     if (!status) {
@@ -480,6 +505,13 @@ export default function StorefrontPage() {
   };
 
   const actionCell = (row: Row) => {
+    if (lockOf(row)) {
+      return (
+        <s-text>
+          <s-link href="/app/plans">Upgrade →</s-link>
+        </s-text>
+      );
+    }
     if (row.kind === "code") {
       // Inside s-text, Polaris underlines the link.
       return (
@@ -547,11 +579,11 @@ export default function StorefrontPage() {
         <s-box padding="base">
           <s-banner
             tone="warning"
-            heading="FitFinder needs access to your themes"
+            heading="SpareFit needs access to your themes"
           >
-            FitFinder checks your themes to show whether its blocks and app
-            embed are added. Open FitFinder from your apps list and approve the
-            updated permissions, then come back to this page.
+            SpareFit checks your themes to show whether its blocks and app embed
+            are added. Open SpareFit from your apps list and approve the updated
+            permissions, then come back to this page.
           </s-banner>
         </s-box>
       )}
@@ -607,8 +639,8 @@ export default function StorefrontPage() {
                     openEditor(
                       on ? links.embedOn : links.embedPanel,
                       on
-                        ? "Theme editor opened. Turn on FitFinder there and save."
-                        : "Theme editor opened. Turn off FitFinder there and save.",
+                        ? "Theme editor opened. Turn on SpareFit there and save."
+                        : "Theme editor opened. Turn off SpareFit there and save.",
                     );
                   }}
                 />
@@ -620,7 +652,7 @@ export default function StorefrontPage() {
       {!data.themesError && theme && theme.role !== "MAIN" && (
         <s-box paddingInline="base" paddingBlockEnd="base">
           <s-banner tone="info" heading={`${theme.name} isn't your live theme`}>
-            You can set FitFinder up here now. Shoppers see it once you publish
+            You can set SpareFit up here now. Shoppers see it once you publish
             this theme.
           </s-banner>
         </s-box>
@@ -659,7 +691,7 @@ export default function StorefrontPage() {
     </s-badge>
   );
   const previewNote = (note: string) => (
-    <div className="ff-pv-head">
+    <div className="sp-pv-head">
       {liveBadge}
       <s-text color="subdued">{note}</s-text>
     </div>
@@ -677,7 +709,7 @@ export default function StorefrontPage() {
   const widgetTab = (
     <>
       <s-section accessibilityLabel="Live preview">
-        <div className="ff-pv-head">
+        <div className="sp-pv-head">
           {liveBadge}
           <s-stack direction="inline" gap="small-300">
             {deviceButton("desktop", "Desktop")}
@@ -685,7 +717,7 @@ export default function StorefrontPage() {
           </s-stack>
         </div>
         <div
-          className={`ff-pv-stage${device === "mobile" ? " is-mobile" : ""}`}
+          className={`sp-pv-stage${device === "mobile" ? " is-mobile" : ""}`}
         >
           <StorefrontPreview
             kind="search"
@@ -702,7 +734,7 @@ export default function StorefrontPage() {
         <SectionTitle icon="paint-brush-flat" gap>
           Layout and style
         </SectionTitle>
-        <div className="ff-opt-grid">
+        <div className="sp-opt-grid">
           <s-select
             label="Layout"
             details="On phones the dropdowns always stack."
@@ -727,7 +759,7 @@ export default function StorefrontPage() {
           </s-select>
         </div>
         <s-box paddingBlockStart="base">
-          <div className="ff-opt-grid ff-three">
+          <div className="sp-opt-grid sp-three">
             {(
               [
                 ["btn", "Button colour"],
@@ -849,7 +881,7 @@ export default function StorefrontPage() {
         </s-box>
         <s-stack gap="base">
           <s-stack gap="small-300">
-            <p className="ff-grp-t">Before a selection</p>
+            <p className="sp-grp-t">Before a selection</p>
             <s-text-field
               label="Text"
               maxLength={200}
@@ -858,7 +890,7 @@ export default function StorefrontPage() {
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
-            <p className="ff-grp-t">When it fits</p>
+            <p className="sp-grp-t">When it fits</p>
             <s-text-field
               label="Text"
               maxLength={200}
@@ -867,7 +899,7 @@ export default function StorefrontPage() {
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
-            <p className="ff-grp-t">When it doesn&apos;t fit</p>
+            <p className="sp-grp-t">When it doesn&apos;t fit</p>
             <s-text-field
               label="Text"
               maxLength={200}
@@ -925,7 +957,7 @@ export default function StorefrontPage() {
         </s-box>
         <s-stack gap="base">
           <s-stack gap="small-300">
-            <p className="ff-grp-t">Where to show it</p>
+            <p className="sp-grp-t">Where to show it</p>
             <s-select
               label="Show the table"
               labelAccessibilityVisibility="exclusive"
@@ -944,7 +976,7 @@ export default function StorefrontPage() {
               <s-box padding="base" background="subdued" borderRadius="base">
                 <s-stack gap="small-300">
                   <s-text type="strong">Add the shortcode in 3 steps</s-text>
-                  <ol className="ff-steps">
+                  <ol className="sp-steps">
                     <li>
                       In the theme editor, open a product page and pick where
                       the table should go: any spot that shows text, such as a
@@ -952,7 +984,7 @@ export default function StorefrontPage() {
                     </li>
                     <li>
                       Paste this shortcode there:
-                      <span className="ff-code-row">
+                      <span className="sp-code-row">
                         <code>{TABLE_CODE}</code>
                         <s-button
                           variant="tertiary"
@@ -964,7 +996,7 @@ export default function StorefrontPage() {
                       </span>
                     </li>
                     <li>
-                      Save. FitFinder replaces the shortcode with the table on
+                      Save. SpareFit replaces the shortcode with the table on
                       every product page.
                     </li>
                   </ol>
@@ -992,7 +1024,7 @@ export default function StorefrontPage() {
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
-            <p className="ff-grp-t">Display</p>
+            <p className="sp-grp-t">Display</p>
             {!inTabs && (
               <>
                 <s-select
@@ -1042,7 +1074,7 @@ export default function StorefrontPage() {
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
-            <p className="ff-grp-t">Columns</p>
+            <p className="sp-grp-t">Columns</p>
             <s-text color="subdued">
               One column per search field, in the same order as Search setup.
             </s-text>
@@ -1067,7 +1099,7 @@ export default function StorefrontPage() {
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
-            <p className="ff-grp-t">Rows</p>
+            <p className="sp-grp-t">Rows</p>
             <s-grid
               gridTemplateColumns="minmax(0, 1fr) minmax(0, 1fr)"
               gap="base"
@@ -1108,7 +1140,7 @@ export default function StorefrontPage() {
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
-            <p className="ff-grp-t">When a product has no rows</p>
+            <p className="sp-grp-t">When a product has no rows</p>
             <s-select
               label="Show"
               labelAccessibilityVisibility="exclusive"
@@ -1189,7 +1221,7 @@ export default function StorefrontPage() {
           </s-box>
         )}
         <s-box paddingBlockStart="base">
-          <div className="ff-opt-grid ff-one">
+          <div className="sp-opt-grid sp-one">
             <s-text-field
               label="Name shoppers see"
               details="For example My Selection, My Garage or My Devices."
@@ -1315,8 +1347,8 @@ export default function StorefrontPage() {
         {previewNote(
           "Hover the tab or click it to try it. Looks the same on desktop and mobile.",
         )}
-        <div className="ff-mini-win">
-          <div className="ff-mw-bar">
+        <div className="sp-mini-win">
+          <div className="sp-mw-bar">
             <i />
             <i />
             <i />
@@ -1369,7 +1401,7 @@ export default function StorefrontPage() {
             tone="warning"
             heading="Your theme doesn't have the latest settings yet"
           >
-            FitFinder couldn&apos;t send your changes to the theme.
+            SpareFit couldn&apos;t send your changes to the theme.
             <s-button slot="secondary-actions" onClick={retryPublish}>
               Try again
             </s-button>
@@ -1378,7 +1410,7 @@ export default function StorefrontPage() {
         {liveStatus && !liveStatus.embedOn && (
           <s-banner
             tone="critical"
-            heading="FitFinder is turned off in your live theme"
+            heading="SpareFit is turned off in your live theme"
           >
             Shoppers don&apos;t see My Selection or the fitment table shortcode,
             and blocks can&apos;t be added, until you turn on the app embed in
@@ -1387,7 +1419,7 @@ export default function StorefrontPage() {
         )}
         {themeCard}
         <div
-          className="ff-tabs"
+          className="sp-tabs"
           role="tablist"
           aria-label="Storefront"
           ref={tabsRef}

@@ -2,6 +2,7 @@
 // lost updates, publishes serialized so the newest config is written last, the preview sample,
 // and the theme status cache. Every case checks that another shop is untouched.
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import type { FirstList } from "./config";
 
 const DOMAIN = "vitest-sf-page.myshopify.com";
 const OTHER = "vitest-sf-page-b.myshopify.com";
@@ -23,7 +24,11 @@ const {
   publishWithOutcome,
   storefrontConfigPublished,
   loadStorefrontConfig,
+  publishForShop,
+  publishFirstList,
+  firstListBehind,
 } = await import("./sync.server");
+const { applyFieldSave } = await import("../../models/search-field.server");
 const { previewSample } = await import("./preview.server");
 const { readThemeStatus } = await import("./themes.server");
 
@@ -284,7 +289,7 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront page (Postgres)", () => {
             current: {
               blocks: {
                 a: {
-                  type: "shopify://apps/fitfinder/blocks/fitfinder-embed/uid",
+                  type: "shopify://apps/sparefit/blocks/sparefit-embed/uid",
                   disabled: false,
                 },
               },
@@ -314,5 +319,197 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront page (Postgres)", () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ shopId, themeId: "123", embedOn: true });
+  });
+  // ---------------------------------------------------------------- first dropdown list
+
+  /** Admin GraphQL double that keeps every metafield written, by key. */
+  function captureApi() {
+    const writes: { key: string; doc: Record<string, unknown> }[] = [];
+    const gql = async (
+      query: string,
+      options?: { variables?: Record<string, unknown> },
+    ) => {
+      if (query.includes("currentAppInstallation")) {
+        return {
+          json: async () => ({
+            data: {
+              currentAppInstallation: {
+                id: "gid://shopify/AppInstallation/1",
+              },
+            },
+          }),
+        };
+      }
+      const [mf] = options!.variables!.metafields as {
+        key: string;
+        value: string;
+      }[];
+      writes.push({ key: mf.key, doc: JSON.parse(mf.value) });
+      return {
+        json: async () => ({
+          data: {
+            metafieldsSet: { metafields: [{ id: "m" }], userErrors: [] },
+          },
+        }),
+      };
+    };
+    const firsts = () => writes.filter((w) => w.key === "first");
+    return {
+      gql,
+      writes,
+      firsts,
+      last: () => firsts()[firsts().length - 1]?.doc as unknown as FirstList,
+    };
+  }
+
+  const fieldsOf = (id: string) =>
+    prisma.searchField.findMany({
+      where: { shopId: id },
+      orderBy: { position: "asc" },
+    });
+
+  async function addRow(id: string, make: string, years: string) {
+    const [m, y, model] = await fieldsOf(id);
+    const saved = await saveRow(id, null, {
+      [m.id]: make,
+      [y.id]: years,
+      [model.id]: "Any",
+      attachment: `SKU-${make}`,
+    });
+    expect(saved.ok).toBe(true);
+  }
+
+  it("publishes the first dropdown list to its own metafield, per shop", async () => {
+    await addRow(shopId, "BMW", "2015-2016");
+    await addRow(shopId, "AUDI", "2008-2011");
+    await addRow(otherId, "SEAT", "2000-2001");
+    const make = (await fieldsOf(shopId))[0];
+
+    const api = captureApi();
+    expect(await publishFirstList(api.gql, shopId)).toBe(true);
+    expect(api.writes.map((w) => w.key)).toEqual(["first"]); // config untouched
+    expect(api.last()).toEqual({ f: make.id, v: ["AUDI", "BMW"] });
+    // The shared config doesn't carry the list (it is printed on every page).
+    expect("first" in (await loadStorefrontConfig(shopId))!).toBe(false);
+
+    const other = captureApi();
+    await publishFirstList(other.gql, otherId);
+    expect(other.last().v).toEqual(["SEAT"]);
+  });
+
+  it("publishes an empty list before any rows", async () => {
+    const api = captureApi();
+    await publishFirstList(api.gql, shopId);
+    expect(api.last().v).toEqual([]);
+  });
+
+  it("new rows and a new order make it behind; the job catches up; nothing changed means no write", async () => {
+    await addRow(shopId, "AUDI", "2008-2009");
+    const api = captureApi();
+    expect(await firstListBehind(shopId)).toBe(true);
+    await publishFirstList(api.gql, shopId);
+    expect(await firstListBehind(shopId)).toBe(false);
+    expect(await publishFirstList(api.gql, shopId)).toBe(false);
+    expect(api.firsts()).toHaveLength(1);
+
+    await addRow(shopId, "CUPRA", "2020-");
+    expect(await firstListBehind(shopId)).toBe(true);
+    await publishFirstList(api.gql, shopId);
+    expect(api.last().v).toEqual(["AUDI", "CUPRA"]);
+
+    // Year moves to the top: the list belongs to Year, matching the config's new first field.
+    const [make, year, model] = await fieldsOf(shopId);
+    await applyFieldSave(shopId, [
+      { intent: "order", fieldIds: [year.id, make.id, model.id] },
+    ]);
+    expect(await firstListBehind(shopId)).toBe(true);
+    await publishFirstList(api.gql, shopId);
+    const list = api.last();
+    expect(list.f).toBe(year.id);
+    expect(list.f).toBe((await loadStorefrontConfig(shopId))!.fields[0].id);
+    const now = new Date().getUTCFullYear();
+    expect(list.v).toEqual(
+      expect.arrayContaining(["2008", "2009", "2020", String(now)]),
+    );
+    expect(list.v).not.toContain("AUDI");
+    // A new year adds a year to open ranges ("2020-"): the list is due again on 1 January.
+    expect(await firstListBehind(shopId)).toBe(false);
+    expect(await firstListBehind(shopId, now + 1)).toBe(true);
+  });
+
+  it("publishes no list when it would be too large for every page", async () => {
+    const [make] = await fieldsOf(shopId);
+    // 1,000 long makes (about 45 KB): more than a search block should print.
+    await prisma.$executeRaw`
+      INSERT INTO fitment_rows (shop_id, "values", attachment, row_hash, updated_at)
+      SELECT ${shopId}, jsonb_build_object(${make.id}::text, 'MAKE ' || lpad(i::text, 40, '0')),
+             'SKU', md5('big' || i), now()
+      FROM generate_series(1, 1000) i`;
+    await prisma.searchConfig.update({
+      where: { shopId },
+      data: { dataVersion: { increment: 1 } },
+    });
+    const api = captureApi();
+    await publishFirstList(api.gql, shopId);
+    expect(api.last()).toEqual({ f: make.id, v: null }); // the widget asks the proxy
+    expect(await firstListBehind(shopId)).toBe(false); // not retried until the next change
+  });
+
+  it("a failing values query publishes no list and never blocks the config", async () => {
+    await addRow(shopId, "AUDI", "2008-2009");
+    const errors: unknown[] = [];
+    const log = console.error;
+    console.error = (...args: unknown[]) => void errors.push(args);
+    try {
+      const api = captureApi();
+      await publishFirstList(api.gql, shopId, async () => {
+        throw new Error("canceling statement due to statement timeout");
+      });
+      expect(api.last()).toMatchObject({ v: null });
+      expect(errors).toHaveLength(1);
+      expect(await firstListBehind(shopId)).toBe(false);
+      // The config (fields, settings) publishes on its own path, without the values query.
+      expect(await publishStorefrontConfig(api.gql, shopId)).toBe(true);
+    } finally {
+      console.error = log;
+    }
+  });
+
+  it("orders tied positions the same way in the config and the list", async () => {
+    await addRow(shopId, "AUDI", "2008-2009");
+    // A tie can't come from the app (positions are renumbered): make one by hand.
+    await prisma.searchField.updateMany({
+      where: { shopId },
+      data: { position: 0 },
+    });
+    await prisma.searchConfig.update({
+      where: { shopId },
+      data: { dataVersion: { increment: 1 } },
+    });
+    const api = captureApi();
+    await publishFirstList(api.gql, shopId);
+    expect(api.last().f).toBe(
+      (await loadStorefrontConfig(shopId))!.fields[0].id,
+    );
+  });
+
+  it("the background job publishes config and list for installed shops only", async () => {
+    const api = captureApi();
+    const asked: string[] = [];
+    const gqlFor = async (domain: string) => {
+      asked.push(domain);
+      return api.gql as never;
+    };
+    expect(await publishForShop(shopId, gqlFor)).toBe(true);
+    expect(asked).toEqual([DOMAIN]);
+    expect(api.writes.map((w) => w.key).sort()).toEqual(["config", "first"]);
+
+    await prisma.shop.update({
+      where: { id: otherId },
+      data: { uninstalledAt: new Date() },
+    });
+    expect(await publishForShop(otherId, gqlFor)).toBe(false);
+    expect(await firstListBehind(otherId)).toBe(false);
+    expect(asked).toEqual([DOMAIN]);
   });
 });

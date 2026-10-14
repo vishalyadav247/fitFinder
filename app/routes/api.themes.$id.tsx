@@ -1,5 +1,5 @@
-// GET /api/themes/{id} — what FitFinder has in one of the shop's themes (app embed on, blocks
-// added, [fitfinder-table] code found). The Storefront page calls it when the merchant picks a
+// GET /api/themes/{id} — what SpareFit has in one of the shop's themes (app embed on, blocks
+// added, [sparefit-table] code found). The Storefront page calls it when the merchant picks a
 // theme and when they come back from the theme editor (window focus).
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";

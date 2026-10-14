@@ -3,9 +3,9 @@
 // home (17%), product (40%) and collection (43%) pages, via the PageSpeed Insights API (mobile).
 // Docs: https://shopify.dev/docs/apps/build/performance/storefront
 //
-// 1. Without FitFinder (app embed off, no blocks):
+// 1. Without SpareFit (app embed off, no blocks):
 //      node scripts/lighthouse-impact.mjs --label before --home URL --product URL --collection URL
-// 2. With FitFinder (embed on, search section, fits badge and fitment table added):
+// 2. With SpareFit (embed on, search section, fits badge and fitment table added):
 //      node scripts/lighthouse-impact.mjs --label after  --home URL --product URL --collection URL
 // The second run prints the difference. URLs: Online Store › Themes › right-click "View your
 // store" (a preview link PageSpeed can open on a password-protected dev store); add the product

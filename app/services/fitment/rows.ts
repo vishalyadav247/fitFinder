@@ -19,6 +19,8 @@ export interface RowView {
   yearTo: number | null;
   attachment: string;
   linked: boolean;
+  /** Title of the product the SKU links to (null: not linked, or not in the catalog cache). */
+  product: string | null;
 }
 
 /** Years as the import reads them back: "2008-2011", "2016-" (open), "2016" (one year), "". */

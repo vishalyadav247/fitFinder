@@ -1,7 +1,7 @@
 // Screen: Onboarding — "What does your store sell?". Spec: .claude/specs/onboarding.md
 S.onboarding = () => {
   const c = state.choice, t = TEMPLATES[c];
-  return `<s-page heading="Welcome to FitFinder" inlineSize="base">
+  return `<s-page heading="Welcome to SpareFit" inlineSize="base">
   ${state.setup ? `<s-banner tone="warning" heading="Changing your store type replaces your search fields and filter data">Export your data first if you want to keep it. <s-link data-go="settings">Keep my current setup</s-link></s-banner>` : ''}
   <s-section>
     <s-stack gap="base">

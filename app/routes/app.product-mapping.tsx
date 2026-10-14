@@ -28,7 +28,7 @@ import { listRowFields, rowCounts } from "../models/fitment-row.server";
 import {
   LinkRuleError,
   addUniversal,
-  linkManually,
+  linkChosenProduct,
   mappingIntentSchema,
   productTitle,
   productsWithoutData,
@@ -40,7 +40,6 @@ import {
 import {
   fetchProduct,
   fetchResources,
-  upsertCollections,
   upsertProducts,
   type AdminGraphql,
 } from "../services/linking/catalog.server";
@@ -49,11 +48,7 @@ import {
   type LinkCheckView,
 } from "../services/linking/link-runs.server";
 import { requestLinkCheck } from "../services/jobs.server";
-import {
-  MAX_PICK,
-  kindLabel,
-  productLinkAttachment,
-} from "../services/linking/attachment";
+import { MAX_PICK } from "../services/linking/attachment";
 import { cellDisplay, type RowField } from "../services/fitment/rows";
 import { TableFooter } from "../components/TableFooter";
 import { EmptyState } from "../components/EmptyState";
@@ -216,38 +211,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return data<MappingResult>({ ok: true, attempt });
       }
       case "link": {
-        // Read the chosen resource from Shopify; never trust ids or titles from the browser.
-        if (input.resourceId.startsWith("gid://shopify/Collection/")) {
-          const { collections } = await fetchResources(gql, [input.resourceId]);
-          if (!collections.length) {
-            throw new LinkRuleError("That collection no longer exists.");
-          }
-          await upsertCollections(shop.id, collections);
-          await linkManually(shop.id, input.attachment, {
-            type: "collection",
-            collectionId: collections[0].collectionId,
-          });
-          return data<MappingResult>({
-            ok: true,
-            toast: `${input.attachment} linked to a collection`,
-          });
-        }
+        // Read the chosen product from Shopify; never trust ids or titles from the browser.
         const product = await fetchProduct(gql, input.resourceId);
         if (!product) throw new LinkRuleError("That product no longer exists.");
         await upsertProducts(shop.id, [product], { replaceVariants: true });
-        const variantId =
-          input.variantId &&
-          product.variants.some((v) => v.variantId === input.variantId)
-            ? input.variantId
-            : null;
-        await linkManually(shop.id, input.attachment, {
-          type: "product",
+        // The picked variant, else the product's first variant with a SKU: its SKU replaces the
+        // rows' attachment (specs/product-mapping.md).
+        const withSku = product.variants.filter((v) => v.sku.trim() !== "");
+        const variant =
+          withSku.find((v) => v.variantId === input.variantId) ?? withSku[0];
+        if (!variant) {
+          throw new LinkRuleError(
+            `${product.title} has no SKU. Add one in Shopify, or choose another product.`,
+          );
+        }
+        const sku = variant.sku.trim();
+        await linkChosenProduct(shop.id, input.attachment, {
           productId: product.productId,
-          variantId,
+          variantId: variant.variantId,
+          sku,
         });
         return data<MappingResult>({
           ok: true,
-          toast: `${input.attachment} linked to a product`,
+          toast:
+            sku === input.attachment
+              ? `${sku} linked to ${product.title}`
+              : `${input.attachment} replaced by ${sku} (${product.title})`,
         });
       }
       case "universal-add": {
@@ -316,6 +305,7 @@ function fitsText(fields: RowField[], g: UnlinkedGroup) {
     id: "",
     attachment: g.attachment,
     linked: false,
+    product: null,
     ...g.first,
   };
   const text = fields.map((f) => cellDisplay(f, row)).join(" · ");
@@ -481,9 +471,8 @@ export default function ProductMappingPage() {
     fetcher.submit(form, { method: "post" });
 
   const choose = async (g: UnlinkedGroup) => {
-    const collection = g.kind === "collection";
     const picked = (await shopify.resourcePicker({
-      type: collection ? "collection" : "product",
+      type: "product",
       action: "select",
       multiple: false,
     })) as Picked;
@@ -513,10 +502,8 @@ export default function ProductMappingPage() {
     });
   };
 
-  const addRow = (p: { sku: string; handle: string }) =>
-    navigate(
-      `/app/filter-data?add=${encodeURIComponent(p.sku || productLinkAttachment(p.handle))}`,
-    );
+  const addRow = (sku: string) =>
+    navigate(`/app/filter-data?add=${encodeURIComponent(sku)}`);
 
   return (
     <s-page inlineSize="base">
@@ -534,7 +521,7 @@ export default function ProductMappingPage() {
       </PageHeader>
 
       <s-stack gap="base">
-        <div className="ff-tabs" role="tablist" aria-label="Product mapping">
+        <div className="sp-tabs" role="tablist" aria-label="Product mapping">
           {TABS.map(([key, label, icon]) => {
             const count =
               key === "u"
@@ -558,8 +545,8 @@ export default function ProductMappingPage() {
                   <span
                     className={
                       key !== "x" && count > 0
-                        ? "ff-tab-count is-warning"
-                        : "ff-tab-count"
+                        ? "sp-tab-count is-warning"
+                        : "sp-tab-count"
                     }
                   >
                     {count.toLocaleString("en-US")}
@@ -583,9 +570,10 @@ export default function ProductMappingPage() {
                   )}
                 </s-stack>
                 <s-text color="subdued">
-                  Each filter row points to a product through its Attachment
-                  (usually a SKU). We couldn&apos;t find these in your store, so
-                  shoppers don&apos;t see them in search results.
+                  Each filter row points to a product through the SKU in its
+                  Attachment. We couldn&apos;t find these SKUs in your store, so
+                  shoppers don&apos;t see them in search results. Choose product
+                  replaces the SKU with that product&apos;s SKU.
                 </s-text>
               </s-stack>
             </s-box>
@@ -598,7 +586,6 @@ export default function ProductMappingPage() {
                     <s-table-header listSlot="primary">
                       Attachment
                     </s-table-header>
-                    <s-table-header>Type</s-table-header>
                     <s-table-header>Fits</s-table-header>
                     <s-table-header format="numeric">Rows</s-table-header>
                     <s-table-header>Action</s-table-header>
@@ -609,7 +596,6 @@ export default function ProductMappingPage() {
                         <s-table-cell>
                           <s-text type="strong">{g.attachment}</s-text>
                         </s-table-cell>
-                        <s-table-cell>{kindLabel(g.kind)}</s-table-cell>
                         <s-table-cell>
                           <s-text color="subdued">{fitsText(fields, g)}</s-text>
                         </s-table-cell>
@@ -621,9 +607,7 @@ export default function ProductMappingPage() {
                             disabled={busy}
                             onClick={() => void choose(g)}
                           >
-                            {g.kind === "collection"
-                              ? "Choose collection"
-                              : "Choose product"}
+                            Choose product
                           </s-button>
                         </s-table-cell>
                       </s-table-row>
@@ -691,10 +675,20 @@ export default function ProductMappingPage() {
                         <s-table-cell>
                           <s-text type="strong">{p.title}</s-text>
                         </s-table-cell>
-                        <s-table-cell>{p.sku || "—"}</s-table-cell>
+                        <s-table-cell>
+                          {p.sku || <s-text color="subdued">No SKU</s-text>}
+                        </s-table-cell>
                         <s-table-cell>
                           <s-stack direction="inline" gap="small-200">
-                            <s-button onClick={() => addRow(p)}>
+                            <s-button
+                              disabled={!p.sku}
+                              accessibilityLabel={
+                                p.sku
+                                  ? undefined
+                                  : "Add filter row: give this product a SKU in Shopify first"
+                              }
+                              onClick={() => addRow(p.sku)}
+                            >
                               Add filter row
                             </s-button>
                             <s-button

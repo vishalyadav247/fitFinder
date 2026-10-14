@@ -58,7 +58,6 @@ console.log(
 await pipeline.saveMapping(shop.id, job.id, {
   choices,
   hasHeader: true,
-  lookForSkus: true,
   mode,
 });
 t0 = t();

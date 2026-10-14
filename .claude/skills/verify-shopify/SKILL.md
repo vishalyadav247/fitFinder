@@ -1,6 +1,6 @@
 ---
 name: verify-shopify
-description: Verify FitFinder's Shopify integration against current shopify.dev docs — GraphQL operations, scopes, webhooks, app proxy, theme app extension targets, deep links, Polaris web components, Managed Pricing — and resolve the (verify) items in BUILD-PLAN.md. Use before coding against a Shopify API, after changing one, or when the API version is bumped.
+description: Verify SpareFit's Shopify integration against current shopify.dev docs — GraphQL operations, scopes, webhooks, app proxy, theme app extension targets, deep links, Polaris web components, Managed Pricing — and resolve the (verify) items in BUILD-PLAN.md. Use before coding against a Shopify API, after changing one, or when the API version is bumped.
 argument-hint: "[topic or file, e.g. 'theme editor deep links' | app/routes/proxy.results.ts | all]"
 ---
 

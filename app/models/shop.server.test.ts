@@ -19,6 +19,7 @@ function shop(overrides: Partial<Shop> = {}): Shop {
     lastAuthAt: new Date(),
     plan: "starter",
     trialEndsAt: null,
+    subscriptionId: null,
     createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
     ...overrides,

@@ -1,16 +1,16 @@
-// ff-embed.js (app embed, every page): My Selection, the [fitfinder-table] code in theme tabs
-// (filled by ff-product.js),
-// the save prompt on the theme's search page after a FitFinder search, and the search bundle
-// for FitFinder's own results page (which has no block to load it).
+// sp-embed.js (app embed, every page): My Selection, the [sparefit-table] code in theme tabs
+// (filled by sp-product.js),
+// the save prompt on the theme's search page after a SpareFit search, and the search bundle
+// for SpareFit's own results page (which has no block to load it).
 import { askToSave, boot, each, getStore, onResultsPage } from "./core.js";
 import { initMySelection } from "./my-selection.js";
 import { markTableCode } from "./product.js";
 
-const ASKED = "fitfinder:asked";
+const ASKED = "sparefit:asked";
 
 /** Theme search page opened by "Show {products}": ask once to save the selection. */
 function askOnSearchPage() {
-  if (document.querySelector("[data-ff-results]") || !onResultsPage()) return;
+  if (document.querySelector("[data-sp-results]") || !onResultsPage()) return;
   const picks = getStore().current;
   const key = JSON.stringify(picks);
   try {
@@ -22,7 +22,7 @@ function askOnSearchPage() {
   const main = document.querySelector("main, #MainContent, [role=main]");
   if (!main) return;
   const box = document.createElement("div");
-  box.className = "ff-ask-wrap page-width";
+  box.className = "sp-ask-wrap page-width";
   main.prepend(box);
   askToSave(box, picks);
   if (!box.firstChild) box.remove();
@@ -45,21 +45,21 @@ function need(flag, src, css) {
   document.head.appendChild(script);
 }
 
-if (!window.__fitfinderEmbed) {
-  window.__fitfinderEmbed = true;
+if (!window.__sparefitEmbed) {
+  window.__sparefitEmbed = true;
   boot(() => {
-    each("[data-ff-embed]", "ffEmbed", (el) => {
+    each("[data-sp-embed]", "spEmbed", (el) => {
       initMySelection();
       askOnSearchPage();
       // Features without a block on this page: run their bundle (load it, or run it again).
       if (markTableCode(el)) need(
-          "__fitfinderProduct",
+          "__sparefitProduct",
           el.getAttribute("data-product-src"),
           el.getAttribute("data-product-css"),
         );
-      if (document.querySelector("[data-ff-search]")) {
+      if (document.querySelector("[data-sp-search]")) {
         need(
-          "__fitfinderSearch",
+          "__sparefitSearch",
           el.getAttribute("data-search-src"),
           el.getAttribute("data-search-css"),
         );

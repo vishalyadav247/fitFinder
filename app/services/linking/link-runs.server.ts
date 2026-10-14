@@ -1,7 +1,7 @@
 // The shop's link check (catalog_syncs, one row per shop): queued by "Check links again", by the
 // first visit to Product mapping and after every import; run by the pg-boss "links" queue
 // (jobs.server.ts). A full check reloads the catalog cache from Shopify (bulk export of products
-// and variants, then collections) before matching; a quick one only matches against the cache.
+// and variants) before matching; a quick one only matches against the cache.
 // Guarded like imports: each queued run carries an attempt number, a running run heartbeats, and a
 // run whose worker died is shown as failed instead of blocking the button.
 import type { Prisma } from "@prisma/client";
@@ -10,7 +10,6 @@ import {
   cancelBulk,
   collectBulkLines,
   dbNow,
-  fetchCollections,
   fetchJsonlLines,
   fetchProduct,
   replaceCatalog,
@@ -158,7 +157,7 @@ export async function prepareLinkCheck(
 }
 
 /** Admin API access for a shop outside a request (offline token, refreshed by the library). */
-async function defaultGqlFor(domain: string): Promise<AdminGraphql> {
+export async function defaultGqlFor(domain: string): Promise<AdminGraphql> {
   const { unauthenticated } = await import("../../shopify.server");
   const { admin } = await unauthenticated.admin(domain);
   return admin.graphql as unknown as AdminGraphql;
@@ -202,9 +201,8 @@ export async function runLinkCheck(
       });
       const url = await waitForBulk(() => gqlFor(domain), opId, beat);
       const products = url ? await collectBulkLines(fetchJsonlLines(url)) : [];
-      const collections = await fetchCollections(await gqlFor(domain));
       await beat();
-      await replaceCatalog(shopId, products, collections, exportStartedAt);
+      await replaceCatalog(shopId, products, exportStartedAt);
     }
     const newMatches = await relink(shopId, { pruneMissing: run.fullSync });
     await prisma.catalogSync.updateMany({

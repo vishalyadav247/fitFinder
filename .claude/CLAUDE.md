@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-**FitFinder** (working name) is a public Shopify app: a "find products that fit" search (Year/Make/Model style, but with any fields) for car parts, phone accessories, beauty products or any catalogue. Everything about it lives in this `.claude/` folder; the app itself is built from it.
+**SpareFit – Parts Finder** (short: SpareFit) is a public Shopify app: a "find products that fit" search (Year/Make/Model style, but with any fields) for car parts, phone accessories, beauty products or any catalogue. Everything about it lives in this `.claude/` folder; the app itself is built from it.
 
 - `.claude/PROPOSAL.md` — what we build and why (scope, pricing, roadmap).
 - `.claude/BUILD-PLAN.md` — how to build it: stack, repo layout, data model, flows, milestones with acceptance criteria. **Start here when coding.**
@@ -55,6 +55,7 @@ Before using any Shopify API, extension target, scope or deep-link format, check
 ## Rules (agreed with the product owner — do not undo)
 
 - **No AI features.** Matching, column mapping and linking are rule-based.
+- **Plans live in the database** (agreed 2026-10-13). There are four plan slots, edited by the super admin at `/backoffice` (`specs/backoffice.md`): price, free or paid, trial days (default 14, none on free plans), limits and features. Billing runs on the Billing API (Manual Pricing). Never hard-code plan names, prices or limits. A new plan feature is added to the registry in `app/services/plan-features.ts`, together with the code that enforces it. The backoffice is plain HTML, not Polaris, because it runs outside the Shopify admin.
 - **Polaris first.** Polaris components on every screen. Only three custom, eye-catching areas: dashboard banner, setup guide, onboarding store-type cards. Light polish everywhere else (agreed 2026-10-06, `app/styles/theme.css`): soft Sky-tinted page background, lifted top-level cards (shadow on the `s-section` host only, never Polaris' internal `--s-*-<hash>` variables), and an icon chip before section titles (`SectionTitle`; not on plan cards, onboarding or Filter data's Clean up, which has its own chip).
 - **Confirm every delete** (and destructive import modes) with an `s-modal`: red primary + Cancel. Never delete on one click.
 - **Notifications are toasts** (App Bridge `shopify.toast.show`); `s-banner` only for lasting states or warnings.

@@ -24,7 +24,7 @@ export function EmptyState({
     <s-box padding="base" paddingBlock="large-300">
       <s-grid gap="base" justifyItems="center">
         <span
-          className={`ff-empty__tile ff-empty__tile--${tone}`}
+          className={`sp-empty__tile sp-empty__tile--${tone}`}
           aria-hidden="true"
         >
           {tone === "loading" ? (
@@ -41,7 +41,7 @@ export function EmptyState({
         <s-grid justifyItems="center" maxInlineSize="440px" gap="small-200">
           <s-heading>{heading}</s-heading>
           {children && (
-            <div className="ff-empty__text">
+            <div className="sp-empty__text">
               <s-paragraph color="subdued">{children}</s-paragraph>
             </div>
           )}

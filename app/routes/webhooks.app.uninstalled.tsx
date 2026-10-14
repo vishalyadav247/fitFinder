@@ -21,6 +21,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (marked || !known) {
     await db.session.deleteMany({ where: { shop } });
   }
+  // Shopify cancels the app's charges on uninstall: end ours too, so trial days stop counting.
+  if (marked) {
+    await db.appSubscription.updateMany({
+      where: { shop: { domain: shop }, endedAt: null },
+      data: { status: "CANCELLED", endedAt: uninstalledAt },
+    });
+  }
 
   return new Response();
 };

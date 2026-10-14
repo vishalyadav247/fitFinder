@@ -1,12 +1,7 @@
-// Pure linking rules: attachment classification, bulk JSONL → catalog, webhook payloads, bulk
+// Pure linking rules: attachment keys, bulk JSONL → catalog, webhook payloads, bulk
 // polling (M6).
 import { describe, expect, it, vi } from "vitest";
-import {
-  classifyAttachment,
-  gidType,
-  kindLabel,
-  productLinkAttachment,
-} from "./attachment";
+import { gidType, lookupKey } from "./attachment";
 import {
   collectBulkLines,
   deletedProductId,
@@ -21,43 +16,21 @@ import {
 const TAB = String.fromCharCode(9);
 const NBSP = String.fromCharCode(160);
 
-describe("classifyAttachment", () => {
+describe("lookupKey", () => {
   it.each([
-    ["BRK-123", { kind: "sku", key: "brk-123" }],
-    ["  Brk-123 ", { kind: "sku", key: "brk-123" }],
-    [`${TAB}Brk-123${NBSP}`, { kind: "sku", key: "brk-123" }],
-    // Bare text is a SKU first (and a product handle when no SKU matches).
-    ["brake-pads", { kind: "sku", key: "brake-pads" }],
-    [
-      "https://shop.example/products/Brake-Pads?variant=1",
-      { kind: "product", key: "brake-pads" },
-    ],
-    ["/products/brake-pads", { kind: "product", key: "brake-pads" }],
-    ["HTTPS://SHOP.EXAMPLE/PRODUCTS/PADS", { kind: "product", key: "pads" }],
-    [
-      "https://shop.example/collections/audi-a4",
-      { kind: "collection", key: "audi-a4" },
-    ],
-    [
-      "/collections/audi-a4/products/brake-pads",
-      { kind: "product", key: "brake-pads" },
-    ],
-    ["/collections/audi#top", { kind: "collection", key: "audi" }],
+    ["BRK-123", "brk-123"],
+    ["  Brk-123 ", "brk-123"],
+    [`${TAB}Brk-123${NBSP}`, "brk-123"],
+    // Links and handles are no attachments any more: they're plain text that matches no SKU.
+    ["/products/brake-pads", "/products/brake-pads"],
   ] as const)("%s", (attachment, expected) => {
-    expect(classifyAttachment(attachment)).toEqual(expected);
+    expect(lookupKey(attachment)).toBe(expected);
   });
 
-  it("labels kinds like the prototype", () => {
-    expect(kindLabel("sku")).toBe("SKU");
-    expect(kindLabel("product")).toBe("Product link");
-    expect(kindLabel("collection")).toBe("Collection link");
-    expect(productLinkAttachment("pads")).toBe("/products/pads");
-  });
-
-  it("accepts only product, variant and collection gids", () => {
+  it("accepts only product and variant gids", () => {
     expect(gidType("gid://shopify/Product/12")).toBe("Product");
     expect(gidType("gid://shopify/ProductVariant/3")).toBe("ProductVariant");
-    expect(gidType("gid://shopify/Collection/9")).toBe("Collection");
+    expect(gidType("gid://shopify/Collection/9")).toBeNull();
     expect(gidType("gid://shopify/Customer/9")).toBeNull();
     expect(gidType("gid://shopify/Product/12 OR 1=1")).toBeNull();
   });

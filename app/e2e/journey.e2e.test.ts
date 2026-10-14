@@ -2,10 +2,12 @@
 // and the library's own auth, with Shopify faked at the HTTP boundary (fake-shopify.ts):
 // install → onboarding → search setup → CSV import → filter data → product mapping and linking →
 // products webhook → storefront settings and theme status → storefront proxy (options, search,
-// fits, results) → dashboard → plans → settings → uninstall, compliance webhooks and purge.
+// fits, results) → dashboard → plans (Billing API) and the backoffice → settings → uninstall,
+// compliance webhooks and purge.
 // A second shop runs alongside to prove tenant isolation at each step.
 import {
   adminRequest,
+  BACKOFFICE,
   cleanLeftovers,
   removeStorage,
   run,
@@ -54,24 +56,31 @@ const routes = {
   proxyResults: await import("../routes/proxy.results"),
   dashboard: await import("../routes/app._index"),
   plans: await import("../routes/app.plans"),
+  boLogin: await import("../routes/backoffice_.login"),
+  boPlans: await import("../routes/backoffice.plans._index"),
+  boOverview: await import("../routes/backoffice._index"),
+  boPlan: await import("../routes/backoffice.plans.$key"),
+  boProfile: await import("../routes/backoffice.profile"),
+  subscriptionsWebhook:
+    await import("../routes/webhooks.app.subscriptions_update"),
   settings: await import("../routes/app.settings"),
   uninstalled: await import("../routes/webhooks.app.uninstalled"),
   compliance: await import("../routes/webhooks.compliance"),
 };
 
 const BLOCK = (handle: string) =>
-  `shopify://apps/fitfinder/blocks/${handle}/0199e2e0-0000-7000-8000-000000000000`;
+  `shopify://apps/sparefit/blocks/${handle}/0199e2e0-0000-7000-8000-000000000000`;
 const THEME_FILES = {
   "config/settings_data.json": JSON.stringify({
     current: {
-      blocks: { embed1: { type: BLOCK("fitfinder-embed"), disabled: false } },
+      blocks: { embed1: { type: BLOCK("sparefit-embed"), disabled: false } },
     },
   }),
   "templates/index.json": JSON.stringify({
     sections: {
-      ff: {
+      sp: {
         type: "_blocks",
-        blocks: { s: { type: BLOCK("fitfinder-search"), settings: {} } },
+        blocks: { s: { type: BLOCK("sparefit-search"), settings: {} } },
       },
     },
   }),
@@ -79,7 +88,7 @@ const THEME_FILES = {
     sections: {
       main: {
         type: "main-product",
-        blocks: { b: { type: BLOCK("fitfinder-fits-badge"), settings: {} } },
+        blocks: { b: { type: BLOCK("sparefit-fits-badge"), settings: {} } },
       },
     },
   }),
@@ -96,7 +105,7 @@ const CSV = [
   "Ford,20x9,Focus,BP-100",
 ].join("\r\n");
 
-describe("FitFinder end to end", () => {
+describe("SpareFit end to end", () => {
   let shopId: string;
   const fieldIds: Record<string, string> = {};
   const catalog = {} as Record<
@@ -132,7 +141,6 @@ describe("FitFinder end to end", () => {
       status: "DRAFT",
       skus: ["DR-1"],
     });
-    shopify.addCollection(SHOP, "Audi Parts");
     shopify.addTheme(SHOP, {
       name: "Horizon",
       role: "MAIN",
@@ -379,7 +387,6 @@ describe("FitFinder end to end", () => {
       intent: "map",
       choices,
       hasHeader: true,
-      lookForSkus: true,
       mode,
     });
     expect(mapped.status).toBe(200);
@@ -399,6 +406,19 @@ describe("FitFinder end to end", () => {
     expect(ready.counts.errors).toBe(1); // "20x9" isn't a year
     expect(done.counts.added).toBe(6);
     expect(await prisma.fitmentRow.count({ where: { shopId } })).toBe(6);
+
+    // Without any admin page visit, a background job gives the theme the new first dropdown
+    // values (app metafield sparefit.first), so the search widget fills it without asking the app.
+    const first = await waitFor("first dropdown published", async () => {
+      const value = shopify.shop(SHOP).appMetafields.get("sparefit.first");
+      const doc = value && JSON.parse(value);
+      return doc?.v?.length > 0 && doc;
+    });
+    const make = await prisma.searchField.findFirst({
+      where: { shopId },
+      orderBy: { position: "asc" },
+    });
+    expect(first).toEqual({ f: make!.id, v: ["Audi", "BMW", "Ford"] });
 
     // The history entry and the error report.
     expect(done.hasReport).toBe(true);
@@ -440,7 +460,6 @@ describe("FitFinder end to end", () => {
         intent: "map",
         choices: ["skip"],
         hasHeader: true,
-        lookForSkus: true,
         mode: "upsert",
       },
       { intent: "run" },
@@ -684,6 +703,30 @@ describe("FitFinder end to end", () => {
       }
       return res.body.status === "completed" && res.body;
     });
+  const plansAction = (form: Record<string, string>, shop = SHOP) =>
+    run(
+      routes.plans.action,
+      adminRequest(shop, "/app/plans", { method: "POST", body: { form } }),
+    );
+  /** The merchant picks a paid plan, approves the charge on Shopify's page and comes back. */
+  const pickPlan = async (shop: string, plan: string, interval = "monthly") => {
+    const started = await plansAction(
+      { intent: "subscribe", plan, interval },
+      shop,
+    );
+    expect(started.body).toMatchObject({ ok: true });
+    expect(started.body.confirmationUrl).toContain("/admin/charges/confirm");
+    const charge = shopify.approveCharge(shop);
+    // Shopify sends the merchant back to the Plans page (returnUrl), which reads the plan fresh.
+    const { clearPlanCache } = await import("../services/billing.server");
+    clearPlanCache();
+    const page = (
+      await run(routes.plans.loader, adminRequest(shop, "/app/plans?charge=1"))
+    ).body;
+    expect(page).toMatchObject({ plan, chosen: true });
+    return { charge, page };
+  };
+
   const mappingAction = (form: Record<string, string>, shop = SHOP) =>
     run(
       routes.mapping.action,
@@ -721,7 +764,7 @@ describe("FitFinder end to end", () => {
     expect(other.withoutData.items).toHaveLength(0);
   });
 
-  it("product mapping links a SKU by hand, manages universal products and re-checks links", async () => {
+  it("product mapping replaces an unknown SKU by a chosen product's, manages universal products and re-checks links", async () => {
     const linked = await mappingAction({
       intent: "link",
       attachment: "NO-SUCH-SKU",
@@ -729,8 +772,12 @@ describe("FitFinder end to end", () => {
     });
     expect(linked.body).toMatchObject({
       ok: true,
-      toast: "NO-SUCH-SKU linked to a product",
+      toast: "NO-SUCH-SKU replaced by WB-9 (Wiper Blades)",
     });
+    // The Ford row now carries the store SKU.
+    expect(
+      await prisma.fitmentRow.count({ where: { shopId, attachment: "WB-9" } }),
+    ).toBe(1);
     // A product of another store is read from THIS store's Admin API: not found, refused.
     const foreignProduct = shopify.addProduct(OTHER, {
       title: "Phone Case",
@@ -738,10 +785,20 @@ describe("FitFinder end to end", () => {
     });
     const missing = await mappingAction({
       intent: "link",
-      attachment: "NO-SUCH-SKU",
+      attachment: "WB-9",
       resourceId: foreignProduct.id,
     });
     expect(missing.status).toBe(409);
+
+    const notIncluded = await mappingAction({
+      intent: "universal-add",
+      ids: JSON.stringify([catalog.mats.id]),
+    });
+    expect(notIncluded.status).toBe(409);
+    expect(notIncluded.body.error).toContain(
+      "Universal products isn't included in the Starter plan",
+    );
+    await pickPlan(SHOP, "growth");
 
     const universal = await mappingAction({
       intent: "universal-add",
@@ -779,7 +836,7 @@ describe("FitFinder end to end", () => {
 
     // Check links again, with a slow export and a throttled call on the way (retried).
     shopify.bulkRunningPolls = 1;
-    shopify.throttleOnce.add("CatalogCollections");
+    shopify.throttleOnce.add("CatalogBulkExport");
     const before = shopify.operations.length;
     const check = await mappingAction({ intent: "check" });
     expect(check.body.ok).toBe(true);
@@ -789,12 +846,12 @@ describe("FitFinder end to end", () => {
       2,
     );
     expect(
-      ops.filter((n) => n === "CatalogCollections").length,
+      ops.filter((n) => n === "CatalogBulkExport").length,
     ).toBeGreaterThanOrEqual(2);
     expect(shopify.throttleOnce.size).toBe(0);
     shopify.bulkRunningPolls = 0;
     page = await mappingPage();
-    // A full check keeps the manual link.
+    // A full check keeps the link: WB-9 is a store SKU now.
     expect(page.unlinkedCount).toBe(0);
   });
 
@@ -862,7 +919,7 @@ describe("FitFinder end to end", () => {
     expect(page.body.publishFailed).toBe(false);
 
     const published = () =>
-      JSON.parse(shopify.shop(SHOP).appMetafields.get("fitfinder.config")!);
+      JSON.parse(shopify.shop(SHOP).appMetafields.get("sparefit.config")!);
     expect(published().fields.map((f: { label: string }) => f.label)).toEqual([
       "Make",
       "Year",
@@ -1024,8 +1081,9 @@ describe("FitFinder end to end", () => {
       skus: 4,
       unlinkedSkus: 0,
       embedOn: true,
-      plan: "none",
-      planChosen: false,
+      // Picked during product mapping (universal products need Growth).
+      planName: "Growth",
+      planChosen: true,
     });
     expect(details.facts.coverage).toEqual(
       expect.arrayContaining([{ label: "Make", count: 3 }]),
@@ -1033,21 +1091,40 @@ describe("FitFinder end to end", () => {
     expect(details.over).toEqual([]);
   });
 
-  it("plans read Shopify App Pricing and the limits follow the plan", async () => {
+  it("plans run on the Billing API, the backoffice sets price, trial and features, and limits follow the plan", async () => {
     const { clearPlanCache } = await import("../services/billing.server");
-    const plans = async () =>
-      (await run(routes.plans.loader, adminRequest(SHOP, "/app/plans"))).body;
+    const { getPlan, updatePlan, clearPlansCache } =
+      await import("../models/plan.server");
+    const plans = async (shop = SHOP) =>
+      (await run(routes.plans.loader, adminRequest(shop, "/app/plans"))).body;
 
+    // Growth was picked during product mapping: 14-day trial, $29 a month.
     let page = await plans();
-    expect(page).toMatchObject({
-      plan: "none",
-      chosen: false,
-      connected: true,
-    });
-    expect(page.planUrl).toContain(`/charges/${"fitfinder"}/pricing_plans`);
+    expect(page).toMatchObject({ plan: "growth", chosen: true, trialDays: 14 });
     expect(page.used).toEqual({ rows: 6, products: 5 });
+    const first = shopify.shop(SHOP).charges[0];
+    expect(first.variables).toMatchObject({
+      trialDays: 14,
+      test: true,
+      lineItems: [
+        {
+          plan: {
+            appRecurringPricingDetails: {
+              price: { amount: 29, currencyCode: "USD" },
+              interval: "EVERY_30_DAYS",
+            },
+          },
+        },
+      ],
+    });
 
-    // Starter (also what "no plan" gets): 50 products with filter data at most.
+    // Back to the free plan: the charge is cancelled, Starter's limits apply.
+    const free = await plansAction({ intent: "free", plan: "starter" });
+    expect(free.body).toMatchObject({ ok: true, toast: "Plan changed" });
+    expect(first.status).toBe("CANCELLED");
+    clearPlanCache();
+    page = await plans();
+    expect(page).toMatchObject({ plan: "starter", chosen: true });
     const extra = Array.from({ length: 46 }, (_, i) =>
       shopify.addProduct(SHOP, { title: `Seat Cover ${i}`, skus: [`SC-${i}`] }),
     );
@@ -1056,31 +1133,287 @@ describe("FitFinder end to end", () => {
       ids: JSON.stringify(extra.map((p) => p.id)),
     });
     expect(refused.status).toBe(409);
-    expect(refused.body.error).toContain("50");
 
-    // The merchant picks Growth on Shopify's plan page and comes back.
-    shopify.shop(SHOP).subscription = {
-      handles: ["growth"],
-      trialEndsAt: new Date(Date.now() + 7 * 86400_000).toISOString(),
-    };
-    clearPlanCache();
-    page = await plans();
-    expect(page).toMatchObject({ plan: "growth", chosen: true, trialDays: 7 });
-    const allowed = await mappingAction({
-      intent: "universal-add",
-      ids: JSON.stringify(extra.map((p) => p.id)),
-    });
-    expect(allowed.body).toMatchObject({
-      ok: true,
-      toast: "46 products added to universal products",
-    });
+    // The super admin signs in to the backoffice and changes Growth: $39, 7-day trial.
+    const original = (await getPlan("growth"))!;
+    const origin = "https://app.e2e.test";
+    const bo = (path: string, form?: Record<string, string>, cookie = "") =>
+      new Request(`${origin}${path}`, {
+        method: form ? "POST" : "GET",
+        headers: {
+          Origin: origin,
+          Host: "app.e2e.test",
+          Cookie: cookie,
+          ...(form
+            ? { "Content-Type": "application/x-www-form-urlencoded" }
+            : {}),
+        },
+        body: form ? new URLSearchParams(form) : undefined,
+      });
+    const wrong = await run(
+      routes.boLogin.action,
+      bo("/backoffice/login", { email: BACKOFFICE.email, password: "nope" }),
+    );
+    expect(wrong.status).toBe(401);
+    // Not signed in: the plans list sends to the sign-in page.
+    expect(
+      (await run(routes.boPlans.loader, bo("/backoffice/plans"))).location,
+    ).toBe("/backoffice/login");
+    const login = await run(
+      routes.boLogin.action,
+      bo("/backoffice/login", {
+        email: BACKOFFICE.email,
+        password: BACKOFFICE.password,
+      }),
+    );
+    expect(login.location).toBe("/backoffice");
+    const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0];
+    expect(cookie).toMatch(/^__sparefit_bo=/);
+    // A post from another site is refused even with the cookie.
+    const forged = await run(
+      routes.boPlan.action,
+      new Request(`${origin}/backoffice/plans/growth`, {
+        method: "POST",
+        headers: {
+          Origin: "https://evil.test",
+          Host: "app.e2e.test",
+          Cookie: cookie,
+        },
+        body: new URLSearchParams({ name: "Hacked" }),
+      }),
+      { key: "growth" },
+    );
+    expect(forged.status).toBe(403);
+
+    try {
+      const form: Record<string, string> = {
+        name: "Growth",
+        description: original.description,
+        visible: "on",
+        priceMonthly: "39",
+        priceYearly: "390",
+        trialDays: "7",
+        "limit.rows": "500000",
+        "limit.products": "5000",
+        "unlimited.searchFields": "on",
+        "limit.backups": "5",
+        "toggle.fitsBadge": "on",
+        "toggle.fitmentTable": "on",
+        "toggle.mySelection": "on",
+        "toggle.universalProducts": "on",
+        bullets: "Everything in Starter",
+      };
+      const bad = await run(
+        routes.boPlan.action,
+        bo("/backoffice/plans/growth", { ...form, priceMonthly: "0" }, cookie),
+        { key: "growth" },
+      );
+      expect(bad.status).toBe(400);
+      expect(bad.body.errors.priceMonthly).toContain("monthly price");
+      const saved = await run(
+        routes.boPlan.action,
+        bo("/backoffice/plans/growth", form, cookie),
+        { key: "growth" },
+      );
+      expect(saved.location).toBe("/backoffice/plans?saved=growth");
+      const list = (
+        await run(
+          routes.boPlans.loader,
+          bo("/backoffice/plans", undefined, cookie),
+        )
+      ).body;
+      // The Overview counts this run's shops (others may exist in the dev database).
+      const overview = (
+        await run(
+          routes.boOverview.loader,
+          bo("/backoffice", undefined, cookie),
+        )
+      ).body.stats;
+      expect(overview.stores.installed).toBeGreaterThanOrEqual(2);
+      expect(overview.stores.installsByDay).toHaveLength(30);
+      expect(overview.setup.onboarded).toBeGreaterThanOrEqual(2);
+      expect(overview.setup.withData).toBeGreaterThanOrEqual(1);
+      expect(overview.imports7.completed).toBeGreaterThanOrEqual(1);
+      expect(
+        overview.activity.some(
+          (a: { domain: string; kind: string }) =>
+            a.domain === SHOP && a.kind === "install",
+        ),
+      ).toBe(true);
+      expect(
+        (await run(routes.boOverview.loader, bo("/backoffice"))).location,
+      ).toBe("/backoffice/login");
+      expect(
+        list.plans.find((p: { key: string }) => p.key === "growth"),
+      ).toMatchObject({ priceMonthly: 39, trialDays: 7 });
+
+      // The merchant sees the new price and trial, and the new charge uses them.
+      page = await plans();
+      expect(
+        page.plans.find((p: { key: string }) => p.key === "growth"),
+      ).toMatchObject({ priceMonthly: 39, trialDays: 7 });
+      const { charge } = await pickPlan(SHOP, "growth");
+      // 7-day trial minus the started day already spent on the earlier Growth trial.
+      expect(charge.variables).toMatchObject({
+        trialDays: 6,
+        lineItems: [
+          { plan: { appRecurringPricingDetails: { price: { amount: 39 } } } },
+        ],
+      });
+
+      // The charge status webhook is recorded.
+      const hook = await run(
+        routes.subscriptionsWebhook.action,
+        webhookRequest(
+          "/webhooks/app/subscriptions_update",
+          SHOP,
+          "app_subscriptions/update",
+          {
+            app_subscription: {
+              admin_graphql_api_id: charge.id,
+              status: "ACTIVE",
+            },
+          },
+        ),
+      );
+      expect(hook.status).toBe(200);
+      expect(
+        await prisma.appSubscription.findUniqueOrThrow({
+          where: { shopifyId: charge.id },
+        }),
+      ).toMatchObject({ status: "ACTIVE", planKey: "growth" });
+
+      // Growth includes universal products and 5,000 products.
+      const allowed = await mappingAction({
+        intent: "universal-add",
+        ids: JSON.stringify(extra.map((p) => p.id)),
+      });
+      expect(allowed.body).toMatchObject({
+        ok: true,
+        toast: "46 products added to universal products",
+      });
+    } finally {
+      await updatePlan("growth", { ...original }, "e2e-restore");
+      clearPlansCache();
+    }
+
     // The other shop's plan didn't change.
-    clearPlanCache();
-    expect((await plans()).plan).toBe("growth");
-    const other = (
-      await run(routes.plans.loader, adminRequest(OTHER, "/app/plans"))
-    ).body;
-    expect(other.plan).toBe("none");
+    expect((await plans(OTHER)).plan).toBe("none");
+  });
+
+  it("backoffice profile: the admin changes name and password; other sessions are signed out", async () => {
+    const origin = "https://app.e2e.test";
+    const bo = (path: string, form?: Record<string, string>, cookie = "") =>
+      new Request(`${origin}${path}`, {
+        method: form ? "POST" : "GET",
+        headers: {
+          Origin: origin,
+          Host: "app.e2e.test",
+          Cookie: cookie,
+          ...(form
+            ? { "Content-Type": "application/x-www-form-urlencoded" }
+            : {}),
+        },
+        body: form ? new URLSearchParams(form) : undefined,
+      });
+    const signIn = async (password: string) => {
+      const res = await run(
+        routes.boLogin.action,
+        bo("/backoffice/login", { email: BACKOFFICE.email, password }),
+      );
+      return {
+        status: res.status,
+        cookie: (res.headers.get("set-cookie") ?? "").split(";")[0],
+      };
+    };
+    await prisma.backofficeAdmin.deleteMany({});
+    try {
+      const first = await signIn(BACKOFFICE.password);
+      expect(first.status).toBe(302);
+      const page = await run(
+        routes.boProfile.loader,
+        bo("/backoffice/profile", undefined, first.cookie),
+      );
+      expect(page.body).toMatchObject({
+        email: BACKOFFICE.email,
+        fromEnv: true,
+      });
+
+      const save = (form: Record<string, string>) =>
+        run(
+          routes.boProfile.action,
+          bo("/backoffice/profile", form, first.cookie),
+        );
+      const base = {
+        name: "Owner",
+        email: BACKOFFICE.email,
+        currentPassword: BACKOFFICE.password,
+        newPassword: "",
+        confirmPassword: "",
+      };
+      expect(
+        (await save({ ...base, currentPassword: "nope" })).body,
+      ).toMatchObject({
+        errors: { currentPassword: "Your current password is wrong." },
+      });
+      expect(
+        (
+          await save({
+            ...base,
+            newPassword: "short",
+            confirmPassword: "short",
+          })
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await save({
+            ...base,
+            newPassword: "a-brand-new-password",
+            confirmPassword: "a-different-password",
+          })
+        ).body.errors.confirmPassword,
+      ).toBe("The passwords don't match.");
+
+      const saved = await save({
+        ...base,
+        newPassword: "a-brand-new-password",
+        confirmPassword: "a-brand-new-password",
+      });
+      expect(saved.location).toBe("/backoffice/profile?saved=1");
+      const fresh = (saved.headers.get("set-cookie") ?? "").split(";")[0];
+      // The password is stored hashed, never as typed.
+      const row = await prisma.backofficeAdmin.findUniqueOrThrow({
+        where: { id: 1 },
+      });
+      expect(row).toMatchObject({ name: "Owner", email: BACKOFFICE.email });
+      expect(row.passwordHash).toMatch(/^scrypt:/);
+      expect(row.passwordHash).not.toContain("a-brand-new-password");
+
+      // The old session is signed out; the one that saved carries on.
+      expect(
+        (
+          await run(
+            routes.boPlans.loader,
+            bo("/backoffice", undefined, first.cookie),
+          )
+        ).location,
+      ).toBe("/backoffice/login");
+      expect(
+        (
+          await run(
+            routes.boPlans.loader,
+            bo("/backoffice/plans", undefined, fresh),
+          )
+        ).status,
+      ).toBe(200);
+      // The old password no longer signs in; the new one does.
+      expect((await signIn(BACKOFFICE.password)).status).toBe(401);
+      expect((await signIn("a-brand-new-password")).status).toBe(302);
+    } finally {
+      // Back to the env values for the other steps and runs.
+      await prisma.backofficeAdmin.deleteMany({});
+    }
   });
 
   it("settings shows the store type, and replacing a store type resets only that shop", async () => {

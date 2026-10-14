@@ -1,6 +1,6 @@
 // A fake Shopify for the end-to-end tests, at the HTTP boundary: it answers the `fetch` calls the
-// app and @shopify/shopify-api make (token exchange, Admin GraphQL, bulk operation downloads, the
-// Partner API) from an in-memory store per shop. Everything inside the app runs for real: the
+// app and @shopify/shopify-api make (token exchange, Admin GraphQL incl. the Billing API, bulk
+// operation downloads) from an in-memory store per shop. Everything inside the app runs for real: the
 // library's session-token and app-proxy checks, our webhook HMAC check, Postgres, pg-boss jobs.
 // Unknown requests or GraphQL operations fail loudly (recorded in `unknown`), so a new Shopify
 // call in the app shows up here instead of silently reaching the network.
@@ -10,12 +10,16 @@ export const API_KEY = "e2e-api-key";
 export const API_SECRET = "e2e-api-secret";
 export const APP_URL = "https://app.e2e.test";
 export const SCOPES = "read_products,write_app_proxy,read_themes,write_files";
-export const PARTNER = {
-  orgId: "4242",
-  token: "e2e-partner-token",
-  appGid: "gid://partners/App/4242",
-  handle: "fitfinder",
-};
+export const APP_HANDLE = "sparefit";
+
+/** A Billing API charge the app created (appSubscriptionCreate). */
+export interface FakeCharge {
+  id: string;
+  status: "PENDING" | "ACTIVE" | "CANCELLED" | "DECLINED";
+  trialDays: number;
+  createdAt: string;
+  variables: Record<string, unknown>;
+}
 
 export interface FakeVariant {
   id: string;
@@ -28,11 +32,6 @@ export interface FakeProduct {
   status: "ACTIVE" | "DRAFT" | "ARCHIVED";
   variants: FakeVariant[];
 }
-export interface FakeCollection {
-  id: string;
-  handle: string;
-  title: string;
-}
 export interface FakeTheme {
   id: string;
   name: string;
@@ -44,10 +43,9 @@ export interface FakeShop {
   domain: string;
   gid: string;
   products: Map<string, FakeProduct>;
-  collections: Map<string, FakeCollection>;
   themes: FakeTheme[];
-  /** Partner API activeSubscription item handles (null: no plan chosen). */
-  subscription: { handles: string[]; trialEndsAt: string | null } | null;
+  /** Billing API charges, oldest first. */
+  charges: FakeCharge[];
   /** App-data metafields written with metafieldsSet, by "namespace.key". */
   appMetafields: Map<string, string>;
   /** Access tokens handed out by the token exchange. */
@@ -78,9 +76,8 @@ export class FakeShopify {
         domain,
         gid: gid("Shop"),
         products: new Map(),
-        collections: new Map(),
         themes: [],
-        subscription: null,
+        charges: [],
         appMetafields: new Map(),
         tokens: new Set(),
         bulk: new Map(),
@@ -107,16 +104,6 @@ export class FakeShopify {
     return product;
   }
 
-  addCollection(domain: string, title: string): FakeCollection {
-    const c = {
-      id: gid("Collection"),
-      handle: title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-      title,
-    };
-    this.shop(domain).collections.set(c.id, c);
-    return c;
-  }
-
   addTheme(domain: string, theme: Omit<FakeTheme, "id">): FakeTheme {
     const t = { id: gid("OnlineStoreTheme"), ...theme };
     this.shop(domain).themes.push(t);
@@ -136,9 +123,6 @@ export class FakeShopify {
         return body === undefined
           ? new Response("not found", { status: 404 })
           : new Response(body);
-      }
-      if (url.hostname === "partners.shopify.com") {
-        return await this.partner(request);
       }
       if (url.hostname.endsWith(".myshopify.com")) {
         const shop = this.shops.get(url.hostname);
@@ -184,31 +168,17 @@ export class FakeShopify {
     });
   }
 
-  // ------------------------------------------------------------ Partner API (Shopify App Pricing)
-
-  private async partner(request: Request) {
-    if (request.headers.get("x-shopify-access-token") !== PARTNER.token) {
-      return Response.json({ errors: "unauthorized" }, { status: 401 });
-    }
-    const { variables } = (await request.json()) as {
-      variables: { appId: string; shopId: string };
-    };
-    const shop = [...this.shops.values()].find(
-      (s) => s.gid === variables.shopId,
-    );
-    if (variables.appId !== PARTNER.appGid || !shop) {
-      return Response.json({ errors: [{ message: "not found" }] });
-    }
-    const sub = shop.subscription;
-    return Response.json({
-      data: {
-        activeSubscription: sub && {
-          billingPeriod: "EVERY_30_DAYS",
-          trialEndsAt: sub.trialEndsAt,
-          items: sub.handles.map((handle) => ({ handle, description: "" })),
-        },
-      },
-    });
+  /** The merchant approves the newest pending charge; an active one it replaces is cancelled. */
+  approveCharge(domain: string): FakeCharge {
+    const shop = this.shop(domain);
+    const charge = [...shop.charges]
+      .reverse()
+      .find((c) => c.status === "PENDING");
+    if (!charge) throw new Error("no pending charge");
+    for (const c of shop.charges)
+      if (c.status === "ACTIVE") c.status = "CANCELLED";
+    charge.status = "ACTIVE";
+    return charge;
   }
 
   // ------------------------------------------------------------ Admin GraphQL
@@ -235,6 +205,52 @@ export class FakeShopify {
     (shop: FakeShop, v: Record<string, unknown>) => unknown
   > = {
     ShopGid: (shop) => ({ shop: { id: shop.gid } }),
+
+    // Billing API (Manual Pricing). Test stores are development stores.
+    ShopPlanKind: () => ({ shop: { plan: { partnerDevelopment: true } } }),
+
+    ActiveSubscriptions: (shop) => ({
+      currentAppInstallation: {
+        activeSubscriptions: shop.charges
+          .filter((c) => c.status === "ACTIVE")
+          .map((c) => ({ id: c.id, status: c.status, createdAt: c.createdAt })),
+      },
+    }),
+
+    SubscriptionCreate: (shop, v) => {
+      const charge: FakeCharge = {
+        id: gid("AppSubscription"),
+        status: "PENDING",
+        trialDays: Number(v.trialDays ?? 0),
+        createdAt: new Date().toISOString(),
+        variables: v,
+      };
+      shop.charges.push(charge);
+      return {
+        appSubscriptionCreate: {
+          appSubscription: {
+            id: charge.id,
+            status: charge.status,
+            trialDays: charge.trialDays,
+          },
+          confirmationUrl: `https://${shop.domain}/admin/charges/confirm?id=${encodeURIComponent(charge.id)}`,
+          userErrors: [],
+        },
+      };
+    },
+
+    SubscriptionCancel: (shop, v) => {
+      const charge = shop.charges.find((c) => c.id === v.id);
+      if (charge) charge.status = "CANCELLED";
+      return {
+        appSubscriptionCancel: {
+          appSubscription: charge
+            ? { id: charge.id, status: charge.status }
+            : null,
+          userErrors: charge ? [] : [{ field: ["id"], message: "Not found" }],
+        },
+      };
+    },
 
     AppInstallationId: (shop) => ({
       currentAppInstallation: {
@@ -320,13 +336,6 @@ export class FakeShopify {
       },
     }),
 
-    CatalogCollections: (shop) => ({
-      collections: {
-        pageInfo: { hasNextPage: false, endCursor: null },
-        nodes: [...shop.collections.values()],
-      },
-    }),
-
     ProductVariantsPage: (shop, v) => {
       const p = shop.products.get(v.id as string);
       return {
@@ -357,7 +366,7 @@ export class FakeShopify {
             variants: { nodes: p.variants.slice(0, 1) },
           };
         }
-        return shop.collections.get(id) ?? null;
+        return null;
       }),
     }),
 
@@ -429,7 +438,7 @@ export function proxyUrl(
     ...params,
     shop,
     logged_in_customer_id: "",
-    path_prefix: "/apps/fitfinder",
+    path_prefix: "/apps/sparefit",
     timestamp: String(timestamp),
   };
   const message = Object.keys(all)

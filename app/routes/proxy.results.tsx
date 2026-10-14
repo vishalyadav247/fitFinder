@@ -1,4 +1,4 @@
-// App proxy GET /apps/fitfinder/results?{fieldId}={value}…&page=n → the results page, as Liquid
+// App proxy GET /apps/sparefit/results?{fieldId}={value}…&page=n → the results page, as Liquid
 // rendered in the shop's theme (services/storefront/results-page.ts).
 import type { LoaderFunctionArgs } from "react-router";
 import {

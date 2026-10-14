@@ -10,7 +10,7 @@ S.settings = () => {
 
   <s-section accessibilityLabel="Your data"><h2 class="sec-title sec-gap">Your data</h2>
     <s-stack gap="small-300">
-      <s-text>FitFinder only stores what it needs to run your search. Your products in Shopify are never changed by the app.</s-text>
+      <s-text>SpareFit only stores what it needs to run your search. Your products in Shopify are never changed by the app.</s-text>
       <s-unordered-list>
         <s-list-item><s-text type="strong">What we store:</s-text> your search fields, filter rows, product links, the last 5 imported files (as backups) and the texts and settings you set in the app.</s-list-item>
         <s-list-item><s-text type="strong">Shoppers:</s-text> a shopper's My Selection is saved in their own browser, not on our servers. We don't store names, emails or orders.</s-list-item>

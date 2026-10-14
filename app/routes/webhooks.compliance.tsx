@@ -1,7 +1,7 @@
 // Mandatory compliance webhooks (customers/data_request, customers/redact, shop/redact).
 // The signature is checked without the shop's session (webhook-verify.server.ts): 401 when the
 // HMAC is wrong, as Shopify requires.
-// FitFinder stores no customer data (My Selection lives in the shopper's browser), so the two
+// SpareFit stores no customer data (My Selection lives in the shopper's browser), so the two
 // customer topics have nothing to return or delete. shop/redact (48 hours after uninstall) is
 // met by the purge at uninstall + 30 days (purge.server.ts), which is within Shopify's 30 days.
 // Docs: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance

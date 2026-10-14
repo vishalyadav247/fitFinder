@@ -1,5 +1,5 @@
 // Builds the storefront scripts and styles of the theme app extension from storefront-src/ into
-// extensions/fitfinder-theme/assets/, minified: one bundle per place it runs, so a page loads
+// extensions/sparefit-theme/assets/, minified: one bundle per place it runs, so a page loads
 // only what it shows. JS bundles stay under Theme Check's AssetSizeAppBlockJavaScript threshold
 // (10,000 bytes). The embed's stylesheet loads on every page and blocks rendering, so it holds
 // only the save prompt and My Selection; blocks bring their own.
@@ -10,21 +10,21 @@ import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 export const BUNDLES = {
-  "ff-search.js": "storefront-src/entry-search.js",
-  "ff-product.js": "storefront-src/entry-product.js",
-  "ff-embed.js": "storefront-src/entry-embed.js",
+  "sp-search.js": "storefront-src/entry-search.js",
+  "sp-product.js": "storefront-src/entry-product.js",
+  "sp-embed.js": "storefront-src/entry-embed.js",
 };
 
 const CSS = "storefront-src/css/";
 /** Stylesheets: concatenated source parts. */
 export const STYLES = {
-  "ff-embed.css": ["base.css", "ask.css", "my-selection.css"],
-  "ff-search.css": ["base.css", "search.css", "ask.css"],
-  "ff-product.css": ["base.css", "product.css"],
+  "sp-embed.css": ["base.css", "ask.css", "my-selection.css"],
+  "sp-search.css": ["base.css", "search.css", "ask.css"],
+  "sp-product.css": ["base.css", "product.css"],
 };
 
 export const MAX_BYTES = 10_000;
-export const OUT = "extensions/fitfinder-theme/assets/";
+export const OUT = "extensions/sparefit-theme/assets/";
 
 export async function bundle(entry) {
   const result = await build({

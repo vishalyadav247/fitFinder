@@ -50,14 +50,6 @@ const ATTACHMENT_HEADERS = new Set([
   "article number",
   "item number",
   "product",
-  "product handle",
-  "handle",
-  "product url",
-  "url",
-  "link",
-  "collection",
-  "collection handle",
-  "collection url",
 ]);
 const FROM_WORDS = ["from", "start", "begin", "min"];
 const TO_WORDS = ["to", "end", "until", "max"];

@@ -1,0 +1,47 @@
+{%- comment -%}
+  SpareFit search section (specs/storefront.md › Search widget). Rendered as plain dropdowns
+  from the app metafield (no layout shift); sp-search.js makes them cascade and search.
+{%- endcomment -%}
+{%- assign sp = app.metafields.sparefit.config.value -%}
+<div class="sp-search-wrap" data-sp-search>
+  {%- if sp -%}
+    <script type="application/json" data-sp-config>{{ sp | json }}</script>
+    {%- comment -%} The first dropdown's values (sync.server.ts › publishFirstList): no request on page load. {%- endcomment -%}
+    <script type="application/json" data-sp-first>{{ app.metafields.sparefit.first.value | json }}</script>
+    {%- liquid
+      assign sp_r = 10
+      if sp.s.corners == 'square'
+        assign sp_r = 2
+      elsif sp.s.corners == 'pill'
+        assign sp_r = 999
+      endif
+    -%}
+    <div class="sp-sfw sp-sfw--{% if sp.s.layout == 'card' %}v{% else %}h{% endif %}" style="--sp-b:{{ sp.s.btn }};--sp-bg:{{ sp.s.bg }};--sp-t:{{ sp.s.text }};--sp-r:{{ sp_r | at_most: 14 }}px;--sp-rb:{{ sp_r }}px">
+      {%- if sp.s.showHeading -%}<p class="sp-sfw__h">{{ sp.heading | escape }}</p>{%- endif -%}
+      <div class="sp-sfw__row">
+        {%- for f in sp.fields -%}
+          <label class="sp-sfw__f"><span class="{% if sp.s.labels %}sp-sfw__l{% else %}sp-sr{% endif %}">{{ f.label | escape }}</span><select disabled><option value="">{{ f.placeholder | escape }}</option></select></label>
+        {%- endfor -%}
+        <button type="button" class="sp-sfw__go" disabled>{{ sp.s.button | escape }}</button>
+      </div>
+      {%- if sp.s.saveLink or sp.s.reset -%}
+        <div class="sp-sfw__links">
+          {%- if sp.s.saveLink -%}<button type="button" class="sp-sfw__save">&#9734; <span>{{ sp.s.saveText | escape }}</span></button>{%- else -%}<span></span>{%- endif -%}
+          {%- if sp.s.reset -%}<button type="button" class="sp-sfw__reset">{{ sp.s.resetText | escape }}</button>{%- endif -%}
+        </div>
+      {%- endif -%}
+    </div>
+  {%- elsif request.design_mode -%}
+    <p class="sp-note">{{ 'sparefit.setup_needed' | t }}</p>
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "SpareFit search",
+  "target": "section",
+  "javascript": "sp-search.js",
+  "stylesheet": "sp-search.css",
+  "settings": []
+}
+{% endschema %}

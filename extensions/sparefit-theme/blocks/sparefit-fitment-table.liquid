@@ -1,0 +1,24 @@
+{%- comment -%}
+  Fitment table (specs/storefront.md › Fitment table): everything this product fits, as a
+  collapsible row (or open table) the merchant drags between the theme's product rows.
+  sp-product.js fills it; it stays empty when the product has no rows and the table is hidden
+  (in the theme editor it shows as with "Show a text instead", data-sp-editor).
+{%- endcomment -%}
+{%- assign sp = app.metafields.sparefit.config.value -%}
+{%- if sp and product -%}
+  <script type="application/json" data-sp-config>{{ sp | json }}</script>
+  <div class="sp-table-wrap" data-sp-table data-product="{{ product.id }}"{% if request.design_mode %} data-sp-editor{% endif %}></div>
+{%- elsif request.design_mode -%}
+  <p class="sp-note">{% if sp %}{{ 'sparefit.product_only' | t }}{% else %}{{ 'sparefit.setup_needed' | t }}{% endif %}</p>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "SpareFit fitment table",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "javascript": "sp-product.js",
+  "stylesheet": "sp-product.css",
+  "settings": []
+}
+{% endschema %}

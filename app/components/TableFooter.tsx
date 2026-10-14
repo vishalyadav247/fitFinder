@@ -67,9 +67,9 @@ export function TableFooter({
             onClick={() => onPage(current + 1)}
           />
         </s-stack>
-        <div className="ff-tf-size">
+        <div className="sp-tf-size">
           <s-text color="subdued">Rows per page</s-text>
-          <div className="ff-tf-select">
+          <div className="sp-tf-select">
             <s-select
               label="Rows per page"
               labelAccessibilityVisibility="exclusive"

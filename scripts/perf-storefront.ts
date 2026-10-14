@@ -100,13 +100,13 @@ for (const [label, index, p] of [
 }
 
 const link = await prisma.productLink.findFirstOrThrow({
-  where: { shopId, productId: { not: null } },
+  where: { shopId },
 });
 await time("fits (badge + table), no picks", () =>
-  q.productFits(search, link.productId!, [], picks({})),
+  q.productFits(search, link.productId, picks({})),
 );
 await time("fits (badge + table), full selection", () =>
-  q.productFits(search, link.productId!, [], full),
+  q.productFits(search, link.productId, full),
 );
 await time("search: SKUs that fit (theme search)", () =>
   q.fitSkus(search, full, 100),

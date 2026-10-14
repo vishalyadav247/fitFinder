@@ -1,7 +1,7 @@
 /* Import CSV card: the small 3-step stepper and the column-mapping preview table.
    Ported from .claude/design/styles/components.css (.stepper.small, .map-scroll, .map-grid);
    colours from the Sky theme (theme.css). */
-.ff-stepper {
+.sp-stepper {
   list-style: none;
   margin: 12px auto 4px;
   padding: 0;
@@ -10,12 +10,12 @@
   max-width: 560px;
   width: 100%;
 }
-.ff-stepper li {
+.sp-stepper li {
   position: relative;
   display: flex;
   justify-content: center;
 }
-.ff-stepper li + li::before {
+.sp-stepper li + li::before {
   content: "";
   position: absolute;
   top: 14px;
@@ -25,10 +25,10 @@
   background: #e5e7eb;
   z-index: 0;
 }
-.ff-stepper li.line-on::before {
-  background: linear-gradient(90deg, var(--ff-p), var(--ff-p-400));
+.sp-stepper li.line-on::before {
+  background: linear-gradient(90deg, var(--sp-p), var(--sp-p-400));
 }
-.ff-stepper .stp {
+.sp-stepper .stp {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -36,7 +36,7 @@
   position: relative;
   z-index: 1;
 }
-.ff-stepper .dot {
+.sp-stepper .dot {
   width: 30px;
   height: 30px;
   border-radius: 999px;
@@ -49,46 +49,46 @@
   border: 3px solid #ffffff;
   box-shadow: 0 0 0 1px #e5e7eb;
 }
-.ff-stepper .done .dot {
-  background: var(--ff-p);
+.sp-stepper .done .dot {
+  background: var(--sp-p);
   color: #ffffff;
-  box-shadow: 0 0 0 1px var(--ff-p);
+  box-shadow: 0 0 0 1px var(--sp-p);
 }
-.ff-stepper .cur .dot {
+.sp-stepper .cur .dot {
   background: #ffffff;
-  color: var(--ff-a-strong);
-  box-shadow: 0 0 0 3px var(--ff-a);
+  color: var(--sp-a-strong);
+  box-shadow: 0 0 0 3px var(--sp-a);
 }
-.ff-stepper .lab {
+.sp-stepper .lab {
   font-size: 12px;
   line-height: 16px;
   color: #616161;
   text-align: center;
 }
-.ff-stepper .cur .lab {
+.sp-stepper .cur .lab {
   color: #303030;
   font-weight: 700;
 }
 @media (max-width: 600px) {
-  .ff-stepper .lab {
+  .sp-stepper .lab {
     display: none;
   }
-  .ff-stepper .cur .lab {
+  .sp-stepper .cur .lab {
     display: block;
   }
 }
 
-.ff-map-scroll {
+.sp-map-scroll {
   overflow-x: auto;
   border: 1px solid #e3e3e3;
   border-radius: 12px;
 }
-.ff-map-grid {
+.sp-map-grid {
   border-collapse: collapse;
   min-width: 100%;
   font-size: 13px;
 }
-.ff-map-grid th {
+.sp-map-grid th {
   padding: 8px;
   background: #f7f7f7;
   border-bottom: 1px solid #e3e3e3;
@@ -96,7 +96,7 @@
   text-align: left;
   font-weight: 400;
 }
-.ff-map-grid td {
+.sp-map-grid td {
   padding: 10px 12px;
   border-bottom: 1px solid #ebebeb;
   white-space: nowrap;
@@ -105,20 +105,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ff-map-grid tbody tr:last-child td {
+.sp-map-grid tbody tr:last-child td {
   border-bottom: 0;
 }
-.ff-map-grid .mg-titles td {
+.sp-map-grid .mg-titles td {
   font-weight: 600;
   background: #fafafa;
 }
-.ff-map-grid.no-titles .mg-titles td {
+.sp-map-grid.no-titles .mg-titles td {
   font-weight: 400;
   background: none;
 }
 
 /* Step 1: the chosen file (replaces the drop zone once a file is picked). */
-.ff-file {
+.sp-file {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -128,7 +128,7 @@
   background: #f0fdf4;
   box-shadow: inset 0 0 0 1px #bbf7d0;
 }
-.ff-file__ico {
+.sp-file__ico {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -139,21 +139,21 @@
   color: #ffffff;
   font-weight: 800;
 }
-.ff-file__text {
+.sp-file__text {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
-.ff-file__text s-text:first-child {
+.sp-file__text s-text:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ff-file.is-bad {
+.sp-file.is-bad {
   background: #fef2f2;
   box-shadow: inset 0 0 0 1px #fecaca;
 }
-.ff-file.is-bad .ff-file__ico {
+.sp-file.is-bad .sp-file__ico {
   background: #c70a24;
 }

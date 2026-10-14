@@ -1,4 +1,4 @@
-# FitFinder App Store listing
+# SpareFit App Store listing
 
 > Copy and asset list for the Partner Dashboard listing and the review form. Rules re-checked 2026-10-06 against the live docs:
 > [App Store requirements](https://shopify.dev/docs/apps/launch/shopify-app-store/app-store-requirements) (section 4: listing, 4.5: submission),
@@ -11,7 +11,7 @@
 
 | Field | Value |
 | --- | --- |
-| App name | **FitFinder** (≤ 30 characters; lead with the brand). The TOML `name` is `fitFinder`: same words, so 4.1.1 "similar" is met — set it to `FitFinder` before the final `shopify app deploy` if you want them identical. Check that the name isn't taken by another app (4.1.2). |
+| App name | **SpareFit – Parts Finder** (23 of ≤ 30 characters; leads with the brand). The TOML `name` is the same, so 4.1.1 "similar" is met. In-app copy uses the short form "SpareFit". Check that the name isn't taken by another app (4.1.2). |
 | App icon | 1200 × 1200 px, PNG or JPEG, bold colours, simple shape with padding; **no text, no screenshots, no Shopify marks, no price** — **to create** |
 | App card subtitle | "Help shoppers find products that fit their vehicle or device" (benefit, no keywords/stats; check the form's counter) |
 | Category / tags | Store design › Search and filters (closest current category; tags must match the app's primary function, 4.3.5) |
@@ -26,7 +26,7 @@
 
 ## Pricing (Pricing section only)
 
-Billing method **Recurring charge** with one plan marked **Free** (shows "Free plan available"). Plans are configured in Shopify App Pricing (Partner Dashboard), handles `starter` / `growth` / `pro`, welcome link `/app/plans`:
+Billing method **Recurring charge** with one plan marked **Free** (shows "Free plan available"). The plans are edited in the app's backoffice (`/backoffice`, Billing API). Copy the prices, trials and features from there, and update the listing whenever a plan changes.
 
 | Plan | Price | Trial | Plan features (for the pricing card) |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ Billing method **Recurring charge** with one plan marked **Free** (shows "Free p
 | Growth | $29/month or $290/year | 14 days | 5,000 linked products · 500,000 filter rows |
 | Pro | $99/month or $990/year | 14 days | Unlimited products and rows · priority support |
 
-Limits from `app/services/billing.ts` `PLANS`. Keep the listing's pricing identical to the plans in the Partner Dashboard and to the Plans page in the app (4.2.1: include trial length and every charge). Per-plan **feature** lists: decide first (checklist 1.6) — today only the number limits are enforced, so don't list features as exclusive to a plan unless they are.
+These are the seeded plans (migration `20261013120000_plans_backoffice`); the backoffice is the source of truth. Keep the listing's pricing identical to the backoffice plans and to the Plans page in the app (4.2.1: include trial length and every charge).
 
 ## App introduction (≤ 100 characters)
 
@@ -44,7 +44,7 @@ Limits from `app/services/billing.ts` `PLANS`. Keep the listing's pricing identi
 
 ## App details (≤ 500 characters)
 
-> FitFinder adds a "find what fits" search to your store. Shoppers choose their vehicle, phone or profile from dropdowns you define and see only the products that fit. Start from a store type, then rename or add search fields. Import fitment data from a CSV in any column layout; rows link to your products by SKU, handle or collection. Add the search, a fits badge and a fitment table from the theme editor, with no code. Results open on your theme's own search page.
+> SpareFit adds a "find what fits" search to your store. Shoppers choose their vehicle, phone or profile from dropdowns you define and see only the products that fit. Start from a store type, then rename or add search fields. Import fitment data from a CSV in any column layout; rows link to your products by SKU, handle or collection. Add the search, a fits badge and a fitment table from the theme editor, with no code. Results open on your theme's own search page.
 
 (466 characters. The earlier 836-character draft was over the 500 limit.)
 
@@ -63,7 +63,7 @@ Feature image (1600 × 900, one focal point, solid background, contrast ≥ 4.5:
 
 Screenshots: **1600 × 900, 3–6, each a different screen, real UI, no browser chrome or desktop background, no PII, no prices** (4.4.4, 4.4.5). Take them on the demo store after the pilot import. The Plans page is excluded on purpose (it shows prices).
 
-1. **Dashboard** — banner, setup guide and overview (store with data, guide partly done). Alt: "FitFinder dashboard with setup guide and store overview".
+1. **Dashboard** — banner, setup guide and overview (store with data, guide partly done). Alt: "SpareFit dashboard with setup guide and store overview".
 2. **Search setup** — the field grid (Make / Year / Model) and the Import CSV card on step 2, Map columns. Alt: "Mapping CSV columns to search fields".
 3. **Storefront** — Theme integration table and the Search widget tab with its live preview. Alt: "Storefront settings with a live preview of the search".
 4. **Product mapping** — unlinked SKUs and the product picker. Alt: "Linking SKUs to products".
@@ -79,21 +79,21 @@ English (or English subtitles), unlisted YouTube/Vimeo/Loom link in the review f
 3. Search setup → Import CSV → upload `reviewer-sample.csv` → Map columns (auto-mapped) → Review → Import → toast and Import history row.
 4. Filter data → the imported rows; add one row in the modal; delete one with the confirm modal.
 5. Product mapping → unlinked SKUs → **Choose product** for one SKU → it moves to linked.
-6. Storefront → App embed switch → theme editor (App embeds) → turn FitFinder on → Save → back in the app the badge shows On. **Add to theme** for Search section, Fits badge and Fitment table → each opens the theme editor with the block placed → Save → rows show Added.
+6. Storefront → App embed switch → theme editor (App embeds) → turn SpareFit on → Save → back in the app the badge shows On. **Add to theme** for Search section, Fits badge and Fitment table → each opens the theme editor with the block placed → Save → rows show Added.
 7. Storefront (shop): pick Make → Year → Model → **Show parts** → the theme search page lists the fitting product; product page shows "Fits your vehicle" and the fitment table; My Selection saves the vehicle.
 8. Plans → **Choose Growth** → Shopify's plan page → Approve → back on Plans (welcome link) with Growth and the trial badge → downgrade to Starter the same way.
 9. Settings → Your data text; uninstall → storefront search disappears.
 
 ## Review notes (paste into the review form's testing instructions)
 
-> **Test credentials:** none. FitFinder has no separate account or login; it uses the Shopify admin session only. Everything is reachable from the app menu after install.
+> **Test credentials:** none. SpareFit has no separate account or login; it uses the Shopify admin session only. Everything is reachable from the app menu after install.
 >
-> **What the app does:** a "find products that fit" search. The merchant defines the dropdowns (for example Make / Year / Model), imports fitment rows from a CSV, FitFinder links rows to products by variant SKU or handle, and theme app extension blocks show the search, a "fits" badge and a fitment table on the storefront.
+> **What the app does:** a "find products that fit" search. The merchant defines the dropdowns (for example Make / Year / Model), imports fitment rows from a CSV, SpareFit links rows to products by variant SKU or handle, and theme app extension blocks show the search, a "fits" badge and a fitment table on the storefront.
 >
 > **Steps (about 10 minutes):**
 > 1. Install and open the app. Onboarding asks for a store type: choose **Automotive** and click **Continue**.
 > 2. **Search setup › Import CSV**: upload the attached `reviewer-sample.csv` (12 rows, columns Make, Year, Model, Attachment). The columns map automatically; click through Review and **Import**.
-> 3. The sample's Attachment values are SKUs (`FF-BRAKE-001` …) that won't exist on your test store. Either give one or two test products these variant SKUs (they link within seconds), or open **Product mapping** and use **Choose product** on an unlinked SKU.
+> 3. The sample's Attachment values are SKUs (`SP-BRAKE-001` …) that won't exist on your test store. Either give one or two test products these variant SKUs (they link within seconds), or open **Product mapping** and use **Choose product** on an unlinked SKU.
 > 4. **Storefront › Theme integration**: turn on the **App embed** (opens the theme editor on App embeds; save there), then use **Add to theme** for Search section, Fits badge and Fitment table. Each button opens the theme editor with the block placed; click Save.
 > 5. On the storefront, pick Make → Year → Model and click **Show parts**: the theme's search page lists the linked products. A linked product's page shows "Fits your vehicle" and the fitment table.
 > 6. **Plans**: there is a free Starter plan; the app works on Starter limits until a plan is picked, so no plan is forced at install. To test billing: click **Choose** on Growth or Pro → Shopify's plan page → approve → you return to the Plans page (welcome link `/app/plans`) showing the plan and trial. Switch plans the same way to downgrade; cancelling returns the shop to Starter limits.

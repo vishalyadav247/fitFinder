@@ -13,7 +13,7 @@ import {
   type ThemeFile,
 } from "./themes";
 
-const type = (handle: string, app = "fitfinder") =>
+const type = (handle: string, app = "sparefit") =>
   `shopify://apps/${app}/blocks/${handle}/0f6e8d5a-1111-2222-3333-444455556666`;
 
 const settingsData = (blocks: Record<string, unknown>, asPreset = false) => ({
@@ -37,11 +37,11 @@ const template = (
 
 describe("ourBlock", () => {
   it("knows our handles and nothing else", () => {
-    expect(ourBlock(type("fitfinder-search"))).toBe("search");
-    expect(ourBlock(type("fitfinder-embed", "fitfinder-2"))).toBe("embed");
+    expect(ourBlock(type("sparefit-search"))).toBe("search");
+    expect(ourBlock(type("sparefit-embed", "sparefit-2"))).toBe("embed");
     expect(ourBlock(type("search", "other-app"))).toBeNull();
     expect(ourBlock(type("app-embed", "other-app"))).toBeNull();
-    expect(ourBlock("shopify://apps/x/blocks/fitfinder-search")).toBeNull();
+    expect(ourBlock("shopify://apps/x/blocks/sparefit-search")).toBeNull();
     expect(ourBlock(42)).toBeNull();
   });
 });
@@ -55,8 +55,8 @@ describe("parseThemeJson", () => {
 
 describe("analyzeTheme", () => {
   it("reads the embed state from settings_data (enabled, disabled, never enabled)", () => {
-    const on = { "1": { type: type("fitfinder-embed"), disabled: false } };
-    const off = { "1": { type: type("fitfinder-embed"), disabled: true } };
+    const on = { "1": { type: type("sparefit-embed"), disabled: false } };
+    const off = { "1": { type: type("sparefit-embed"), disabled: true } };
     const other = { "1": { type: type("app-embed", "chat"), disabled: false } };
     expect(analyzeTheme([settingsData(on)]).embedOn).toBe(true);
     expect(analyzeTheme([settingsData(off)]).embedOn).toBe(false);
@@ -65,7 +65,7 @@ describe("analyzeTheme", () => {
   });
 
   it("follows a preset name in `current`", () => {
-    const on = { x: { type: type("fitfinder-embed"), disabled: false } };
+    const on = { x: { type: type("sparefit-embed"), disabled: false } };
     expect(analyzeTheme([settingsData(on, true)]).embedOn).toBe(true);
   });
 
@@ -74,7 +74,7 @@ describe("analyzeTheme", () => {
       template("templates/index.json", {
         apps: {
           type: "apps",
-          blocks: { b1: { type: type("fitfinder-search") } },
+          blocks: { b1: { type: type("sparefit-search") } },
         },
       }),
       template("templates/product.alt.json", {
@@ -83,7 +83,7 @@ describe("analyzeTheme", () => {
           blocks: {
             group: {
               type: "group",
-              blocks: { b2: { type: type("fitfinder-fits-badge") } },
+              blocks: { b2: { type: type("sparefit-fits-badge") } },
             },
           },
         },
@@ -103,7 +103,7 @@ describe("analyzeTheme", () => {
         main: {
           type: "main-product",
           name: "Buy box",
-          blocks: { b: { type: type("fitfinder-fits-badge") } },
+          blocks: { b: { type: type("sparefit-fits-badge") } },
         },
       }),
     ]);
@@ -119,14 +119,14 @@ describe("analyzeTheme", () => {
         main: {
           type: "main-product",
           blocks: {
-            b1: { type: type("fitfinder-fits-badge"), disabled: true },
+            b1: { type: type("sparefit-fits-badge"), disabled: true },
             b2: { type: type("search", "reviews") },
           },
         },
         hidden: {
           type: "apps",
           disabled: true,
-          blocks: { b3: { type: type("fitfinder-fitment-table") } },
+          blocks: { b3: { type: type("sparefit-fitment-table") } },
         },
       }),
     ]);
@@ -135,23 +135,23 @@ describe("analyzeTheme", () => {
 
   it("prefers a template over a section group for View in editor", () => {
     const group = template("sections/header-group.json", {
-      apps: { type: "apps", blocks: { b: { type: type("fitfinder-search") } } },
+      apps: { type: "apps", blocks: { b: { type: type("sparefit-search") } } },
     });
     const index = template("templates/index.json", {
-      apps: { type: "apps", blocks: { b: { type: type("fitfinder-search") } } },
+      apps: { type: "apps", blocks: { b: { type: type("sparefit-search") } } },
     });
     expect(analyzeTheme([group, index]).blocks.search).toBe("index");
     expect(analyzeTheme([group]).blocks.search).toBe("");
   });
 
-  it("finds the [fitfinder-table] code in product templates only", () => {
+  it("finds the [sparefit-table] code in product templates only", () => {
     const tab = {
       main: {
         type: "main-product",
         blocks: {
           t: {
             type: "collapsible_tab",
-            settings: { content: "<p>[fitfinder-table]</p>" },
+            settings: { content: "<p>[sparefit-table]</p>" },
           },
         },
       },
@@ -184,17 +184,17 @@ describe("themes and links", () => {
     const base = "https://demo.myshopify.com/admin/themes/123/editor";
     expect(l.editor).toBe(base);
     expect(l.embedOn).toBe(
-      `${base}?context=apps&activateAppId=KEY%2Ffitfinder-embed`,
+      `${base}?context=apps&activateAppId=KEY%2Fsparefit-embed`,
     );
     expect(l.embedPanel).toBe(`${base}?context=apps`);
     expect(l.add.search).toBe(
-      `${base}?template=index&addAppBlockId=KEY%2Ffitfinder-search&target=newAppsSection`,
+      `${base}?template=index&addAppBlockId=KEY%2Fsparefit-search&target=newAppsSection`,
     );
     expect(l.add.badge).toBe(
-      `${base}?template=product&addAppBlockId=KEY%2Ffitfinder-fits-badge&target=mainSection`,
+      `${base}?template=product&addAppBlockId=KEY%2Fsparefit-fits-badge&target=mainSection`,
     );
     expect(l.add.table).toContain(
-      "addAppBlockId=KEY%2Ffitfinder-fitment-table",
+      "addAppBlockId=KEY%2Fsparefit-fitment-table",
     );
     expect(l.view("product.alt")).toBe(`${base}?template=product.alt`);
     expect(l.view("")).toBe(base);

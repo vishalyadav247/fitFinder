@@ -20,10 +20,13 @@ Implemented in `prisma/schema.prisma` (M1). Every app table has `shop_id` and ca
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `shops` | `id`, `domain` (unique), `installed_at`, `uninstalled_at`, `last_auth_at`, `plan`, `trial_ends_at` | One row per installed shop. `last_auth_at` (last token exchange or admin visit) makes late `app/uninstalled` deliveries after a reinstall harmless. The access token lives in the Shopify `Session` table, not here |
+| `shops` | `id`, `domain` (unique), `installed_at`, `uninstalled_at`, `last_auth_at`, `plan` (a `plans.key` or `none`), `trial_ends_at`, `subscription_id` (active Billing API charge) | One row per installed shop. `last_auth_at` (last token exchange or admin visit) makes late `app/uninstalled` deliveries after a reinstall harmless. The access token lives in the Shopify `Session` table, not here |
+| `plans` | `key` (`starter`/`growth`/`pro`/`business`), `position`, `name`, `description`, `is_free`, `price_monthly`, `price_yearly` (null = monthly only), `trial_days`, `visible`, `limits` (jsonb: rows, products, searchFields, backups; null = unlimited), `toggles` (jsonb: fitsBadge, fitmentTable, mySelection, universalProducts, prioritySupport), `bullets`, `updated_by` | The plan catalogue, edited in the backoffice (`specs/backoffice.md`). Global, not per shop |
+| `app_subscriptions` | `shop_id`, `shopify_id` (AppSubscription GID, unique), `plan_key`, `interval`, `price`, `trial_days`, `status`, `activated_at`, `ended_at` | Every Billing API charge the app created: maps a charge to a plan, and gives the trial days a shop has used (not reset by a reinstall) |
+| `backoffice_admins` | `id` (always 1), `name`, `email`, `password_hash` (scrypt), `version`, `updated_at` | The backoffice super admin after the first Profile save (`specs/backoffice.md`); before that the BACKOFFICE_EMAIL / BACKOFFICE_PASSWORD env values sign in. `version` rises on an email or password change and signs out other sessions. Global, not per shop |
 | `search_configs` | `shop_id` (PK), `store_type`, `heading`, `noun`, `things_word` | One per shop (noun: vehicle/phone/profile/item; things: parts/accessories/products) |
 | `search_fields` | `id`, `shop_id`, `position`, `label`, `placeholder`, `type` (`list`/`year_range`), `required` | Ordered |
-| `fitment_rows` | `id`, `shop_id`, `values` (jsonb `{fieldId: value}`), `year_from`, `year_to`, `attachment`, `row_hash` (unique per shop) | `attachment` = SKU, product URL/handle or collection URL/handle. `row_hash` = hash(values + years + attachment) makes add-and-update imports and dedupe cheap |
+| `fitment_rows` | `id`, `shop_id`, `values` (jsonb `{fieldId: value}`), `year_from`, `year_to`, `attachment`, `row_hash` (unique per shop) | `attachment` = the product SKU (SKU only). `row_hash` = hash(values + years + attachment) makes add-and-update imports and dedupe cheap |
 | `product_links` | `shop_id`, `attachment`, `kind` (`sku`/`product`/`collection`), `product_id`, `variant_id`, `collection_id`, `method` (`auto`/`manual`) | Unique (`shop_id`, `attachment`); (`shop_id`, `product_id`); (`shop_id`, `collection_id`) for the storefront fits lookup |
 | `universal_products` | `shop_id`, `product_id` | |
 | `import_mappings` | `shop_id`, `column_name`, `target` (`field:{id}`, `field:{id}:from/to/range`, `attachment`, `skip`) | Last saved mapping; pre-fills step 2 (Map columns) of the next import |
@@ -46,13 +49,15 @@ Indexes: (`shop_id`, `attachment`, `id`) (covering for Product mapping's unlinke
 | GET/PUT | `/api/universal-products` | Product mapping |
 | PUT/GET/POST | `/api/storefront-settings` (PUT), `/api/themes/{id}` (status), `/api/storefront-preview` (preview options/results), `/api/storefront-icon` (POST upload); the theme list comes with the page loader | Storefront |
 
-## Storefront API (app proxy `/apps/fitfinder/*`, signature-verified)
+## Storefront API (app proxy `/apps/sparefit/*`, signature-verified)
 | Path | Returns |
 |---|---|
 | `GET options?field={id}&{fieldId}={value}…` | Values for the next dropdown |
 | `GET search?{fieldId}={value}…` | Where "Show {products}" goes: `{ mode: "search", q }` = the theme's search page for the fitting SKUs, or `{ mode: "page" }` |
-| `GET results?{fieldId}={value}…&page=` | FitFinder's own results page (Liquid in the theme layout): the fallback when the SKU list doesn't fit one search |
+| `GET results?{fieldId}={value}…&page=` | SpareFit's own results page (Liquid in the theme layout): the fallback when the SKU list doesn't fit one search |
 | `GET fits?product={id}&{fieldId}={value}…` | `fits` / `no-fit` for the product badge, plus fitment table rows |
+
+`search` and `fits` (with a full selection) are counted per UTC day in `search_stats` / `fit_check_stats` for the Analytics page (specs/analytics.md): counts only, no shopper data, kept 180 days.
 
 ## Webhooks
 `app/uninstalled`, `products/create|update|delete`, and the mandatory GDPR topics `customers/data_request`, `customers/redact`, `shop/redact`.

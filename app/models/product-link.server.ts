@@ -5,15 +5,20 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../db.server";
 import { MAX_ATTACHMENT_LENGTH } from "../services/import/transform";
+import { MAX_PICK, gidType } from "../services/linking/attachment";
 import {
-  MAX_PICK,
-  classifyAttachment,
-  gidType,
-  type AttachmentKind,
-} from "../services/linking/attachment";
-import { isLockTimeout, withLinkLock } from "../services/linking/relink.server";
+  isLockTimeout,
+  lockLinks,
+  withLinkLock,
+} from "../services/linking/relink.server";
+import {
+  FitmentRuleError,
+  replaceAttachmentRows,
+  withSetupLock,
+} from "./fitment-row.server";
 import {
   linkedProductsSql,
+  featureRefusal,
   overLimitMessage,
 } from "../services/billing.server";
 
@@ -30,7 +35,7 @@ export class LinkRuleError extends Error {
   }
 }
 
-const gid = (type: "Product" | "ProductVariant" | "Collection") =>
+const gid = (type: "Product" | "ProductVariant") =>
   z.string().refine((id) => gidType(id) === type, "Unknown id");
 
 const productIds = z
@@ -57,12 +62,7 @@ export const mappingIntentSchema = z.discriminatedUnion("intent", [
   z.object({
     intent: z.literal("link"),
     attachment: z.string().min(1).max(MAX_ATTACHMENT_LENGTH),
-    resourceId: z
-      .string()
-      .refine(
-        (id) => gidType(id) === "Product" || gidType(id) === "Collection",
-        "Unknown id",
-      ),
+    resourceId: gid("Product"),
     variantId: gid("ProductVariant").optional(),
   }),
   z.object({ intent: z.literal("universal-add"), ids: productIds }),
@@ -89,7 +89,6 @@ async function timedRead<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
 
 export interface UnlinkedGroup {
   attachment: string;
-  kind: AttachmentKind;
   rows: number;
   /** The group's oldest row, for the Fits column. */
   first: {
@@ -143,7 +142,6 @@ export async function unlinkedGroups(
   return {
     items: groups.slice(0, pageSize).map((g) => ({
       attachment: g.attachment,
-      kind: classifyAttachment(g.attachment).kind,
       rows: g.n,
       first: { values: g.values, yearFrom: g.year_from, yearTo: g.year_to },
     })),
@@ -169,8 +167,7 @@ const firstSku = Prisma.sql`coalesce((SELECT v.sku FROM catalog_variants v
 
 /**
  * Active store products that no filter row reaches (no link with rows behind it points to them)
- * and that aren't universal. Manual links outlive their rows, hence the row check. Products only
- * reachable through a collection link are listed too (collection membership isn't cached).
+ * and that aren't universal. Manual links outlive their rows, hence the row check.
  */
 const withoutDataWhere = (shopId: string) => Prisma.sql`
   p.shop_id = ${shopId} AND p.status = 'ACTIVE'
@@ -272,42 +269,76 @@ export async function productTitle(shopId: string, productId: string) {
 
 // ---------------------------------------------------------------- writes
 
-export type ManualTarget =
-  | { type: "product"; productId: string; variantId: string | null }
-  | { type: "collection"; collectionId: string };
+export interface ChosenVariant {
+  productId: string;
+  variantId: string;
+  /** The variant's SKU in the store; it replaces the rows' attachment. */
+  sku: string;
+}
 
 /**
- * Links every row with this attachment to the chosen product or collection (Choose product).
- * The target must already be checked against Shopify and stored in the catalog cache.
+ * Choose product (agreed 2026-10-09): every row with this attachment gets the chosen variant's
+ * store SKU and links to that variant, so the rows show the SKU the store really has. A re-import
+ * of the old SKU comes back unlinked. The variant must already be checked against Shopify and
+ * stored in the catalog cache. Setup lock first, then the link lock (no path takes them the other
+ * way round). Returns how many rows now use the SKU.
  */
-export async function linkManually(
+export async function linkChosenProduct(
   shopId: string,
   attachment: string,
-  target: ManualTarget,
-) {
+  target: ChosenVariant,
+): Promise<number> {
   try {
-    await withLinkLock(
-      shopId,
-      (tx) => saveManualLink(tx, shopId, attachment, target),
-      {
-        lockTimeout: "5s",
-      },
-    );
-  } catch (error) {
-    if (isLockTimeout(error)) {
-      throw new LinkRuleError(
-        "Links are being checked right now. Try again in a moment.",
+    return await withSetupLock(shopId, async (tx) => {
+      try {
+        await lockLinks(tx, shopId);
+      } catch (error) {
+        // A link check holds the lock longer than the setup lock's timeout.
+        if (!isLockTimeout(error)) throw error;
+        throw new LinkRuleError(
+          "Links are being checked right now. Try again in a moment.",
+        );
+      }
+      await checkLink(tx, shopId, attachment, target.productId);
+      const { changed } = await replaceAttachmentRows(
+        tx,
+        shopId,
+        attachment,
+        target.sku,
       );
+      if (attachment !== target.sku) {
+        await tx.productLink.deleteMany({ where: { shopId, attachment } });
+      }
+      // An ordinary SKU link now: matching keeps it while the SKU stays in the store.
+      const data = {
+        productId: target.productId,
+        variantId: target.variantId,
+        method: "auto" as const,
+      };
+      await tx.productLink.upsert({
+        where: { shopId_attachment: { shopId, attachment: target.sku } },
+        create: { shopId, attachment: target.sku, ...data },
+        update: data,
+      });
+      return attachment === target.sku
+        ? await tx.fitmentRow.count({ where: { shopId, attachment } })
+        : changed;
+    });
+  } catch (error) {
+    // Setup lock refusals ("An import is running…") read the same on this page.
+    if (error instanceof FitmentRuleError) {
+      throw new LinkRuleError(error.message);
     }
     throw error;
   }
 }
 
-async function saveManualLink(
+/** The attachment still has rows, and linking the product stays within the plan. */
+async function checkLink(
   tx: Tx,
   shopId: string,
   attachment: string,
-  target: ManualTarget,
+  productId: string,
 ) {
   const used = await tx.fitmentRow.findFirst({
     where: { shopId, attachment },
@@ -318,44 +349,23 @@ async function saveManualLink(
       "No filter rows use this attachment any more. Refresh the page.",
     );
   }
-  const classified = classifyAttachment(attachment).kind;
-  const kind: AttachmentKind =
-    target.type === "collection"
-      ? "collection"
-      : classified === "collection"
-        ? "product"
-        : classified;
-  if (target.type === "product") {
-    // Only a product that isn't linked or universal yet adds to the plan's linked products; a
-    // shop already over its limit can still relink to products it has.
-    const over = await overLimitMessage(
-      shopId,
-      "products",
-      async () => {
-        const [{ known, n }] = await tx.$queryRaw<
-          { known: boolean; n: number }[]
-        >`
-          WITH linked AS (${linkedProductsSql(shopId, attachment)})
-          SELECT EXISTS (SELECT 1 FROM linked WHERE product_id = ${target.productId}) AS known,
-                 (SELECT count(*) FROM linked)::int AS n`;
-        return known ? 0 : n + 1;
-      },
-      tx,
-    );
-    if (over) throw new LinkRuleError(over);
-  }
-  const data = {
-    kind,
-    productId: target.type === "product" ? target.productId : null,
-    variantId: target.type === "product" ? target.variantId : null,
-    collectionId: target.type === "collection" ? target.collectionId : null,
-    method: "manual" as const,
-  };
-  await tx.productLink.upsert({
-    where: { shopId_attachment: { shopId, attachment } },
-    create: { shopId, attachment, ...data },
-    update: data,
-  });
+  // Only a product that isn't linked or universal yet adds to the plan's linked products; a shop
+  // already over its limit can still relink to products it has.
+  const over = await overLimitMessage(
+    shopId,
+    "products",
+    async () => {
+      const [{ known, n }] = await tx.$queryRaw<
+        { known: boolean; n: number }[]
+      >`
+        WITH linked AS (${linkedProductsSql(shopId, attachment)})
+        SELECT EXISTS (SELECT 1 FROM linked WHERE product_id = ${productId}) AS known,
+               (SELECT count(*) FROM linked)::int AS n`;
+      return known ? 0 : n + 1;
+    },
+    tx,
+  );
+  if (over) throw new LinkRuleError(over);
 }
 
 /** Marks products as universal; returns how many were new. Ids must be in the catalog cache. */
@@ -371,6 +381,8 @@ export async function addUniversal(
     return await withLinkLock(
       shopId,
       async (tx) => {
+        const notIncluded = await featureRefusal(shopId, "universalProducts", tx);
+        if (notIncluded) throw new LinkRuleError(notIncluded);
         const over = await overLimitMessage(
           shopId,
           "products",

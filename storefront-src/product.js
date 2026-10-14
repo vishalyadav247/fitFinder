@@ -1,5 +1,5 @@
 // Product page: fits badge and fitment table (specs/storefront.md › Fits badge, Fitment table).
-// Bundles: ff-product.js (the two blocks) and ff-embed.js (the [fitfinder-table] code in tabs).
+// Bundles: sp-product.js (the two blocks) and sp-embed.js (the [sparefit-table] code in tabs).
 import {
   api,
   cfg,
@@ -22,23 +22,22 @@ const TO = " " + String.fromCharCode(8211) + " "; // en dash between years
 const DOWN = '<path d="M6 8l4 4 4-4"/>';
 
 const productParams = (el, picks) =>
-  query(picks, {
-    product: el.getAttribute("data-product"),
-    collections: el.getAttribute("data-collections") || "",
-  });
+  query(picks, { product: el.getAttribute("data-product") });
 
 export function initBadge(el) {
+  // Not in the store's plan: the block shows nothing.
+  if (cfg.off && cfg.off.badge) return;
   const s = cfg.s;
-  const ask = '<div class="ff-fit ff-fit--ask">' + esc(s.askText) + "</div>";
+  const ask = '<div class="sp-fit sp-fit--ask">' + esc(s.askText) + "</div>";
   const render = () => {
     const picks = getStore().current;
     api("fits", productParams(el, picks || {})).then(
       (d) => {
         if (keyOf(getStore().current) !== keyOf(picks)) return;
-        // Products FitFinder doesn't cover (no rows, not universal, e.g. gift cards): no badge.
+        // Products SpareFit doesn't cover (no rows, not universal, e.g. gift cards): no badge.
         // Theme editor: keep it visible, so the merchant can see where it sits.
         if (!d.total && !d.universal) {
-          el.innerHTML = el.hasAttribute("data-ff-editor") ? ask : "";
+          el.innerHTML = el.hasAttribute("data-sp-editor") ? ask : "";
           return;
         }
         if (!picks) {
@@ -50,16 +49,16 @@ export function initBadge(el) {
           : "";
         el.innerHTML =
           d.state === "fits"
-            ? '<div class="ff-fit ff-fit--ok">&#10003; ' +
+            ? '<div class="sp-fit sp-fit--ok">&#10003; ' +
               esc(s.fitsText) +
               sel +
               "</div>"
             : d.state === "no-fit"
-              ? '<div class="ff-fit ff-fit--no">&#10005; ' +
+              ? '<div class="sp-fit sp-fit--no">&#10005; ' +
                 esc(s.noFitText) +
                 sel +
                 (s.noFitLink
-                  ? '<a class="ff-fit__link" href="' +
+                  ? '<a class="sp-fit__link" href="' +
                     esc(resultsUrl(picks)) +
                     '">' +
                     esc(s.noFitLinkText) +
@@ -74,7 +73,7 @@ export function initBadge(el) {
     );
   };
   el.addEventListener("click", (e) => {
-    const link = e.target.closest(".ff-fit__link");
+    const link = e.target.closest(".sp-fit__link");
     const picks = getStore().current;
     if (!link || !picks) return;
     e.preventDefault();
@@ -105,15 +104,19 @@ export function sortRows(rows, by) {
   );
 }
 
-/** inTabs: inside the theme's own tab (code [fitfinder-table]); the theme owns title and toggle. */
+/** inTabs: inside the theme's own tab (code [sparefit-table]); the theme owns title and toggle. */
 export function initTable(el, inTabs) {
+  if (cfg.off && cfg.off.table) {
+    el.hidden = true;
+    return;
+  }
   const s = cfg.s;
   const cols = cfg.fields.filter((f) => !s.tableHide[f.id]);
   const wrap = (inner, opened = s.tableOpen) => {
     if (inTabs) return inner;
     if (s.tableStyle === "open") {
       return (
-        '<div class="ff-ft-open"><b>' +
+        '<div class="sp-ft-open"><b>' +
         esc(s.tableTitle) +
         "</b>" +
         inner +
@@ -121,13 +124,13 @@ export function initTable(el, inTabs) {
       );
     }
     return (
-      '<details class="ff-acc"' +
+      '<details class="sp-acc"' +
       (opened ? " open" : "") +
       "><summary><span>" +
       esc(s.tableTitle) +
       '</span><i aria-hidden="true">' +
       svg(DOWN, 16, 2) +
-      '</i></summary><div class="ff-acc__body">' +
+      '</i></summary><div class="sp-acc__body">' +
       inner +
       "</div></details>"
     );
@@ -138,9 +141,12 @@ export function initTable(el, inTabs) {
         // Theme editor: a table that would be hidden shows like "Show a text instead", so the
         // merchant can see where it sits.
         const text =
-          s.tableEmpty === "text" || el.hasAttribute("data-ff-editor");
+          s.tableEmpty === "text" || el.hasAttribute("data-sp-editor");
         el.innerHTML = text
-          ? wrap('<p class="ff-ft-empty">' + esc(s.tableEmptyText) + "</p>", true)
+          ? wrap(
+              '<p class="sp-ft-empty">' + esc(s.tableEmptyText) + "</p>",
+              true,
+            )
           : "";
         el.hidden = !text;
         return;
@@ -148,7 +154,7 @@ export function initTable(el, inTabs) {
       const rows = sortRows(d.rows, s.tableSort);
       const limit = s.tableRows === "all" ? Infinity : Number(s.tableRows);
       const table = (all) =>
-        '<table class="ff-ft ff-ft--' +
+        '<table class="sp-ft sp-ft--' +
         s.tableLook +
         '"><thead><tr>' +
         cols.map((f) => '<th scope="col">' + esc(f.label) + "</th>").join("") +
@@ -163,17 +169,17 @@ export function initTable(el, inTabs) {
           .join("") +
         "</tbody></table>" +
         (!all && rows.length > limit
-          ? '<button type="button" class="ff-ft-more">' +
+          ? '<button type="button" class="sp-ft-more">' +
             esc(fill(s.showAllText, d.total)) +
             "</button>"
           : "");
       el.innerHTML = wrap(
-        '<div class="ff-ft-scroll">' + table(false) + "</div>",
+        '<div class="sp-ft-scroll">' + table(false) + "</div>",
       );
       el.hidden = false;
       el.addEventListener("click", (e) => {
-        if (e.target.closest(".ff-ft-more")) {
-          el.querySelector(".ff-ft-scroll").innerHTML = table(true);
+        if (e.target.closest(".sp-ft-more")) {
+          el.querySelector(".sp-ft-scroll").innerHTML = table(true);
         }
       });
     },
@@ -183,34 +189,40 @@ export function initTable(el, inTabs) {
   );
 }
 
-const CODE = "[fitfinder-table]";
+const CODE = "[sparefit-table]";
 
 /**
- * Product pages: replaces the shortcode [fitfinder-table] anywhere on the page with an empty table
- * spot (data-ff-table data-ff-tabs) that ff-product.js fills. Returns how many it found.
+ * Product pages: replaces the shortcode [sparefit-table] anywhere on the page with an empty table
+ * spot (data-sp-table data-sp-tabs) that sp-product.js fills. Returns how many it found.
  */
 export function markTableCode(embed) {
   const product = embed.getAttribute("data-product");
   if (!product) return 0;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-    acceptNode(n) {
-      const p = n.parentNode && n.parentNode.nodeName;
-      return p === "SCRIPT" || p === "STYLE" || p === "TEXTAREA" || !n.nodeValue.includes(CODE)
-        ? NodeFilter.FILTER_REJECT
-        : NodeFilter.FILTER_ACCEPT;
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(n) {
+        const p = n.parentNode && n.parentNode.nodeName;
+        return p === "SCRIPT" ||
+          p === "STYLE" ||
+          p === "TEXTAREA" ||
+          !n.nodeValue.includes(CODE)
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_ACCEPT;
+      },
     },
-  });
+  );
   const found = [];
   while (walker.nextNode()) found.push(walker.currentNode);
   for (const node of found) {
     const rest = node.splitText(node.nodeValue.indexOf(CODE));
     rest.nodeValue = rest.nodeValue.slice(CODE.length);
     const div = document.createElement("div");
-    div.className = "ff-table-wrap ff-table-wrap--tabs";
-    div.setAttribute("data-ff-table", "");
-    div.setAttribute("data-ff-tabs", "");
+    div.className = "sp-table-wrap sp-table-wrap--tabs";
+    div.setAttribute("data-sp-table", "");
+    div.setAttribute("data-sp-tabs", "");
     div.setAttribute("data-product", product);
-    div.setAttribute("data-collections", embed.getAttribute("data-collections") || "");
     rest.parentNode.insertBefore(div, rest);
   }
   return found.length;

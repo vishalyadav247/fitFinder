@@ -1,4 +1,4 @@
-// Search widget and results page (specs/storefront.md › Search widget). Bundle: ff-search.js.
+// Search widget and results page (specs/storefront.md › Search widget). Bundle: sp-search.js.
 import {
   api,
   askToSave,
@@ -19,41 +19,60 @@ const RADIUS = { square: 2, rounded: 10, pill: 999 };
 
 const pagePicks = (el) => {
   try {
-    return clean(JSON.parse(el.getAttribute("data-ff-picks") || "{}"));
+    return clean(JSON.parse(el.getAttribute("data-sp-picks") || "{}"));
   } catch {
     return {};
   }
 };
 
+/**
+ * The first dropdown's values the search block printed (app metafield sparefit.first), or null:
+ * none printed, no list (too large, not read), or published for a field that is no longer
+ * first (the order changed and the new list isn't published yet). Null → ask the proxy.
+ */
+const firstList = (el) => {
+  try {
+    const node = el.querySelector("script[data-sp-first]");
+    const list = node && JSON.parse(node.textContent);
+    return list && list.f === cfg.fields[0].id && Array.isArray(list.v)
+      ? list.v
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export function initSearch(el) {
   const s = cfg.s;
-  const host = el.closest("[data-ff-results]");
+  // Read before the widget replaces the block's markup.
+  const first = firstList(el);
+  const host = el.closest("[data-sp-results]");
   // On the results page the widget shows that page's selection; elsewhere the current one.
   const fixed = host ? pagePicks(host) : null;
   let picks = fixed ? { ...fixed } : clean(getStore().current);
   let run = 0;
   const r = RADIUS[s.corners] || 10;
   el.innerHTML =
-    '<div class="ff-sfw ff-sfw--' +
+    '<div class="sp-sfw sp-sfw--' +
     (s.layout === "card" ? "v" : "h") +
-    '" style="--ff-b:' +
+    '" style="--sp-b:' +
     s.btn +
-    ";--ff-bg:" +
+    ";--sp-bg:" +
     s.bg +
-    ";--ff-t:" +
+    ";--sp-t:" +
     s.text +
-    ";--ff-r:" +
+    ";--sp-r:" +
     Math.min(r, 14) +
-    "px;--ff-rb:" +
+    "px;--sp-rb:" +
     r +
     'px">' +
-    (s.showHeading ? '<p class="ff-sfw__h">' + esc(cfg.heading) + "</p>" : "") +
-    '<div class="ff-sfw__row">' +
+    (s.showHeading ? '<p class="sp-sfw__h">' + esc(cfg.heading) + "</p>" : "") +
+    '<div class="sp-sfw__row">' +
     cfg.fields
       .map(
         (f, i) =>
-          '<label class="ff-sfw__f"><span class="' +
-          (s.labels ? "ff-sfw__l" : "ff-sr") +
+          '<label class="sp-sfw__f"><span class="' +
+          (s.labels ? "sp-sfw__l" : "sp-sr") +
           '">' +
           esc(f.label) +
           '</span><select data-i="' +
@@ -63,18 +82,18 @@ export function initSearch(el) {
           "</option></select></label>",
       )
       .join("") +
-    '<button type="button" class="ff-sfw__go" disabled>' +
+    '<button type="button" class="sp-sfw__go" disabled>' +
     esc(s.button) +
     "</button></div>" +
     (s.saveLink || s.reset
-      ? '<div class="ff-sfw__links">' +
+      ? '<div class="sp-sfw__links">' +
         (s.saveLink
-          ? '<button type="button" class="ff-sfw__save">&#9734; <span>' +
+          ? '<button type="button" class="sp-sfw__save">&#9734; <span>' +
             esc(s.saveText) +
             "</span></button>"
           : "<span></span>") +
         (s.reset
-          ? '<button type="button" class="ff-sfw__reset">' +
+          ? '<button type="button" class="sp-sfw__reset">' +
             esc(s.resetText) +
             "</button>"
           : "") +
@@ -82,7 +101,7 @@ export function initSearch(el) {
       : "") +
     "</div>";
   const selects = el.querySelectorAll("select");
-  const go = el.querySelector(".ff-sfw__go");
+  const go = el.querySelector(".sp-sfw__go");
 
   const enabledAt = (i) =>
     cfg.fields.slice(0, i).every((f) => !f.required || picks[f.id]);
@@ -113,7 +132,13 @@ export function initSearch(el) {
         step(i + 1);
         return;
       }
-      api("options", query(before(i), { field: f.id })).then(
+      // The first dropdown's values come with the page (firstList), so a page load asks the
+      // app nothing; the later ones depend on the picks and are asked for.
+      const load =
+        i === 0 && first
+          ? Promise.resolve({ options: first })
+          : api("options", query(before(i), { field: f.id }));
+      load.then(
         (data) => {
           if (mine !== run) return;
           const opts = data.options || [];
@@ -162,7 +187,7 @@ export function initSearch(el) {
     go.disabled = true;
     openResults({ ...picks });
   });
-  const saveBtn = el.querySelector(".ff-sfw__save");
+  const saveBtn = el.querySelector(".sp-sfw__save");
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
       if (!complete(picks)) {
@@ -175,7 +200,7 @@ export function initSearch(el) {
       setTimeout(() => saveBtn.classList.remove("is-saved"), 1500);
     });
   }
-  const resetBtn = el.querySelector(".ff-sfw__reset");
+  const resetBtn = el.querySelector(".sp-sfw__reset");
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
       picks = {};
@@ -191,7 +216,7 @@ export function initSearch(el) {
     refresh(0);
   });
   // My Selection's "Add a {noun}" brings the shopper here.
-  el.ffFocus = () => {
+  el.spFocus = () => {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     const first = [...selects].find((x) => !x.disabled);
     if (first) first.focus({ preventScroll: true });
@@ -199,11 +224,11 @@ export function initSearch(el) {
   refresh(0);
 }
 
-/** FitFinder's results page: its selection becomes the current one; offer to save it. */
+/** SpareFit's results page: its selection becomes the current one; offer to save it. */
 export function initResults(el) {
   const picks = pagePicks(el);
   if (!complete(picks)) return;
   if (keyOf(clean(getStore().current)) !== keyOf(picks)) setCurrent(picks);
-  const slot = el.querySelector("[data-ff-ask-save]");
+  const slot = el.querySelector("[data-sp-ask-save]");
   if (slot) askToSave(slot, picks);
 }
