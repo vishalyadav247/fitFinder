@@ -19,6 +19,7 @@ import {
   getSetupCounts,
   setupInputSchema,
 } from "../models/search-config.server";
+import { FitmentRuleError } from "../models/fitment-row.server";
 import {
   STORE_TYPES,
   STORE_TYPE_KEYS,
@@ -55,7 +56,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       replace: parsed.data.replace,
     });
   } catch (error) {
-    if (error instanceof SetupExistsError) {
+    if (
+      error instanceof SetupExistsError ||
+      error instanceof FitmentRuleError
+    ) {
       return data({ error: error.message }, { status: 409 });
     }
     console.error("onboarding: applyStoreType failed", {

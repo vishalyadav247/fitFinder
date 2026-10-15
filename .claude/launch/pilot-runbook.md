@@ -1,6 +1,6 @@
 # Pilot runbook: Bilstein NL data on a staging store (M11)
 
-Goal (BUILD-PLAN M11): Bilstein NL's real fitment data live on a staging store, end to end, before submitting. Steps marked **(you)** need your accounts; the rest is checked in this repo.
+Goal (archived BUILD-PLAN M11): Bilstein NL's real fitment data live on a staging store, end to end, before submitting. Steps marked **(you)** need your accounts; the rest is checked in this repo.
 
 ## 0. Before you start
 

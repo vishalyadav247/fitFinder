@@ -5,14 +5,17 @@ EXPOSE 3000
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+# All dependencies: the build needs vite (dev) and the worker runs with tsx (dev).
+RUN npm ci && npm cache clean --force
 
 COPY . .
 
 RUN npm run build
 
+ENV NODE_ENV=production
+
+# Web process. Worker process: same image with the command `npm run worker`
+# (or JOBS_INLINE=true to run jobs inside the web process).
 CMD ["npm", "run", "docker-start"]

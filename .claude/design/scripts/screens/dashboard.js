@@ -19,7 +19,7 @@ S.home = () => {
       <span class="eyebrow">${svg(t.icon, 14)} ${esc(t.label)}</span>
       <h1>${esc(sp.heading)}</h1>
       <p class="lead">Shoppers pick their ${esc(sp.noun)} by ${esc(sp.fields.map((f) => f.label.toLowerCase()).join(', '))} and only see ${esc(t.things || 'products')} that fit. Fewer wrong orders, fewer returns.</p>
-      <div class="actions"><button class="hbtn main" data-go="store">Add search to your store</button><button class="hbtn alt" data-go="fields">Open search setup</button></div>
+      <div class="actions"><button class="hbtn main" data-go="store">Add search to your store</button><button class="hbtn alt" data-act="view-store">View your store</button></div>
     </div>
     <div class="how">
       <p class="how-title">How it works</p>

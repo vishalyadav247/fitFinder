@@ -1,9 +1,17 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+# PRODUCTION app. The development app lives in shopify.app.dev.toml.
+# The deploy:prod and info:prod npm scripts use this file; `npm run config:prod` makes it the CLI
+# default. Replace every REPLACE_WITH_… value first: the production scripts refuse to run while
+# one is left (scripts/app-config.mjs).
+# Keep the sections below in step with shopify.app.dev.toml (same scopes, webhooks and
+# app proxy); only client_id, name, handle and the URLs differ. `npm run config:check` compares.
+# Learn more: https://shopify.dev/docs/apps/build/cli-for-apps/manage-app-config-files
 
-client_id = "7b77c7efd0009a88cfc875d912e97bf9"
-application_url = "https://example.com"
+client_id = "4e332d3b6e466789e591acaa2d44d399"
+application_url = "https://sparefit.progryss.com"
 embedded = true
 name = "SpareFit – Parts Finder"
+# Must be the production app's handle (Dev Dashboard). The production env's SHOPIFY_APP_HANDLE
+# must be the same value (billing return URL).
 handle = "sparefit"
 
 [access_scopes]
@@ -47,7 +55,8 @@ prefix = "apps"
 subpath = "sparefit"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://sparefit.progryss.com/api/auth" ]
 
 [build]
-automatically_update_urls_on_dev = true
+# Never let `shopify app dev` point the production app at a dev tunnel.
+automatically_update_urls_on_dev = false

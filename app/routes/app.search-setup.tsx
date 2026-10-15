@@ -42,7 +42,11 @@ import {
   placeholderFor,
 } from "../services/search-fields";
 import prisma from "../db.server";
-import { currentJob, importHistory } from "../services/import/pipeline.server";
+import {
+  currentJob,
+  importHistory,
+  keptFiles,
+} from "../services/import/pipeline.server";
 import { jobView } from "../services/import/view.server";
 import { ImportCard } from "../components/import/ImportCard";
 import {
@@ -65,9 +69,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const config = await getSearchConfig(shop.id);
   // The layout redirects too, but child loaders run in parallel with it.
   if (!config) throw redirect("/app/onboarding");
-  const [fields, history, current, currentRows] = await Promise.all([
+  const [fields, history, kept, current, currentRows] = await Promise.all([
     listFields(shop.id),
     importHistory(shop.id),
+    keptFiles(shop.id),
     currentJob(shop.id),
     prisma.fitmentRow.count({ where: { shopId: shop.id } }),
   ]);
@@ -88,6 +93,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     storeType: config.storeType,
     fields,
     history: items,
+    // How many imported files the plan keeps as backups.
+    kept,
     active,
     currentRows,
   };
@@ -265,7 +272,7 @@ function useResultToast(result: ActionResult | undefined) {
 const DELETE_MODAL = "delete-field-modal";
 
 export default function SearchSetupPage() {
-  const { storeType, fields, history, active, currentRows } =
+  const { storeType, fields, history, kept, active, currentRows } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -552,7 +559,11 @@ export default function SearchSetupPage() {
             onClose={closeImport}
           />
         ) : (
-          <ImportHistory items={history} onImport={() => setImporting(true)} />
+          <ImportHistory
+            items={history}
+            kept={kept}
+            onImport={() => setImporting(true)}
+          />
         )}
       </s-stack>
 

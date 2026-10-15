@@ -18,7 +18,7 @@ Run all of these and produce one readiness report. Don't fix anything until the 
      - `app/uninstalled` stops proxy serving and schedules the 30-day purge
      - the 3 GDPR webhooks respond with 200 and `shop/redact` purges all shop data
      - this is covered by tests
-   - Billing: Managed Pricing plans match `.claude/PROPOSAL.md` (Starter free; Growth $29/$290; Pro $99/$990); limits are enforced server-side; downgrade behaviour matches `specs/plans.md`.
+   - Billing: Billing API (Manual Pricing) with plans from the database (edited at `/backoffice`, `specs/backoffice.md`); no hard-coded plan names, prices or limits; limits are enforced server-side; downgrade behaviour matches `specs/plans.md`.
    - Storefront performance:
      - theme extension JS and CSS sizes are within limits, and scripts are deferred
      - no jQuery and no render-blocking work

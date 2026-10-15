@@ -1,4 +1,4 @@
-// The import pipeline (specs/search-setup.md › Import; BUILD-PLAN §4 Import):
+// The import pipeline (specs/search-setup.md › Import; .claude/archive/BUILD-PLAN.md §4 Import):
 //   create  — file is in storage; read the first rows, pre-fill the mapping (status uploaded)
 //   map     — save the mapping, queue the check run (status previewing)
 //   preview — job: stream the file into import_rows, hash rows in SQL, count per mode,

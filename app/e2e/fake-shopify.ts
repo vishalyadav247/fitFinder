@@ -51,6 +51,8 @@ export interface FakeShop {
   /** Access tokens handed out by the token exchange. */
   tokens: Set<string>;
   bulk: Map<string, { url: string }>;
+  /** Shopify Files created with fileCreate: id → CDN url. */
+  files: Map<string, string>;
 }
 
 let nextId = 1000;
@@ -63,6 +65,8 @@ export class FakeShopify {
   /** Admin GraphQL operation names, in order (for assertions). */
   readonly operations: { shop: string; name: string }[] = [];
   private files = new Map<string, string>();
+  /** Bytes POSTed to staged upload targets, by target path. */
+  readonly uploads = new Map<string, Uint8Array>();
   /** Operation names answered once with a THROTTLED error (then normally). */
   readonly throttleOnce = new Set<string>();
   /** Status polls a new bulk export answers RUNNING before it is COMPLETED. */
@@ -81,6 +85,7 @@ export class FakeShopify {
         appMetafields: new Map(),
         tokens: new Set(),
         bulk: new Map(),
+        files: new Map(),
       };
       this.shops.set(domain, shop);
     }
@@ -123,6 +128,19 @@ export class FakeShopify {
         return body === undefined
           ? new Response("not found", { status: 404 })
           : new Response(body);
+      }
+      // A staged upload target (stagedUploadsCreate): takes the multipart POST.
+      if (
+        url.hostname === "fake-uploads.e2e.test" &&
+        request.method === "POST"
+      ) {
+        const file = (await request.formData()).get("file");
+        if (!(file instanceof File)) return new Response(null, { status: 400 });
+        this.uploads.set(
+          url.pathname,
+          new Uint8Array(await file.arrayBuffer()),
+        );
+        return new Response(null, { status: 201 });
       }
       if (url.hostname.endsWith(".myshopify.com")) {
         const shop = this.shops.get(url.hostname);
@@ -369,6 +387,49 @@ export class FakeShopify {
         return null;
       }),
     }),
+
+    // Shopify Files (the My Selection icon): staged upload → fileCreate → READY with a CDN url.
+    StageIcon: (shop, v) => {
+      const [input] = v.input as { filename: string }[];
+      const key = `/${shop.domain}/${randomUUID()}/${input.filename}`;
+      return {
+        stagedUploadsCreate: {
+          stagedTargets: [
+            {
+              url: `https://fake-uploads.e2e.test${key}`,
+              resourceUrl: `https://fake-uploads.e2e.test${key}`,
+              parameters: [{ name: "key", value: key }],
+            },
+          ],
+          userErrors: [],
+        },
+      };
+    },
+
+    CreateIconFile: (shop, v) => {
+      const [file] = v.files as { originalSource: string }[];
+      const path = new URL(file.originalSource).pathname;
+      if (!this.uploads.has(path)) {
+        return {
+          fileCreate: {
+            files: null,
+            userErrors: [{ field: ["files"], message: "Nothing uploaded" }],
+          },
+        };
+      }
+      const id = gid("MediaImage");
+      shop.files.set(id, `https://cdn.shopify.com/s/files${path}`);
+      return {
+        fileCreate: { files: [{ id, fileStatus: "UPLOADED" }], userErrors: [] },
+      };
+    },
+
+    IconFile: (shop, v) => {
+      const url = shop.files.get(String(v.id));
+      return {
+        node: url ? { fileStatus: "READY", image: { url } } : null,
+      };
+    },
 
     StorefrontThemes: (shop) => ({
       themes: {

@@ -1,73 +1,405 @@
-.index {
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
-  text-align: center;
-  padding: 1rem;
-}
-
-.heading,
-.text {
-  padding: 0;
+/* Public landing page. Same layout as the ChatConvert landing page, in SpareFit's Sky palette
+   (app/styles/theme.css). */
+:global(html),
+:global(body) {
   margin: 0;
+  padding: 0;
 }
 
-.text {
-  font-size: 1.2rem;
-  padding-bottom: 2rem;
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 28px 20px 56px;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: #0f1b2a;
+  background:
+    radial-gradient(
+      760px 420px at 8% -6%,
+      rgba(2, 132, 199, 0.13),
+      transparent 62%
+    ),
+    radial-gradient(
+      680px 400px at 96% 2%,
+      rgba(99, 102, 241, 0.11),
+      transparent 60%
+    ),
+    #f4f9fd;
+  -webkit-font-smoothing: antialiased;
 }
 
-.content {
-  display: grid;
-  gap: 2rem;
-}
-
-.form {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+.shell {
+  max-width: 1020px;
   margin: 0 auto;
-  gap: 1rem;
-}
-
-.label {
   display: grid;
-  gap: 0.2rem;
-  max-width: 20rem;
-  text-align: left;
-  font-size: 1rem;
+  gap: 20px;
 }
 
-.input {
-  padding: 0.4rem;
-}
-
-.button {
-  padding: 0.4rem;
-}
-
-.list {
-  list-style: none;
-  padding: 0;
-  padding-top: 3rem;
-  margin: 0;
+.topbar {
   display: flex;
-  gap: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 4px 6px;
 }
 
-.list > li {
-  max-width: 20rem;
-  text-align: left;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
-@media only screen and (max-width: 50rem) {
-  .list {
-    display: block;
+.brandMark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0284c7, #38bdf8);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.28);
+}
+
+.brandName {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.topPill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(15, 27, 42, 0.08);
+  font-size: 13px;
+  font-weight: 600;
+  color: #3d4b5c;
+  box-shadow: 0 1px 2px rgba(15, 27, 42, 0.05);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 40px;
+  align-items: center;
+  padding: 48px;
+  border-radius: 22px;
+  background: linear-gradient(
+    120deg,
+    #082f49,
+    #075985 40%,
+    #0284c7 75%,
+    #0ea5e9
+  );
+  box-shadow: 0 18px 44px rgba(8, 47, 73, 0.26);
+}
+
+.heroCopy {
+  display: grid;
+  gap: 18px;
+  align-content: center;
+}
+
+.heroBadge {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.heroHeading {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.9rem, 3.6vw, 2.55rem);
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  max-width: 17ch;
+}
+
+.heroText {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 15.5px;
+  line-height: 1.62;
+  max-width: 48ch;
+}
+
+.heroCard {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 30px rgba(8, 47, 73, 0.2);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cardSub {
+  margin: 6px 0 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #5b6878;
+}
+
+.cardDivider {
+  height: 1px;
+  margin: 18px 0 14px;
+  background: rgba(15, 27, 42, 0.09);
+}
+
+.cardFine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: #6f7c8b;
+}
+
+.cardFine svg {
+  flex-shrink: 0;
+  color: #0284c7;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 20px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.primaryButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 20px rgba(2, 132, 199, 0.38);
+}
+
+.primaryButton:focus-visible {
+  outline: 2px solid #0f1b2a;
+  outline-offset: 2px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+  gap: 16px;
+}
+
+.featureCard {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 22px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(15, 27, 42, 0.06),
+    0 0 0 1px rgba(15, 27, 42, 0.04);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.featureCard:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 26px rgba(15, 27, 42, 0.09),
+    0 0 0 1px rgba(15, 27, 42, 0.05);
+}
+
+.featureIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.sky {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.indigo {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.aqua {
+  background: #d5f3f1;
+  color: #0f766e;
+}
+
+.green {
+  background: #d7f8e6;
+  color: #0c5132;
+}
+
+.amber {
+  background: #fdecc8;
+  color: #8a5a00;
+}
+
+.rose {
+  background: #fdeef1;
+  color: #be123c;
+}
+
+.featureTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.featureBody {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #556271;
+}
+
+.band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 26px 28px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(15, 27, 42, 0.06),
+    0 0 0 1px rgba(15, 27, 42, 0.04);
+}
+
+.band .primaryButton {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.bandTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.bandSub {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #5b6878;
+  max-width: 58ch;
+}
+
+.trust {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 11px 20px;
+  border-radius: 999px;
+  background: rgba(2, 132, 199, 0.08);
+  color: #0c4a6e;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.trust svg {
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+.trustDot {
+  color: #9aa6b4;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  font-size: 12.5px;
+  color: #6f7c8b;
+}
+
+.footer a {
+  color: #075985;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 32px 24px;
   }
 
-  .list > li {
-    padding-bottom: 1rem;
+  .heroHeading {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 14px 40px;
+  }
+
+  .hero {
+    border-radius: 18px;
+    padding: 26px 20px;
+  }
+
+  .heroCard {
+    padding: 20px;
+  }
+
+  .band {
+    padding: 22px 20px;
+  }
+
+  .band .primaryButton {
+    width: 100%;
   }
 }

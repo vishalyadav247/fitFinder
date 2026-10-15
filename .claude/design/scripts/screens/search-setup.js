@@ -37,7 +37,7 @@ S.fields = () => {
   </s-page>`;
 };
 
-// Import history: the last 5 files, newest first, each downloadable as a backup.
+// Import history: the files the plan keeps (5 in this demo), newest first, each downloadable as a backup.
 function importHistory(sp) {
   const hist = (sp.history || []).slice(0, 5);
   return `<s-section padding="none" accessibilityLabel="Import history">

@@ -4,24 +4,25 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-**SpareFit – Parts Finder** (short: SpareFit) is a public Shopify app: a "find products that fit" search (Year/Make/Model style, but with any fields) for car parts, phone accessories, beauty products or any catalogue. Everything about it lives in this `.claude/` folder; the app itself is built from it.
+**SpareFit – Parts Finder** (short: SpareFit) is a public Shopify app: a "find products that fit" search (Year/Make/Model style, but with any fields) for car parts, phone accessories, beauty products or any catalogue. The app is built (milestones M1–M11 done); `README.md` has setup, commands and the local → production workflow.
 
-- `.claude/PROPOSAL.md` — what we build and why (scope, pricing, roadmap).
-- `.claude/BUILD-PLAN.md` — how to build it: stack, repo layout, data model, flows, milestones with acceptance criteria. **Start here when coding.**
-- `.claude/design/` — clickable UI prototype (open `.claude/design/index.html`, no build step).
-- `.claude/specs/` — one spec per screen plus `data-model.md`. The prototype is the source of truth for screens, wording and behaviour.
+- `.claude/specs/` — one spec per screen plus `data-model.md`. Describes how each screen behaves.
+- `.claude/design/` — clickable UI prototype (open `.claude/design/index.html`, no build step). Use it to try UI changes before coding them.
+- `.claude/PROGRESS.md` — status, decisions and verified Shopify facts.
+- `.claude/launch/` — App Store listing, privacy policy, pilot runbook, submission checklist.
+- `.claude/archive/` — history, not current guidance: the original `PROPOSAL.md`, `BUILD-PLAN.md` and the `build-milestone` skill. Read only for background.
 
-The prototype is plain HTML/JS for review only; do not ship its code. Rebuild each screen as a React Router route with Polaris web components, matching its markup, wording and states.
+The prototype is plain HTML/JS for review only; do not ship its code.
 
-## Building the app
+## Changing the app
 
-Follow `.claude/BUILD-PLAN.md` milestone by milestone (M1 → M11). For each screen:
+For a screen change:
 
-1. Read its spec in `.claude/specs/` and open the screen in the prototype.
-2. Reuse the same Polaris web components and texts; the prototype's `data-act` handlers in `.claude/design/scripts/app.js` show the behaviour.
-3. Check the milestone's "Done when" before moving on.
+1. Read its spec in `.claude/specs/` and look at the screen in the prototype.
+2. Build it as a React Router route with Polaris web components, matching the spec's wording and states.
+3. Update the spec (and the prototype, if the screen changed visibly) in the same change.
 
-Before using any Shopify API, extension target, scope or deep-link format, check current shopify.dev docs (items marked **(verify)** in the build plan). Never code a Shopify API from memory.
+Before using any Shopify API, extension target, scope or deep-link format, check current shopify.dev docs. Never code a Shopify API from memory.
 
 ## Claude Code tooling for this project
 
@@ -35,22 +36,21 @@ Before using any Shopify API, extension target, scope or deep-link format, check
   - App Store review: `shopify-plugin:shopify-app-store-review`
   - Anything else: `shopify-plugin:shopify-dev`
 - **Workflow skills** (`.claude/skills/`):
-  - `/build-milestone [M#]`: plan, verify, build, test, review, record
   - `/check-spec [screen|all]`: compare a screen with its spec and the prototype
-  - `/verify-shopify [topic|file|all|plan]`: check against current docs
+  - `/verify-shopify [topic|file|all]`: check against current docs
   - `/pre-submit`: App Store readiness
 - **Subagents** (`.claude/agents/`), all read-only reviewers:
   - `spec-reviewer`: design fidelity and rules
   - `shopify-verifier`: current APIs, scopes and targets
   - `code-reviewer`: tenant isolation, auth, robustness and tests
-  Run all three before calling a milestone done.
+  Run all three before calling a larger change done.
 - **Hooks** (`.claude/hooks/`, Node scripts):
   - Bash and PowerShell guard: blocks `git push`, `shopify app deploy/release`, `shopify theme push/publish`, `prisma migrate reset`, publishing, and recursive deletes of the project, as well as writes to Bilstein NL.
   - File guard: blocks `.env`, existing migrations, `package-lock.json` and Bilstein NL.
   - After each edit: prettier and eslint `--fix` (inactive until `node_modules` exists); remaining lint errors are reported back.
   - On session start: loads `.claude/PROGRESS.md`.
-- **`.claude/PROGRESS.md`:** milestone status, decisions and verified Shopify facts. Update it at the end of every milestone.
-- Quality bar per change: typecheck, lint, unit tests (`npm test`) and build pass, and `npm run test:e2e` (local Postgres) before a milestone is done; every Prisma query is scoped by shop; input is validated (zod); long work runs in the job queue.
+- **`.claude/PROGRESS.md`:** status, decisions and verified Shopify facts. Update it after every larger change or new decision.
+- Quality bar per change: typecheck, lint, unit tests (`npm test`) and build pass, and `npm run test:e2e` (local Postgres) before a change is done; every Prisma query is scoped by shop; input is validated (zod); long work runs in the job queue.
 
 ## Rules (agreed with the product owner — do not undo)
 

@@ -20,7 +20,7 @@
 | Sales channel requirement | Tick **"Merchant must have online store"** (theme app extension; 4.3.1) |
 | Geographic requirements | None |
 | Privacy policy URL | publish `privacy-policy.md` on a public page (your website, not a cloud doc) and paste the URL |
-| Support | support email (must not contain "Shopify") + help center / FAQ URL. Set the same values in the app env (`SUPPORT_EMAIL`, `HELP_CENTER_URL`), otherwise Settings › Help shows two disabled buttons to the reviewer |
+| Support | support email (must not contain "Shopify") + help center / FAQ URL. In-app support is the live chat that Settings › Help points to |
 | Demo store URL | a development store with real-looking data — link straight to a product page that shows the fits badge and fitment table, with the search section on the home page |
 | Integrations | none (leave empty) |
 

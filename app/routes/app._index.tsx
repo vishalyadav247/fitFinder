@@ -129,9 +129,12 @@ export default function DashboardPage() {
             <button
               type="button"
               className="sp-hbtn alt"
-              onClick={() => navigate("/app/search-setup")}
+              // The myshopify domain redirects to the store's primary domain.
+              onClick={() =>
+                open(`https://${data.shop}`, "_blank", "noopener,noreferrer")
+              }
             >
-              Open search setup
+              View your store
             </button>
           </div>
         </div>

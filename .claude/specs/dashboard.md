@@ -10,7 +10,7 @@ Home screen. Explains the app in one glance, guides setup to "live", and shows f
 
 ### 1. Banner (custom, eye-catching)
 - Deep navy → blue mesh gradient, soft sky/violet light, faint dot texture on the right.
-- Left: category chip (icon + store type), heading = the store's search heading (e.g. "Find parts for your vehicle"), one-line description built from the field names, buttons **Add search to your store** (→ Storefront) and **Open search setup** (→ Search setup; wording from the prototype).
+- Left: category chip (icon + store type), heading = the store's search heading (e.g. "Find parts for your vehicle"), one-line description built from the field names, buttons **Add search to your store** (→ Storefront) and **View your store** (opens the online store in a new tab via `https://{shop}` (the myshopify domain, opened with `noopener`), which redirects to the primary domain; product owner 2026-10-15, replaced "Open search setup").
 - Right (300px): frosted-glass "How it works" panel — vertical timeline with 3 glowing outline icons:
   1. Shopper picks their {noun} — field names joined by ›
   2. SpareFit matches — `{rows} filter rows`

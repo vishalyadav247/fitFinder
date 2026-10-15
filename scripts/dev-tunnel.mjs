@@ -3,8 +3,9 @@
 //   npm run dev:tunnel                 quick tunnel (random *.trycloudflare.com URL, no account)
 //   TUNNEL_URL=https://dev.example.com npm run dev:tunnel
 //                                      a named tunnel you already run, pointing at localhost:PORT
-// Then `shopify app dev --tunnel-url <url>:<port>` starts the app on PORT and, because
-// shopify.app.toml has automatically_update_urls_on_dev = true, points the app's URLs at the tunnel.
+// Then `shopify app dev --config shopify.app.dev.toml --tunnel-url <url>:<port>` (always the
+// development app) starts the app on PORT and, because
+// shopify.app.dev.toml has automatically_update_urls_on_dev = true, points the app's URLs at the tunnel.
 // Every run first stops an earlier dev session still running (old dev:tunnel, its cloudflared,
 // shopify app dev, the React Router dev server, anything listening on PORT), then starts fresh.
 // Flags: --dry-run prints the tunnel URL and exits (checks cloudflared works); any other flags
@@ -201,13 +202,21 @@ async function main() {
   // Quick tunnels can take a few seconds before DNS resolves.
   if (tunnel) await new Promise((r) => setTimeout(r, 5000));
 
-  const args = ["app", "dev", "--tunnel-url", `${url}:${PORT}`, ...DEV_ARGS];
+  // Always the development app (shopify.app.dev.toml), whatever `shopify app config use` chose.
+  const args = [
+    "app",
+    "dev",
+    "--config",
+    "shopify.app.dev.toml",
+    "--tunnel-url",
+    `${url}:${PORT}`,
+    ...DEV_ARGS,
+  ];
   log(`Running: shopify ${args.join(" ")}`);
-  const dev = spawn(
-    "npx",
-    ["shopify", ...args],
-    { stdio: "inherit", shell: isWin },
-  );
+  const dev = spawn("npx", ["shopify", ...args], {
+    stdio: "inherit",
+    shell: isWin,
+  });
   dev.on("exit", (code) => {
     stop();
     process.exit(code ?? 0);

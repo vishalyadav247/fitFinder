@@ -161,7 +161,7 @@ export async function queueStorefrontPublish(shopId: string) {
 }
 
 /**
- * After a finished import its new attachments are matched (BUILD-PLAN §4 Import, step 6), and
+ * After a finished import its new attachments are matched (.claude/archive/BUILD-PLAN.md §4 Import, step 6), and
  * the theme gets the new first dropdown values (config.ts › first).
  */
 async function afterImport(jobId: string) {

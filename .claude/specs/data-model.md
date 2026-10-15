@@ -1,6 +1,6 @@
 # Data model and API (suggested)
 
-See also `.claude/BUILD-PLAN.md` (section 3) for the full table list. The prototype keeps everything in one browser object (`design/scripts/core/state.js`). This is the suggested shape for the real multi-shop app. Names are suggestions.
+See also `.claude/archive/BUILD-PLAN.md` (section 3, historical) for the full table list. The prototype keeps everything in one browser object (`design/scripts/core/state.js`). This is the suggested shape for the real multi-shop app. Names are suggestions.
 
 ## Prototype shape (for reference)
 ```js
@@ -30,7 +30,7 @@ Implemented in `prisma/schema.prisma` (M1). Every app table has `shop_id` and ca
 | `product_links` | `shop_id`, `attachment`, `kind` (`sku`/`product`/`collection`), `product_id`, `variant_id`, `collection_id`, `method` (`auto`/`manual`) | Unique (`shop_id`, `attachment`); (`shop_id`, `product_id`); (`shop_id`, `collection_id`) for the storefront fits lookup |
 | `universal_products` | `shop_id`, `product_id` | |
 | `import_mappings` | `shop_id`, `column_name`, `target` (`field:{id}`, `field:{id}:from/to/range`, `attachment`, `skip`) | Last saved mapping; pre-fills step 2 (Map columns) of the next import |
-| `import_jobs` | `id`, `shop_id`, `file_name`, `file_key` (object storage key of the original upload; kept for the last 5 jobs per shop as a downloadable backup), `mode` (`upsert`/`replace`/`delete`), `mapping` (jsonb), `look_for_skus`, `has_header`, `status`, `added`, `updated`, `unchanged`, `deleted`, `not_found`, `errors`, `error_report_key`, `created_at`, `finished_at` | Search setup › Import history |
+| `import_jobs` | `id`, `shop_id`, `file_name`, `file_key` (object storage key of the original upload; kept for the last {plan `backups` limit} jobs per shop as a downloadable backup), `mode` (`upsert`/`replace`/`delete`), `mapping` (jsonb), `look_for_skus`, `has_header`, `status`, `added`, `updated`, `unchanged`, `deleted`, `not_found`, `errors`, `error_report_key`, `created_at`, `finished_at` | Search setup › Import history |
 | `storefront_settings` | `shop_id`, `settings` (jsonb) | Mirror to an app metafield for the theme |
 | `theme_status` | `shop_id`, `theme_id`, `embed_on`, `blocks` (jsonb), `table_code_found`, `checked_at` | Cache of what is added to each theme |
 

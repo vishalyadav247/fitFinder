@@ -116,6 +116,7 @@ document.addEventListener('click', (e) => {
   const sp = setup(), fid = el.dataset.field, idx = sp.fields.findIndex((f) => f.id === fid);
   switch (a) {
     case 'guide': state.guide = Number(el.dataset.i); break;
+    case 'view-store': showToast('Opens your online store in a new tab'); return;
     case 'guide-toggle': state.guideClosed = !state.guideClosed; break;
     case 'ms-state': { // My Selection preview: the tab opens the panel, the handle closes it (animated by CSS)
       const ms = document.querySelector('.ms'); if (!ms) return;

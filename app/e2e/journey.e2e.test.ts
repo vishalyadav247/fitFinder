@@ -2,7 +2,7 @@
 // and the library's own auth, with Shopify faked at the HTTP boundary (fake-shopify.ts):
 // install → onboarding → search setup → CSV import → filter data → product mapping and linking →
 // products webhook → storefront settings and theme status → storefront proxy (options, search,
-// fits, results) → dashboard → plans (Billing API) and the backoffice → settings → uninstall,
+// fits, results), theme status, live preview and icon upload → analytics → dashboard → plans (Billing API) and the backoffice → settings → uninstall,
 // compliance webhooks and purge.
 // A second shop runs alongside to prove tenant isolation at each step.
 import {
@@ -21,7 +21,9 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import {
+  APP_URL,
   proxyUrl,
+  SCOPES,
   sessionToken,
   webhookRequest,
   type FakeProduct,
@@ -66,6 +68,14 @@ const routes = {
   settings: await import("../routes/app.settings"),
   uninstalled: await import("../routes/webhooks.app.uninstalled"),
   compliance: await import("../routes/webhooks.compliance"),
+  analytics: await import("../routes/app.analytics"),
+  storefrontIcon: await import("../routes/api.storefront-icon"),
+  storefrontPreview: await import("../routes/api.storefront-preview"),
+  themeStatus: await import("../routes/api.themes.$id"),
+  scopesWebhook: await import("../routes/webhooks.app.scopes_update"),
+  boLayout: await import("../routes/backoffice"),
+  boLogout: await import("../routes/backoffice_.logout"),
+  landing: await import("../routes/_index/route"),
 };
 
 const BLOCK = (handle: string) =>
@@ -1067,6 +1077,198 @@ describe("SpareFit end to end", () => {
     expect(otherSearch.status).toBe(400);
   });
 
+  it("storefront page checks a theme, runs the live preview and uploads a My Selection icon", async () => {
+    const numeric = (gid: string) => gid.split("/").pop()!;
+    const [horizon, dawn] = shopify.shop(SHOP).themes;
+
+    // Theme status (picking a theme, coming back from the editor).
+    const status = (id: string, shop = SHOP) =>
+      run(routes.themeStatus.loader, adminRequest(shop, `/api/themes/${id}`), {
+        id,
+      });
+    const live = await status(numeric(horizon.id));
+    expect(live.status).toBe(200);
+    expect(live.body.status).toMatchObject({
+      embedOn: true,
+      blocks: { search: "index", badge: "product" },
+    });
+    const draft = await status(numeric(dawn.id));
+    expect(draft.body.status).toMatchObject({ embedOn: false });
+    expect((await status("not-a-number")).status).toBe(400);
+    expect((await status("999999999")).status).toBe(404);
+    // Another shop can't read this shop's theme.
+    expect((await status(numeric(horizon.id), OTHER)).status).toBe(404);
+
+    // Live preview: the storefront scripts' proxy calls, with the admin session.
+    const { Make, Year, Model } = fieldIds;
+    const preview = (params: Record<string, string>, shop = SHOP) =>
+      run(
+        routes.storefrontPreview.loader,
+        adminRequest(
+          shop,
+          `/api/storefront-preview?${new URLSearchParams(params)}`,
+        ),
+      );
+    const makes = await preview({ path: "options", field: Make });
+    expect(makes.body.options).toEqual(["Audi", "BMW", "Ford"]);
+    const models = await preview({
+      path: "options",
+      field: Model,
+      [Make]: "Audi",
+      [Year]: "2010",
+    });
+    expect(models.body.options).toEqual(["A4", "A6"]);
+    const results = await preview({
+      path: "results",
+      [Make]: "Audi",
+      [Year]: "2010",
+      [Model]: "A4",
+    });
+    expect(results.status).toBe(200);
+    expect(results.body.total).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(results.body.titles)).toContain("Brake Pad Set");
+    const incomplete = await preview({ path: "results", [Make]: "Audi" });
+    expect(incomplete.body).toEqual({ titles: [], total: 0 });
+    expect((await preview({ path: "nope" })).status).toBe(400);
+    expect((await preview({ path: "options", field: "x" })).status).toBe(400);
+    // This shop's field ids mean nothing to the other shop.
+    expect(
+      (await preview({ path: "options", field: Make }, OTHER)).status,
+    ).toBe(400);
+
+    // My Selection custom icon: checked, uploaded to Shopify Files, saved and published.
+    const upload = async (bytes: Uint8Array, name: string, type: string) => {
+      const form = new FormData();
+      form.append("file", new Blob([bytes as BlobPart], { type }), name);
+      const encoded = new Response(form);
+      const body = new Uint8Array(await encoded.arrayBuffer());
+      return run(
+        routes.storefrontIcon.action,
+        new Request(`${APP_URL}/api/storefront-icon`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${sessionToken(SHOP)}`,
+            "Content-Type": encoded.headers.get("content-type")!,
+            "Content-Length": String(body.length),
+          },
+          body,
+        }),
+      );
+    };
+    const png = (w: number, h: number) => {
+      const bytes = new Uint8Array(33);
+      bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const view = new DataView(bytes.buffer);
+      view.setUint32(8, 13);
+      bytes.set([0x49, 0x48, 0x44, 0x52], 12); // IHDR
+      view.setUint32(16, w);
+      view.setUint32(20, h);
+      return bytes;
+    };
+    const wide = await upload(png(96, 48), "wide.png", "image/png");
+    expect(wide.status).toBe(400);
+    expect(wide.body.error).toContain("square");
+    const script = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><script>alert(1)</script></svg>',
+    );
+    const unsafe = await upload(script, "icon.svg", "image/svg+xml");
+    expect(unsafe.status).toBe(400);
+    expect(unsafe.body.error).toContain("scripts");
+
+    const ok = await upload(png(64, 64), "icon.png", "image/png");
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ published: true });
+    expect(ok.body.url).toMatch(/^https:\/\/cdn\.shopify\.com\//);
+    const saved = await prisma.storefrontSettings.findUniqueOrThrow({
+      where: { shopId },
+    });
+    expect(saved.settings).toMatchObject({
+      savedIcon: "custom",
+      savedIconUrl: ok.body.url,
+    });
+    expect(shopify.shop(SHOP).appMetafields.get("sparefit.config")).toContain(
+      ok.body.url,
+    );
+  });
+
+  it("analytics shows what shoppers searched, what found nothing and the fits badge checks", async () => {
+    const { Make, Year, Model } = fieldIds;
+    const analytics = async (shop = SHOP, query = "") =>
+      (
+        await run(
+          routes.analytics.loader,
+          adminRequest(shop, `/app/analytics${query}`),
+        )
+      ).body;
+
+    // A selection that has a filter row but no product in the store: "found nothing".
+    const post = (form: Record<string, string>) =>
+      run(
+        routes.filterData.action,
+        adminRequest(SHOP, "/app/filter-data", {
+          method: "POST",
+          body: { form },
+        }),
+      );
+    const tesla = { [Make]: "Tesla", [Year]: "2022", [Model]: "Model 3" };
+    const added = await post({ intent: "add", ...tesla, attachment: "ZZ-404" });
+    expect(added.body.ok).toBe(true);
+    const search = (picks: Record<string, string>) =>
+      run(
+        routes.proxySearch.loader,
+        new Request(proxyUrl(SHOP, "search", picks)),
+      );
+    expect((await search(tesla)).status).toBe(200);
+    // A made-up selection (no filter row) is not counted.
+    await search({ [Make]: "Nobody", [Year]: "2022", [Model]: "X" });
+
+    // The storefront proxy journey searched Audi 2010 A4 and checked three products.
+    const page = await waitFor("the searches to be counted", async () => {
+      const body = await analytics();
+      return body.report.searches >= 2 && body.report.noResults >= 1 && body;
+    });
+    expect(page.days).toBe(30);
+    expect(page.report.hasData).toBe(true);
+    expect(page.report).toMatchObject({ searches: 2, noResults: 1 });
+    expect(page.selectionHeader).toBe("Make › Year › Model");
+    expect(
+      page.report.topSelections.map((s: { label: string }) => s.label),
+    ).toEqual(
+      expect.arrayContaining(["Audi › 2010 › A4", "Tesla › 2022 › Model 3"]),
+    );
+    expect(page.report.nothingFound).toEqual([
+      expect.objectContaining({
+        label: "Tesla › 2022 › Model 3",
+        foundNow: false,
+      }),
+    ]);
+    expect(page.report.fits).toBeGreaterThanOrEqual(1);
+    expect(page.report.noFit).toBeGreaterThanOrEqual(1);
+    expect(page.report.products.map((p: { title: string }) => p.title)).toEqual(
+      expect.arrayContaining(["Brake Pad Set", "Oil Filter"]),
+    );
+    expect(page.values.length).toBeGreaterThan(0);
+    // The period comes from the URL; an unknown one falls back to 30 days.
+    expect((await analytics(SHOP, "?days=7")).days).toBe(7);
+    expect((await analytics(SHOP, "?days=999")).days).toBe(30);
+    // The other shop's shoppers searched nothing.
+    expect((await analytics(OTHER)).report.hasData).toBe(false);
+
+    // Put the rows back as they were for the next journeys.
+    const rows = (
+      await run(
+        routes.fitment.loader,
+        adminRequest(SHOP, `/api/fitment?q=Tesla&pageSize=10`),
+      )
+    ).body.rows as { id: string }[];
+    expect(rows).toHaveLength(1);
+    await post({
+      intent: "delete",
+      ids: JSON.stringify(rows.map((r) => r.id)),
+    });
+    expect(await prisma.fitmentRow.count({ where: { shopId } })).toBe(6);
+  });
+
   it("dashboard shows the real setup state", async () => {
     const res = await run(routes.dashboard.loader, adminRequest(SHOP, "/app"));
     expect(res.status).toBe(200);
@@ -1416,6 +1618,77 @@ describe("SpareFit end to end", () => {
     }
   });
 
+  it("backoffice signs out and keeps every page behind sign-in", async () => {
+    const { clearFailures } =
+      await import("../services/backoffice-auth.server");
+    clearFailures();
+    const origin = "https://app.e2e.test";
+    const bo = (
+      path: string,
+      form?: Record<string, string>,
+      cookie = "",
+      from = origin,
+    ) =>
+      new Request(`${origin}${path}`, {
+        method: form ? "POST" : "GET",
+        headers: {
+          Origin: from,
+          Host: "app.e2e.test",
+          Cookie: cookie,
+          ...(form
+            ? { "Content-Type": "application/x-www-form-urlencoded" }
+            : {}),
+        },
+        body: form ? new URLSearchParams(form) : undefined,
+      });
+
+    // Not signed in: the layout (every /backoffice page) sends to sign-in.
+    expect(
+      (await run(routes.boLayout.loader, bo("/backoffice"))).location,
+    ).toBe("/backoffice/login");
+    const login = await run(
+      routes.boLogin.action,
+      bo("/backoffice/login", {
+        email: BACKOFFICE.email,
+        password: BACKOFFICE.password,
+      }),
+    );
+    expect(login.location).toBe("/backoffice");
+    const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0];
+    const layout = await run(
+      routes.boLayout.loader,
+      bo("/backoffice", undefined, cookie),
+    );
+    expect(layout.body).toMatchObject({ email: BACKOFFICE.email });
+
+    // Sign-out from another site is refused; a GET only goes back to the backoffice.
+    const forged = await run(
+      routes.boLogout.action,
+      bo("/backoffice/logout", {}, cookie, "https://evil.example"),
+    );
+    expect(forged.status).toBe(403);
+    expect(
+      (await run(routes.boLogout.loader, bo("/backoffice/logout"))).location,
+    ).toBe("/backoffice");
+    const out = await run(
+      routes.boLogout.action,
+      bo("/backoffice/logout", {}, cookie),
+    );
+    expect(out.location).toBe("/backoffice/login");
+    // The browser's cookie is cleared (expired), so the next page asks to sign in again.
+    const cleared = out.headers.get("set-cookie") ?? "";
+    expect(cleared).toMatch(/^__sparefit_bo=;/);
+    expect(cleared).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+    expect(
+      (
+        await run(
+          routes.boLayout.loader,
+          bo("/backoffice", undefined, cleared.split(";")[0]),
+        )
+      ).location,
+    ).toBe("/backoffice/login");
+  });
+
   it("settings shows the store type, and replacing a store type resets only that shop", async () => {
     const settings = await run(
       routes.settings.loader,
@@ -1443,8 +1716,71 @@ describe("SpareFit end to end", () => {
     expect(await prisma.fitmentRow.count({ where: { shopId } })).toBe(6);
   });
 
+  it("scopes_update webhook stores the scopes the merchant granted", async () => {
+    const offline = () =>
+      prisma.session.findFirstOrThrow({
+        where: { shop: SHOP, isOnline: false },
+      });
+    const before = (await offline()).scope;
+    const send = (payload: unknown, secret?: string) =>
+      run(
+        routes.scopesWebhook.action,
+        webhookRequest(
+          "/webhooks/app/scopes_update",
+          SHOP,
+          "app/scopes_update",
+          payload,
+          secret ? { secret } : {},
+        ),
+      );
+    expect((await send({ current: ["read_products"] }, "wrong")).status).toBe(
+      401,
+    );
+    expect((await offline()).scope).toBe(before);
+    // An odd payload is acknowledged (no retries) and changes nothing.
+    expect((await send({ current: "read_products" })).status).toBe(200);
+    expect((await offline()).scope).toBe(before);
+
+    const granted = SCOPES.split(",");
+    expect((await send({ previous: [], current: granted })).status).toBe(200);
+    expect((await offline()).scope).toBe(granted.join(","));
+  });
+
+  it("the app URL outside the admin is a plain page; links with ?shop= go into the app", async () => {
+    const plain = await run(routes.landing.loader, new Request(`${APP_URL}/`));
+    // A public landing page: links only, no shop-domain field (App Store 2.3.1).
+    expect(plain.status).toBe(200);
+    expect(plain.body).toMatchObject({
+      appStoreUrl: expect.stringContaining("apps.shopify.com"),
+    });
+    const withShop = await run(
+      routes.landing.loader,
+      new Request(`${APP_URL}/?shop=${SHOP}&host=abc`),
+    );
+    expect(withShop.status).toBe(302);
+    expect(withShop.location).toBe(`/app?shop=${SHOP}&host=abc`);
+  });
+
   it("uninstall stops the storefront, compliance webhooks answer, and the purge deletes the shop", async () => {
     const { purgeUninstalledShops } = await import("../services/purge.server");
+    // Shopify cancels the charge as it uninstalls; that webhook can come first, when the shop's
+    // session is already unusable. It must still get its 200 (no retry storm).
+    await prisma.session.deleteMany({ where: { shop: SHOP } });
+    const cancelled = await run(
+      routes.subscriptionsWebhook.action,
+      webhookRequest(
+        "/webhooks/app/subscriptions_update",
+        SHOP,
+        "app_subscriptions/update",
+        {
+          app_subscription: {
+            admin_graphql_api_id: "gid://shopify/AppSubscription/1",
+            status: "CANCELLED",
+          },
+        },
+      ),
+    );
+    expect(cancelled.status).toBe(200);
     const forged = await run(
       routes.uninstalled.action,
       webhookRequest(

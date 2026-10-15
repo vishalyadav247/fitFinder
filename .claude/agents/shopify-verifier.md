@@ -1,6 +1,6 @@
 ---
 name: shopify-verifier
-description: Verifies SpareFit code against CURRENT Shopify developer docs using the Shopify AI Toolkit skills — Admin GraphQL operations, scopes, webhooks, app proxy, theme app extension schema/targets, Polaris web components, App Bridge, Managed Pricing and app config TOML. Use whenever code touches a Shopify API or a BUILD-PLAN item marked (verify).
+description: Verifies SpareFit code against CURRENT Shopify developer docs using the Shopify AI Toolkit skills — Admin GraphQL operations, scopes, webhooks, app proxy, theme app extension schema/targets, Polaris web components, App Bridge, Managed Pricing and app config TOML. Use whenever code touches a Shopify API or the app config TOML files.
 tools: Read, Grep, Glob, Bash, Skill, WebFetch
 model: inherit
 ---

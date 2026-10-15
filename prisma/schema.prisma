@@ -1,4 +1,4 @@
-// SpareFit data model. See .claude/BUILD-PLAN.md §3 and .claude/specs/data-model.md.
+// SpareFit data model. See .claude/specs/data-model.md (history: .claude/archive/BUILD-PLAN.md §3).
 // Every app table carries shopId and cascades on shop delete, so a shop purge is one delete.
 
 generator client {

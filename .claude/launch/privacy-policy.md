@@ -1,67 +1,140 @@
-# SpareFit privacy policy (draft)
+# SpareFit privacy policy
 
-> Draft for the App Store listing's privacy policy URL (required). Fill in the bracketed parts, have it reviewed, and publish it on a dedicated public page (your website; not a cloud document) before submitting. Checked 2026-10-06 against what the app stores (`prisma/schema.prisma`: shops, sessions (offline tokens only), search setup, filter rows, imports, product links, catalog cache, theme status, storefront settings), `app/services/purge.server.ts`, `app/routes/webhooks.compliance.tsx` and Settings › Your data. Search statistics (Analytics, `search_stats` / `fit_check_stats`: daily counts, no shopper data) added 2026-10-13. If you change hosting providers or add other analytics, update this page.
+> Editor's note (remove before publishing): publish this on a dedicated public page (your website, not a cloud document) and use its URL as the App Store listing's privacy policy URL. Rewritten 2026-10-15 in the structure of the ChatConvert policy. Checked against the code: `shopify.app.toml` scopes (`read_products, write_app_proxy, read_themes, write_files`), `prisma/schema.prisma` (offline sessions only, no customer tables), `app/services/purge.server.ts` (30 days after uninstall), the 180-day analytics purge in `app/services/jobs.server.ts`, `app/routes/webhooks.compliance.tsx`, `app/services/subscription.server.ts` (Billing API) and the storefront scripts in `extensions/sparefit-theme/assets/` (localStorage and sessionStorage only, no cookies). **Confirm before publishing:** the hosting providers in section 8 (the build plan names Fly.io, Neon or Supabase and Cloudflare R2, all EU) and the log retention period in section 9. Update this page whenever scopes, providers or stored data change.
 
-**Last updated:** [date]
+**Last updated:** 15 October 2026
 
-SpareFit ("the app") is provided by [legal company name], [address] ("we", "us"). This policy explains what information the app collects when a merchant installs it on a Shopify store, how we use it, and how it is deleted.
+SpareFit – Parts Finder ("SpareFit", "the App") is a "find products that fit" search for Shopify stores, built and operated by Progryss Media Private Limited ("Progryss", "we", "us"). The App adds a search to a merchant's storefront where shoppers pick values such as year, make and model (or any fields the merchant sets up) and see only the products that fit. It can also show a "fits / doesn't fit" badge and a fitment table on product pages, and lets shoppers keep their selections in "My Selection". Merchants fill the search with their own fitment data, imported from CSV files or added by hand, and link it to their products. This policy explains what data the App collects, how we use it, who we share it with, and the choices merchants and shoppers have.
 
-## Information we collect
+By installing SpareFit, you agree to the collection and use of information as described here. If you do not agree, please do not install or use the App.
 
-When you install SpareFit, Shopify gives the app access to some information about your store, limited to the permissions you approve:
+## 1. Who is responsible for what
 
-- **Store details:** your store's myshopify domain, the install and uninstall dates, and the access token Shopify issues to the app (an offline token for the store; we don't receive or store staff names or email addresses).
-- **Product information** (`read_products`): product titles, handles, statuses, variant SKUs and collection memberships. We keep a copy of these in our database to link your fitment data to your products, and update it when Shopify tells us a product changed. We don't change your products.
-- **Theme information** (`read_themes`): which of your themes contain SpareFit's blocks and app embed, so the app can show whether the search is live. We store only that status, not your theme files. We don't change your themes.
+- **The merchant** is the data controller for their store's data. They decide what fitment data to upload and how their storefront search works.
+- **Progryss** is the data processor. We store and process that data only to provide the App to that merchant, on their instructions.
+- Every record in our database is scoped to a single store. One merchant's data is never readable by another merchant.
+
+If you are a shopper who used SpareFit's search on a store, the store is your point of contact. SpareFit does not collect personal data about shoppers (see section 3), but we will pass any request you send us on to that merchant.
+
+## 2. What we collect from merchants
+
+When you install SpareFit, Shopify gives the App access to some information about your store, limited to the permissions you approve:
+
+- **Store details:** your store's myshopify domain, the install and uninstall dates, and the access token Shopify issues so the App can work with your store. We do not receive or store staff names, staff email addresses or your Shopify login credentials.
+- **Product catalog** (`read_products`): product titles, handles, statuses, variant SKUs and images. We keep a copy in our database so we can link your fitment data to your products by SKU, and update it when Shopify tells us a product has changed. We never change your products.
+- **Theme status** (`read_themes`): whether your themes contain SpareFit's blocks and app embed, so the App can show whether the search is live. We store only that status, not your theme code. We never change your themes.
 - **Files** (`write_files`): only the My Selection icon you upload yourself is stored in your store's Files.
-- **Plan information:** your current SpareFit plan and trial end date, read from Shopify.
-- **Storefront settings:** your search fields and storefront texts are also saved as an app setting (metafield) on your store so your theme can show them.
+- **Storefront proxy** (`write_app_proxy`): lets your storefront search reach the App through Shopify's signed app proxy.
+- **App configuration:** your store type, search fields, fitment (filter) rows, product links, universal products, storefront texts, colours and settings. Your search fields and storefront texts are also saved as an app setting (an app-owned metafield) on your store so your theme can show them.
+- **Imported files:** the CSV files you import, with your column mapping. We keep your last 5 imports as backups you can download, together with the error reports we create from them.
+- **Billing status:** your plan, subscription state and trial dates. All charges are handled by the Shopify Billing API; we never see or store payment details.
+- **Search statistics:** daily counts for the Analytics page (see section 3). These are aggregate numbers, not personal data.
+- **Support chat:** when you use the support chat inside the App, the messages you send and any contact details you choose to give are handled by our own support chat service (chat.progryss.com), so we can answer you. We use them only to give you support.
+- **Operational logs:** technical events such as webhook deliveries, background jobs and errors, with your store's domain. They never contain shopper data.
 
-Information you give the app directly:
+## 3. What we collect from shoppers
 
-- your search fields, fitment (filter) rows, product links, storefront texts and settings;
-- the CSV files you import (we keep the last 5 as backups you can download) and the error reports we create from them.
+SpareFit does **not** collect or store personal information about shoppers.
 
-## Information about your customers
+- **Search picks:** when a shopper uses the search, their storefront sends the values they picked (for example a make and model) to the App, so we can return matching products. These requests contain no names, emails, addresses, orders or account details.
+- **Aggregate statistics:** to show the merchant how the search is used, we count per day how often each selection was searched, how often a search found nothing, and how often a product page was checked against a selection. These counts contain nothing about who searched: no IDs, IP addresses, sessions or devices. They are deleted after 180 days.
+- **Logged-in customer ID:** Shopify can add a logged-in customer's ID to app proxy requests. SpareFit does not use or store it.
+- **Connection data:** requests reach us through Shopify's app proxy. Our hosting provider may process connection data (such as IP addresses) in transit to deliver them, but we do not log or store shopper IP addresses.
 
-SpareFit does **not** collect or store personal information about your customers (shoppers). A shopper's saved selections ("My Selection") are stored only in their own browser (local storage) and never sent to our servers. Storefront requests to the app (dropdown options, "fits" checks, results) contain the shopper's picks (for example a make and model) but no names, emails, addresses, orders or other personal data. To show the merchant search statistics (Analytics), we count per day how often each selection was searched and how often a product fitted it; these counts contain no information about who searched and are deleted after 180 days. These requests reach us through Shopify's app proxy; our hosting provider may process connection data (such as IP addresses) in transit to deliver them, but we don't log or store shopper IP addresses. SpareFit doesn't use the logged-in customer ID that Shopify can add to these requests.
+We do not collect shopper payment details or location, and we use no third-party analytics or advertising trackers.
 
-Our server logs contain your store's domain and technical events (for example webhook deliveries and errors). They contain no shopper data and are kept for [log retention, e.g. 30 days] by our hosting provider.
+## 4. Cookies, storage and consent
 
-## How we use information
+SpareFit sets **no cookies** on the storefront. The storefront scripts use the browser's own storage, which never leaves the shopper's device:
 
-We use the information above only to provide the app's features to you: building your search, linking rows to products, showing the search in your theme and showing your plan and usage. We don't sell or share it for advertising.
+- **localStorage:** the shopper's saved selections ("My Selection") and the position of the My Selection tab, so they are still there on the next visit.
+- **sessionStorage:** short-lived, per-tab state, such as the last search, so the results page and page reloads behave correctly.
 
-## Billing
+This data is never sent to our servers as a profile, is not shared with anyone, and the shopper can clear it at any time by clearing their browser's site data. SpareFit does not track shoppers across sites and does not build advertising profiles.
 
-Plans are billed by Shopify on your Shopify invoice. We read your current plan from Shopify; we never see or store payment details.
+## 5. Protected customer data
 
-## Service providers
+SpareFit does not request access to orders or customers (no `read_orders`, `read_customers` or similar scopes) and does not store any customer records. It therefore does not process Shopify's protected customer data.
 
-We use these providers to run the app, all in the EU:
+## 6. How we use it
 
-- [Fly.io] — application hosting (Amsterdam);
-- [Neon / Supabase] — database;
-- [Cloudflare R2] — storage of imported files, backups and reports.
+- To run the storefront search: show the right dropdown values, find the products that fit a selection, and show fit badges and fitment tables.
+- To import, check and store your fitment data, link it to your products, and keep those links up to date when your catalog changes.
+- To show you your setup, data, product mapping and search statistics in the App.
+- To manage plans and billing through Shopify, provide support, diagnose errors, and keep the App secure and compliant.
+- To run the App as a business: our own administration area shows us app-wide figures such as the number of installed stores, plans, trials and setup progress.
 
-## Retention and deletion
+We do not sell or rent any merchant or shopper data, we do not share it with advertisers or data brokers, we do not use it for our own marketing, and we never use one merchant's data to serve another merchant.
 
-- **When you uninstall the app**, the search stops showing on your store straight away. Your data is kept for 30 days in case you reinstall, then deleted for good: database records, imported files, backups and reports.
-- **Data requests:** we respond to Shopify's privacy webhooks (customer data requests, customer redaction and shop redaction). Because we store no customer data, customer requests have nothing to return or delete; shop redaction requests are completed by the deletion above, within 30 days of the request.
-- You can ask us to delete your data sooner by contacting us.
+**No AI and no automated decisions.** SpareFit does not use artificial intelligence. Matching, column mapping and product linking are rule-based. The App does not make decisions with legal or similarly significant effects about any individual.
 
-## Security
+## 7. AI processing
 
-Data is sent over HTTPS. Access to our systems is limited to the people who run the app. Storefront requests are verified with Shopify's app proxy signature.
+SpareFit does not send any data to AI or machine-learning services.
 
-## Your rights
+## 8. Sharing and sub-processors
 
-Depending on where you are, you may have the right to access, correct or delete your information. Contact us at [support email] and we will respond within 30 days.
+We share data only with the services required to run the App:
 
-## Changes
+- **Shopify** — the platform the App runs on (install, authentication, product catalog, billing, app proxy and the storefront where the search appears).
+- **[Fly.io]** — application hosting, EU region (Amsterdam), where the App's backend runs.
+- **[Neon / Supabase]** — managed PostgreSQL database, EU region, where stored data lives.
+- **[Cloudflare R2]** — storage of imported files, backups and error reports.
 
-We will post changes to this policy on this page and update the date above.
+Beyond these, we disclose data only if required by law. Merchants are notified of any material change to our sub-processors through an update to this policy.
 
-## Contact
+## 9. Retention and deletion
 
-[legal company name] · [address] · [support email]
+- **Store configuration, fitment data, product links and catalog copy** — kept for as long as the App is installed.
+- **Imported files** — the last 5 imports per store are kept as backups; older ones are deleted when a new import replaces them.
+- **Search statistics** — deleted after 180 days by a daily job.
+- **Operational logs** — kept for [30] days by our hosting provider, then deleted.
+- **After uninstall** — the search disappears from your store straight away and billing stops. Your data is kept for 30 days so an accidental uninstall or a quick reinstall does not lose your setup. After 30 days, every record belonging to your store is permanently deleted: search setup, fitment data, product links, imports, backups, reports, statistics, settings and access tokens. This meets the 30-day deadline Shopify sets for its shop/redact request.
+- **Earlier deletion** — you can ask us to delete your store's data sooner by contacting us (section 16).
+
+## 10. Shopify compliance webhooks (GDPR)
+
+SpareFit implements all three of Shopify's mandatory privacy webhooks:
+
+- **customers/data_request** — SpareFit stores no customer data, so there is nothing to export; we acknowledge the request.
+- **customers/redact** — SpareFit stores no customer data, so there is nothing to delete; we acknowledge the request.
+- **shop/redact** — we permanently delete all of the store's data, as described in section 9.
+
+## 11. Other channels
+
+SpareFit works only on the merchant's Shopify storefront and in the Shopify admin. It does not connect to WhatsApp, Facebook, Instagram or any other messaging or social platform.
+
+## 12. Security and data transfers
+
+- All data is transmitted over HTTPS/TLS and stored on managed cloud infrastructure.
+- Every database query is scoped to a single store; cross-store access is prevented by design and covered by automated tests.
+- The App authenticates with Shopify session tokens; we never collect or store Shopify login credentials.
+- Storefront requests are verified through Shopify's signed app proxy, and every Shopify webhook is HMAC-verified before any processing.
+- Access tokens and provider secrets are kept server-side only and never exposed to the storefront.
+- Access to our systems is limited to the people who run the App. Our administration area is protected by a password stored only as a hash.
+- Data is stored in the European Union. Our team is based in India and may access data from there for support and maintenance; where required, transfers rely on recognised safeguards such as Standard Contractual Clauses.
+
+No system is perfectly secure. If we become aware of a breach affecting personal data, we will notify affected merchants without undue delay and cooperate with them as the controller.
+
+## 13. Your rights
+
+Depending on where you live (including under the GDPR and CCPA/CPRA), you may have the right to access, correct, delete or receive a copy of your personal data, and to object to or restrict its processing.
+
+- **Shoppers:** SpareFit holds no personal data about you. Your saved selections are only in your own browser, and you can clear them there. For anything else, contact the store you visited.
+- **Merchants:** contact us at the address below for any data request about your store and we will respond within 30 days.
+
+You may also lodge a complaint with your local supervisory authority.
+
+## 14. Children
+
+SpareFit is a business tool for merchants and is not directed at children. We do not knowingly collect personal data from children. If you believe a child's data has reached us, contact us and we will delete it.
+
+## 15. Changes to this policy
+
+We may update this policy from time to time; the "Last updated" date at the top will change when we do. If we make a material change, such as a new sub-processor, a new category of data or a different retention period, we will notify installed merchants before the change takes effect.
+
+## 16. Contact
+
+- **Email:** progryss@gmail.com
+- **Business:** Progryss Media Private Limited, First Floor, Workspace By Innova, H-54, H Block, Sector 63, Noida, Uttar Pradesh 201301
+- **Governing law:** India

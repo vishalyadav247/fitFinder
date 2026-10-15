@@ -1,0 +1,56 @@
+# DEVELOPMENT app. `npm run dev` and `npm run dev:tunnel` always use this file; production is
+# shopify.app.toml. Switch the CLI default with `npm run config:dev` / `npm run config:prod`;
+# see which one is active with `npm run config:which`.
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "7b77c7efd0009a88cfc875d912e97bf9"
+application_url = "https://example.com"
+embedded = true
+name = "SpareFit – Parts Finder"
+handle = "sparefit"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# read_products: SKU and handle linking (M6). write_app_proxy: the storefront app proxy (M7).
+# read_themes: theme integration status (M8). write_files: My Selection custom icon (M8).
+scopes = "read_products,write_app_proxy,read_themes,write_files"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  # Billing API charges (agreed 2026-10-13): approved, declined, cancelled, frozen, expired.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/subscriptions_update"
+  topics = [ "app_subscriptions/update" ]
+
+  # Mandatory compliance webhooks (M10). https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+  # Product mapping (M6): keep the catalog cache and product links fresh.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products"
+  topics = [ "products/create", "products/update", "products/delete" ]
+
+# Storefront data for the theme app extension (M7): /apps/sparefit/* → {app url}/proxy/*.
+# Merchants can rename the prefix/subpath in their admin; the storefront uses /apps/sparefit.
+# https://shopify.dev/docs/apps/build/online-store/app-proxies
+[app_proxy]
+url = "/proxy"
+prefix = "apps"
+subpath = "sparefit"
+
+[auth]
+redirect_urls = [ "https://example.com/api/auth" ]
+
+[build]
+automatically_update_urls_on_dev = true

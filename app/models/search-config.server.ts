@@ -47,10 +47,10 @@ export async function getSetupCounts(shopId: string, db: Db = prisma) {
  * the shop's fields, filter rows and saved column mapping (which points at the old field ids).
  * Product links and universal products are kept: they're keyed by attachment / product, not fields.
  *
- * One batch transaction (no interactive-transaction timeout on large row counts). The config row
- * is written first: on a first run a plain create, so a concurrent second submit fails on the
- * unique shop_id and rolls back; on replace an upsert, whose row lock makes a concurrent replace
- * wait, so its deletes then see (and remove) the first one's fields.
+ * First run: one batch transaction that writes the config row first (a plain create), so a
+ * concurrent second submit fails on the unique shop_id and rolls back. Replace: under the setup
+ * lock (withSetupLock), so a concurrent replace waits and then sees (and removes) the first one's
+ * fields, and a running import refuses it with a FitmentRuleError.
  */
 export async function applyStoreType(
   shopId: string,
@@ -77,18 +77,25 @@ export async function applyStoreType(
     return;
   }
 
-  await db.$transaction([
-    db.searchConfig.upsert({
-      where: { shopId },
-      create: { shopId, ...config },
-      // Bumps the storefront options cache version (the other writers do it in the setup lock).
-      update: { ...config, dataVersion: { increment: 1 } },
-    }),
-    db.fitmentRow.deleteMany(where),
-    db.importMapping.deleteMany(where),
-    db.searchField.deleteMany(where),
-    createFields,
-  ]);
+  // Under the setup lock like every other write that changes fields or rows: refused while an
+  // import is running (its apply holds the lock for minutes), with lock and statement timeouts, so
+  // the merchant gets an answer instead of a hung request whose deletes run later.
+  const { withSetupLock } = await import("./fitment-row.server");
+  const exists = await db.searchConfig.findUnique({
+    where: { shopId },
+    select: { shopId: true },
+  });
+  if (!exists) return applyStoreType(shopId, storeType, { replace: false }, db);
+  await withSetupLock(shopId, async (tx) => {
+    // The lock already bumped data_version (the storefront options cache).
+    await tx.searchConfig.update({ where: { shopId }, data: config });
+    await tx.fitmentRow.deleteMany(where);
+    await tx.importMapping.deleteMany(where);
+    await tx.searchField.deleteMany(where);
+    await tx.searchField.createMany({
+      data: fields.map((f) => ({ shopId, ...f })),
+    });
+  });
 }
 
 function isUniqueViolation(error: unknown): boolean {

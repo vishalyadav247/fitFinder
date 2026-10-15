@@ -24,6 +24,7 @@ import {
 import { queueStorefrontPublish } from "../services/jobs.server";
 import { shopPlan } from "../services/billing.server";
 import { AppLoading } from "../components/AppLoading";
+import { SupportChat } from "../components/SupportChat";
 import theme from "../styles/theme.css?url";
 import appLoading from "../styles/app-loading.css?url";
 
@@ -112,6 +113,7 @@ export default function App() {
           </s-app-nav>
         )}
         <Outlet />
+        <SupportChat />
       </AppProvider>
     </>
   );

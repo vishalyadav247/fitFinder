@@ -6,6 +6,8 @@ import { useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import { getSearchConfig } from "../models/search-config.server";
+import { keptFiles } from "../services/import/pipeline.server";
+import { keptText } from "../components/import/ImportHistory";
 import { STORE_TYPES } from "../services/store-types";
 import { SectionTitle } from "../components/SectionTitle";
 import { PageHeader } from "../components/PageHeader";
@@ -17,9 +19,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!config) throw redirect("/app/onboarding");
   return {
     storeTypeLabel: STORE_TYPES[config.storeType].label,
-    // Optional: set in the environment once support and docs exist.
-    supportEmail: process.env.SUPPORT_EMAIL || null,
-    helpCenterUrl: process.env.HELP_CENTER_URL || null,
+    // How many imported files the plan keeps as backups.
+    kept: await keptFiles(shop.id),
   };
 };
 
@@ -61,8 +62,9 @@ export default function SettingsPage() {
             <s-unordered-list>
               <s-list-item>
                 <s-text type="strong">What we store:</s-text> your search
-                fields, filter rows, product links, the last 5 imported files
-                (as backups) and the texts and settings you set in the app.
+                fields, filter rows, product links, the {keptText(data.kept)}{" "}
+                you imported (as backups) and the texts and settings you set in
+                the app.
               </s-list-item>
               <s-list-item>
                 <s-text type="strong">Shoppers:</s-text> a shopper&apos;s My
@@ -70,9 +72,9 @@ export default function SettingsPage() {
                 don&apos;t store names, emails or orders.
               </s-list-item>
               <s-list-item>
-                <s-text type="strong">Backups:</s-text> you can download each of
-                your last 5 imported files any time from Search setup › Import
-                history.
+                <s-text type="strong">Backups:</s-text> you can download your{" "}
+                {keptText(data.kept)} imported any time from Search setup ›
+                Import history.
               </s-list-item>
               <s-list-item>
                 <s-text type="strong">If you uninstall:</s-text> the search
@@ -92,26 +94,24 @@ export default function SettingsPage() {
           <SectionTitle icon="question-circle" gap>
             Help
           </SectionTitle>
-          <s-stack direction="inline" gap="small-200">
-            <s-button
-              icon="email"
-              disabled={!data.supportEmail}
-              href={
-                data.supportEmail ? `mailto:${data.supportEmail}` : undefined
-              }
-              target="_blank"
-            >
-              Contact support
-            </s-button>
-            <s-button
-              icon="external"
-              variant="tertiary"
-              disabled={!data.helpCenterUrl}
-              href={data.helpCenterUrl ?? undefined}
-              target="_blank"
-            >
-              Help center
-            </s-button>
+          <s-stack gap="small-300">
+            <s-text>
+              Need a hand? Chat with our support team right here in SpareFit.
+            </s-text>
+            <s-unordered-list>
+              <s-list-item>
+                Click the <s-text type="strong">chat button</s-text> on the
+                right side of the screen to start a conversation.
+              </s-list-item>
+              <s-list-item>
+                Ask us anything: setting up your search, importing fitment data,
+                linking products, adding SpareFit to your theme or your plan.
+              </s-list-item>
+              <s-list-item>
+                Your messages stay in the chat, so you can close it and pick up
+                the conversation later.
+              </s-list-item>
+            </s-unordered-list>
           </s-stack>
         </s-section>
       </s-stack>

@@ -1,4 +1,4 @@
-// Shop data removal (BUILD-PLAN §4 Privacy and uninstall; Settings › Your data): an uninstalled
+// Shop data removal (.claude/archive/BUILD-PLAN.md §4 Privacy and uninstall; Settings › Your data): an uninstalled
 // shop's data is kept 30 days in case it reinstalls, then deleted: files in storage, sessions and
 // the shop row (every app table cascades from it). Shopify's shop/redact webhook (48 hours after
 // uninstall) asks for the same deletion within 30 days; the daily purge at uninstall + 30 days

@@ -1,4 +1,4 @@
-// Import history (specs/search-setup.md): the last 5 files, newest first, each downloadable.
+// Import history (specs/search-setup.md): the files the plan keeps (backups), newest first, each downloadable.
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { download } from "./client";
 import { SectionTitle } from "../SectionTitle";
@@ -30,11 +30,18 @@ function when(iso: string | null) {
   });
 }
 
+/** "last 5 files" / "last file": the plan's backup count. */
+export const keptText = (n: number) =>
+  n === 1 ? "last file" : `last ${n} files`;
+
 export function ImportHistory({
   items,
+  kept,
   onImport,
 }: {
   items: HistoryItem[];
+  /** Imported files the plan keeps as backups. */
+  kept: number;
   onImport: () => void;
 }) {
   const shopify = useAppBridge();
@@ -48,7 +55,7 @@ export function ImportHistory({
             <SectionTitle icon="clock">Import history</SectionTitle>
             <s-text color="subdued">
               {has
-                ? "We keep your last 5 files, so you can download a backup any time. A new import removes the oldest one."
+                ? `We keep your ${keptText(kept)}, so you can download a backup any time. A new import removes the oldest one.`
                 : "Nothing imported yet. Upload a CSV with your SKUs and what they fit."}
             </s-text>
           </s-stack>

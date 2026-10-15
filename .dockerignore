@@ -1,3 +1,16 @@
 .cache
 build
 node_modules
+
+# Secrets and local data: set env values on the host instead
+.env
+.env.*
+!.env.example
+.data
+.shopify
+
+# Not needed in the image
+.git
+.claude
+.react-router
+.DS_Store

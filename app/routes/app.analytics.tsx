@@ -255,7 +255,7 @@ function DailyChart({ daily }: { daily: Data["report"]["daily"] }) {
               key={d.day}
               type="button"
               className={`sp-an-bar${active === i ? " is-active" : ""}`}
-              aria-label={`${shortDay(d.day)}: ${d.searches} searches, ${d.noResults} found nothing`}
+              aria-label={`${shortDay(d.day)} · ${fmt(d.searches)} search${d.searches === 1 ? "" : "es"} · ${fmt(d.noResults)} found nothing`}
               onMouseEnter={() => setActive(i)}
               onFocus={() => setActive(i)}
               onBlur={() => setActive(null)}

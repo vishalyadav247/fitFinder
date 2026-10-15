@@ -1,6 +1,6 @@
 ---
 name: check-spec
-description: Check that an implemented SpareFit screen (or all of them) still matches its spec in .claude/specs/, the prototype and the rules in CLAUDE.md. Use after UI changes, when the user asks "does X match the design", or before a milestone review.
+description: Check that an implemented SpareFit screen (or all of them) still matches its spec in .claude/specs/, the prototype and the rules in CLAUDE.md. Use after UI changes, when the user asks "does X match the design", or before a larger change is done.
 argument-hint: "[screen name, e.g. search-setup | storefront | all]"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "[screen name, e.g. search-setup | storefront | all]"
 
 Target: `$ARGUMENTS` (a spec name from `.claude/specs/`, or `all`; if empty, use the screens touched by `git diff`).
 
-1. Map each target to its route and extension files using BUILD-PLAN §2:
+1. Map each target to its route and extension files (see `app/routes/` and `extensions/`):
    - `dashboard` → `app/routes/app._index.tsx`
    - `fitment-data` → `app/routes/app.filter-data.tsx`
    - `storefront` → `app/routes/app.storefront.tsx` and `extensions/sparefit-theme/**`

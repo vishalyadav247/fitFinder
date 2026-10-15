@@ -347,7 +347,7 @@ export default function EditPlan() {
               name="bullets"
               rows={6}
               defaultValue={plan.bullets.join("\n")}
-              placeholder="Everything in Starter"
+              placeholder="Unlimited filter rows"
             />
             <span className="bo-help">
               Shown on the plan card after the limits and features (up to 12

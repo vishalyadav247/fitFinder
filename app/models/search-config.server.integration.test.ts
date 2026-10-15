@@ -2,6 +2,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { upsertShopOnInstall } from "./shop.server";
+import { FitmentRuleError } from "./fitment-row.server";
 import {
   SetupExistsError,
   applyStoreType,
@@ -135,5 +136,35 @@ describe.skipIf(!process.env.DATABASE_URL)("applyStoreType (Postgres)", () => {
     expect(await fieldLabels(shopB)).toEqual(["Make", "Year", "Model"]);
     expect(await db.fitmentRow.count({ where: { shopId: shopB } })).toBe(1);
     expect(await db.importMapping.count({ where: { shopId: shopB } })).toBe(1);
+  });
+
+  it("replace is refused while an import is running, and deletes nothing", async () => {
+    await applyStoreType(shopA, "automotive", { replace: false }, db);
+    await db.fitmentRow.create({
+      data: { shopId: shopA, values: {}, attachment: "SKU-1", rowHash: "h" },
+    });
+    const job = await db.importJob.create({
+      data: {
+        shopId: shopA,
+        fileName: "big.csv",
+        status: "running",
+        claimedAt: new Date(),
+      },
+    });
+
+    await expect(
+      applyStoreType(shopA, "phones", { replace: true }, db),
+    ).rejects.toThrow(FitmentRuleError);
+    expect(await fieldLabels(shopA)).toEqual(["Make", "Year", "Model"]);
+    expect(await db.fitmentRow.count({ where: { shopId: shopA } })).toBe(1);
+
+    // Once the import has finished, the replace goes through.
+    await db.importJob.update({
+      where: { id: job.id },
+      data: { status: "completed" },
+    });
+    await applyStoreType(shopA, "phones", { replace: true }, db);
+    expect(await fieldLabels(shopA)).toEqual(["Brand", "Series", "Model"]);
+    expect(await db.fitmentRow.count({ where: { shopId: shopA } })).toBe(0);
   });
 });

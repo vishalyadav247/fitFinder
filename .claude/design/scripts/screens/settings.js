@@ -22,7 +22,7 @@ S.settings = () => {
   </s-section>
 
   <s-section accessibilityLabel="Help"><h2 class="sec-title sec-gap">Help</h2>
-    <s-stack direction="inline" gap="small-200"><s-button icon="email">Contact support</s-button><s-button icon="external" variant="tertiary">Help center</s-button></s-stack>
+    <s-stack gap="small-300"><s-text>Need a hand? Chat with our support team right here in SpareFit.</s-text><s-unordered-list><s-list-item>Click the <s-text type="strong">chat button</s-text> on the right side of the screen to start a conversation.</s-list-item><s-list-item>Ask us anything: setting up your search, importing fitment data, linking products, adding SpareFit to your theme or your plan.</s-list-item><s-list-item>Your messages stay in the chat, so you can close it and pick up the conversation later.</s-list-item></s-unordered-list></s-stack>
   </s-section>
 
   <s-section accessibilityLabel="Reset this prototype"><h2 class="sec-title sec-gap">Reset this prototype</h2><s-stack gap="base"><s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center"><s-paragraph color="subdued">Puts the sample filter rows back. Your search fields and settings stay as they are.</s-paragraph><s-button data-act="load-sample">Restore sample rows</s-button></s-grid><s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center"><s-paragraph color="subdued">Clears everything in this browser and starts at onboarding again.</s-paragraph><s-button tone="critical" data-act="ask" data-confirm="reset">Start over</s-button></s-grid></s-stack></s-section>
