@@ -48,14 +48,15 @@ export function bridge(init: BridgeInit) {
   });
   const pending = new Map<
     number,
-    { res: (v: unknown) => void; rej: (e: Error) => void }
+    { res: (v: unknown) => void; rej: (e: Error) => void; msg: unknown }
   >();
   let next = 0;
   const ask = (path: string, q: string) =>
     new Promise((res, rej) => {
       const id = ++next;
-      pending.set(id, { res, rej });
-      parent.postMessage({ sp: "fetch", id, path, q }, "*");
+      const msg = { sp: "fetch", id, path, q };
+      pending.set(id, { res, rej, msg });
+      parent.postMessage(msg, "*");
     });
   const empty: FitsReply = {
     state: "ask",
@@ -81,7 +82,16 @@ export function bridge(init: BridgeInit) {
   };
   addEventListener("message", (e) => {
     const d = e.data;
-    if (e.source !== parent || !d || d.sp !== "reply") return;
+    if (e.source !== parent || !d) return;
+    // The page started listening (after a reload the frame can load before the page's script
+    // runs, and its first messages are lost): send the height and open requests again.
+    if (d.sp === "hello") {
+      last = -1;
+      if (document.body) report();
+      pending.forEach((p) => parent.postMessage(p.msg, "*"));
+      return;
+    }
+    if (d.sp !== "reply") return;
     const p = pending.get(d.id);
     if (!p) return;
     pending.delete(d.id);
@@ -159,9 +169,15 @@ export function bridge(init: BridgeInit) {
 
   // The body's own height, not the document's scroll height: that one is never less than the
   // iframe, so the preview could grow but never shrink back (e.g. mobile → desktop).
+  // An open search widget list (position: fixed, outside the flow) counts too, so the frame
+  // grows to show it.
   let last = -1;
   const report = () => {
-    const h = Math.ceil(document.body.getBoundingClientRect().height);
+    let h = document.body.getBoundingClientRect().height;
+    document.querySelectorAll(".sp-dd__list:not([hidden])").forEach((list) => {
+      h = Math.max(h, list.getBoundingClientRect().bottom + 20);
+    });
+    h = Math.ceil(h);
     if (h === last) return;
     last = h;
     parent.postMessage({ sp: "height", h }, "*");
@@ -171,6 +187,12 @@ export function bridge(init: BridgeInit) {
     if (typeof ResizeObserver === "function") {
       new ResizeObserver(report).observe(document.body);
     }
+    // A widget list opening or closing (its hidden attribute) changes no size the observer sees.
+    new MutationObserver(report).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributeFilter: ["hidden"],
+    });
   });
 }
 
@@ -335,7 +357,7 @@ function bridgeInit(input: PreviewInput): BridgeInit {
 export function previewDoc(input: PreviewInput): string {
   const config = { ...input.config, proxy: PREVIEW_PROXY };
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${input.css.replace(/<\/style/gi, "<\\/style")}</style><style>${HARNESS_CSS}</style>
+<style>${input.css.replace(/<\/style/gi, "<\\/style")}</style><style>${HARNESS_CSS}</style>${config.css ? `<style>${config.css.replace(/</g, "\\3c ")}</style>` : ""}
 <script>(${scriptCode(bridge.toString())})(${scriptJson(bridgeInit({ ...input, config }))});</script>
 </head><body class="pv-${input.kind}">
 <script type="application/json" data-sp-config>${scriptJson(config)}</script>

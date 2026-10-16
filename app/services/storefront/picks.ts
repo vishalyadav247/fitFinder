@@ -1,11 +1,14 @@
 // A shopper's picks in the search widget, as sent to the app proxy: one query parameter per
-// search field id (`{fieldId}=value`, data-model.md › Storefront API). Pure.
+// search field id (`{fieldId}=value`, data-model.md › Storefront API). Links people read (the
+// results page) may use the field's name instead, e.g. ?make=AUDI&model=A5. Pure.
 import type { FieldType } from "@prisma/client";
 
 export interface PickField {
   id: string;
   type: FieldType;
   required: boolean;
+  /** The field's name (Search setup); gives it a readable URL name. */
+  label?: string;
 }
 
 /** Field id → picked value (a year as a number for Year range fields). */
@@ -15,8 +18,44 @@ export const MAX_PICK_LENGTH = 200;
 export const MIN_YEAR = 1900;
 export const MAX_YEAR = 2100;
 
+// Query parameters Shopify's app proxy or the results page use themselves.
+const RESERVED = new Set([
+  "shop",
+  "signature",
+  "timestamp",
+  "path_prefix",
+  "logged_in_customer_id",
+  "page",
+]);
+
+/** A label as a URL name: "Model year" → "model-year". */
+export const urlName = (label: string) =>
+  label
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 /**
- * Reads the picks for `fields` from the query. Unknown parameters (Shopify's shop, signature …)
+ * Field id → readable URL name. A field keeps only its id when its name is empty, reserved,
+ * looks like another field's id, or an earlier field already has the same name.
+ */
+export function urlNames(fields: PickField[]): Map<string, string> {
+  const ids = new Set(fields.map((f) => f.id));
+  const taken = new Set<string>();
+  const out = new Map<string, string>();
+  for (const f of fields) {
+    const name = f.label ? urlName(f.label) : "";
+    if (!name || RESERVED.has(name) || ids.has(name) || taken.has(name)) continue;
+    taken.add(name);
+    out.set(f.id, name);
+  }
+  return out;
+}
+
+/**
+ * Reads the picks for `fields` from the query (by field id, or by the field's URL name). Unknown parameters (Shopify's shop, signature …)
  * are ignored; an empty value means "not picked". Returns null when a value is invalid
  * (too long, or a year that isn't a whole number in range).
  */
@@ -25,8 +64,10 @@ export function parsePicks(
   fields: PickField[],
 ): Picks | null {
   const picks: Picks = new Map();
+  const names = urlNames(fields);
   for (const f of fields) {
-    const raw = params.get(f.id);
+    const name = names.get(f.id);
+    const raw = params.get(f.id) ?? (name ? params.get(name) : null);
     if (raw === null || raw === "") continue;
     if (raw.length > MAX_PICK_LENGTH) return null;
     if (f.type === "year_range") {
@@ -107,5 +148,18 @@ export function picksQuery(
   const q = new URLSearchParams();
   for (const f of fields)
     if (picks.has(f.id)) q.set(f.id, String(picks.get(f.id)));
+  return q;
+}
+
+/** Query string of the picks with readable names (?make=AUDI&model=A5), for links people see. */
+export function picksLinkQuery(
+  fields: PickField[],
+  picks: Picks,
+): URLSearchParams {
+  const names = urlNames(fields);
+  const q = new URLSearchParams();
+  for (const f of fields)
+    if (picks.has(f.id))
+      q.set(names.get(f.id) ?? f.id, String(picks.get(f.id)));
   return q;
 }

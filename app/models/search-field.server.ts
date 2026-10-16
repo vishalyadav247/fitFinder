@@ -43,6 +43,8 @@ const STATEMENT_TIMEOUT = "110s";
 
 /** Technical cap on every plan; plans may allow fewer (plan-features.ts searchFields). */
 export const MAX_FIELDS = HARD_LIMITS.searchFields!;
+/** Most fields a store can hold: the cap was 20 before 2026-10-16, and fields are never deleted. */
+export const STORED_FIELDS_MAX = 20;
 
 export class FieldTimeoutError extends Error {
   constructor() {

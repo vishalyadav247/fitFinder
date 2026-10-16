@@ -30,6 +30,8 @@ export interface StorefrontSettings {
   saveLink: boolean;
   saveText: string;
   reset: boolean;
+  /** Where "Show {products}" opens: the theme's search page, or SpareFit's results page. */
+  results: "theme" | "app";
   resetText: string;
   noResults: string;
   // Fits badge
@@ -62,7 +64,6 @@ export interface StorefrontSettings {
   savedText: string;
   savedCount: boolean;
   maxSaved: "3" | "5" | "10";
-  askSave: boolean;
   msSelected: string;
   msAdd: string;
   hintTitle: string;
@@ -98,6 +99,7 @@ export function defaultSettings({
     saveLink: true,
     saveText: "Save to My Selection",
     reset: true,
+    results: "theme",
     resetText: "Reset",
     noResults: `No ${things} fit this selection yet.`,
     askText: `Select your ${noun} to check if it fits`,
@@ -126,7 +128,6 @@ export function defaultSettings({
     savedText: "#1A1A1A",
     savedCount: true,
     maxSaved: "5",
-    askSave: true,
     msSelected: "Selected",
     // My Selection texts are generic (every store type), not built from the noun.
     msAdd: "Add a new selection",
@@ -179,6 +180,7 @@ export function resolveSettings(
 
 const CHOICES: Record<string, string[]> = {
   layout: ["bar", "card"],
+  results: ["theme", "app"],
   corners: ["square", "rounded", "pill"],
   tablePlace: ["block", "tabs"],
   tableStyle: ["collapsible", "open"],
@@ -256,7 +258,7 @@ export const EDITABLE_KEYS = [
   "savedText",
   "savedCount",
   "maxSaved",
-  "askSave",
+  "results",
 ] as const satisfies readonly (keyof StorefrontSettings)[];
 
 export type EditableKey = (typeof EDITABLE_KEYS)[number];

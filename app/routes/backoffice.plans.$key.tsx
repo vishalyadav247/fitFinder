@@ -139,6 +139,8 @@ export default function EditPlan() {
   const initialUnlimited = () =>
     Object.fromEntries(LIMIT_KEYS.map((k) => [k, plan.limits[k] === null]));
   const [isFree, setIsFree] = useState(plan.isFree);
+  // Import backups is a feature switched on and off in its limit box (Limits card).
+  const [backupsOn, setBackupsOn] = useState(plan.toggles.importBackups);
   const [unlimited, setUnlimited] =
     useState<Record<string, boolean>>(initialUnlimited);
   const formRef = useRef<HTMLFormElement>(null);
@@ -161,6 +163,7 @@ export default function EditPlan() {
           discard();
           setIsFree(plan.isFree);
           setUnlimited(initialUnlimited());
+          setBackupsOn(plan.toggles.importBackups);
         }}
       />
       <Toast message={notice} />
@@ -281,40 +284,53 @@ export default function EditPlan() {
         <section className="bo-glass bo-card bo-card--wide">
           <SectionTitle icon="gauge">Limits</SectionTitle>
           <div className="bo-fields">
-            {LIMIT_KEYS.map((k) => (
-              <div className="bo-limit" key={k}>
-                <label className="bo-field" htmlFor={`limit-${k}`}>
-                  <span className="bo-label">{LIMITS[k].label}</span>
-                </label>
-                <input
-                  id={`limit-${k}`}
-                  className={cls(`limits.${k}`)}
-                  name={`limit.${k}`}
-                  type="number"
-                  min="0"
-                  step="1"
-                  max={HARD_LIMITS[k]}
-                  placeholder={unlimited[k] ? "Unlimited" : undefined}
-                  defaultValue={plan.limits[k] ?? ""}
-                  disabled={unlimited[k]}
-                  required={!unlimited[k]}
-                />
-                <Toggle
-                  name={`unlimited.${k}`}
-                  label={
-                    k === "searchFields"
-                      ? `Up to the maximum (${HARD_LIMITS[k]})`
-                      : "Unlimited"
-                  }
-                  checked={unlimited[k]}
-                  onChange={(checked) =>
-                    setUnlimited((u) => ({ ...u, [k]: checked }))
-                  }
-                />
-                <span className="bo-help">{LIMITS[k].help}</span>
-                <FieldError message={errors[`limits.${k}`]} />
-              </div>
-            ))}
+            {LIMIT_KEYS.map((k) => {
+              const off = k === "backups" && !backupsOn;
+              return (
+                <div className="bo-limit" key={k}>
+                  <label className="bo-field" htmlFor={`limit-${k}`}>
+                    <span className="bo-label">{LIMITS[k].label}</span>
+                  </label>
+                  <input
+                    id={`limit-${k}`}
+                    className={cls(`limits.${k}`)}
+                    name={`limit.${k}`}
+                    type="number"
+                    min={k === "backups" ? "1" : "0"}
+                    step="1"
+                    max={HARD_LIMITS[k]}
+                    placeholder={unlimited[k] ? "Unlimited" : undefined}
+                    defaultValue={plan.limits[k] ?? ""}
+                    disabled={unlimited[k]}
+                    // Switched off, the count is kept (and sent) for when it's switched on again.
+                    readOnly={off}
+                    aria-disabled={off || undefined}
+                    required={!unlimited[k]}
+                  />
+                  {k === "backups" && (
+                    <Toggle
+                      name="toggle.importBackups"
+                      label="Included in this plan"
+                      checked={backupsOn}
+                      onChange={setBackupsOn}
+                    />
+                  )}
+                  {/* Capped limits (search fields, backups) are always 0 to the cap. */}
+                  {HARD_LIMITS[k] === undefined && (
+                    <Toggle
+                      name={`unlimited.${k}`}
+                      label="Unlimited"
+                      checked={unlimited[k]}
+                      onChange={(checked) =>
+                        setUnlimited((u) => ({ ...u, [k]: checked }))
+                      }
+                    />
+                  )}
+                  <span className="bo-help">{LIMITS[k].help}</span>
+                  <FieldError message={errors[`limits.${k}`]} />
+                </div>
+              );
+            })}
           </div>
           <p className="bo-help" style={{ marginTop: 12 }}>
             Lowering a limit never deletes data: stores over it see a warning
@@ -325,7 +341,7 @@ export default function EditPlan() {
         <section className="bo-glass bo-card">
           <SectionTitle icon="spark">Features</SectionTitle>
           <div className="bo-toggles" style={{ gridTemplateColumns: "1fr" }}>
-            {TOGGLE_KEYS.map((k) => (
+            {TOGGLE_KEYS.filter((k) => k !== "importBackups").map((k) => (
               <Toggle
                 key={k}
                 name={`toggle.${k}`}

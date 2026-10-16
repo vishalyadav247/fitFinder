@@ -33,7 +33,17 @@
 }
 
 /* Fitment table: collapsible row like the theme's, open table, or inside the theme's tabs */
+/* Full width in themes that align blocks with --horizontal-alignment (see search.css). */
+.shopify-app-block:has(> .sp-table-wrap) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+}
 .sp-table-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  align-self: stretch;
   margin-block: 0;
 }
 .sp-acc {

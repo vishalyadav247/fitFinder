@@ -1,38 +1,18 @@
 // Backoffice › Overview (/backoffice): how SpareFit is doing across all stores at a glance —
-// stores, revenue, trials, setup progress, imports and recent activity (specs/backoffice.md).
-// Read-only; numbers come from overviewStats (models/backoffice-stats.server.ts).
+// stores, revenue, trials and recent activity (specs/backoffice.md). Read-only; numbers come
+// from overviewStats (models/backoffice-stats.server.ts). The per-store list is on Stores.
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData } from "react-router";
 import { requireAdmin } from "../services/backoffice-auth.server";
 import { overviewStats } from "../models/backoffice-stats.server";
 import { formatPrice } from "../services/billing";
 import { Icon, type IconName } from "../components/backoffice/ui";
+import { ago, n, plural, shortDate } from "../components/backoffice/format";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await requireAdmin(request);
   return { stats: await overviewStats(), at: new Date().toISOString() };
 };
-
-const n = (v: number) => v.toLocaleString("en-US");
-const plural = (v: number, one: string, many: string) =>
-  `${n(v)} ${v === 1 ? one : many}`;
-const pct = (part: number, whole: number) =>
-  whole ? Math.round((part / whole) * 100) : 0;
-const shortDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-
-/** "3 h ago", "2 d ago" (from the loader's clock, so server and browser agree). */
-function ago(iso: string, now: string) {
-  const s = Math.max(0, (Date.parse(now) - Date.parse(iso)) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 86_400) return `${Math.floor(s / 3600)} h ago`;
-  return `${Math.floor(s / 86_400)} d ago`;
-}
 
 function Kpi({
   icon,
@@ -164,12 +144,6 @@ export default function Overview() {
   const { stats, at } = useLoaderData<typeof loader>();
   const s = stats;
   const planMax = Math.max(1, s.noPlan, ...s.plans.map((p) => p.count));
-  const funnel = [
-    { label: "Installed", value: s.setup.installed },
-    { label: "Search set up (store type chosen)", value: s.setup.onboarded },
-    { label: "Filter data added", value: s.setup.withData },
-    { label: "Products linked", value: s.setup.linked },
-  ];
 
   return (
     <>
@@ -245,48 +219,6 @@ export default function Overview() {
           <Link to="/backoffice/plans" className="bo-link">
             Manage plans →
           </Link>
-        </section>
-
-        <section className="bo-glass bo-card">
-          <CardTitle icon="check">Setup progress</CardTitle>
-          <div className="bo-meters">
-            {funnel.map((f) => (
-              <Meter
-                key={f.label}
-                label={f.label}
-                value={f.value}
-                max={s.setup.installed}
-                suffix={
-                  f.label === "Installed"
-                    ? undefined
-                    : ` · ${pct(f.value, s.setup.installed)}%`
-                }
-              />
-            ))}
-          </div>
-          <p className="bo-help">
-            Of the stores that have SpareFit installed now.
-          </p>
-        </section>
-
-        <section className="bo-glass bo-card">
-          <CardTitle icon="upload">Imports, last 7 days</CardTitle>
-          <div className="bo-mini-stats">
-            <div>
-              <b>{n(s.imports7.completed)}</b>
-              <span>Finished</span>
-            </div>
-            <div>
-              <b className={s.imports7.failed ? "is-bad" : undefined}>
-                {n(s.imports7.failed)}
-              </b>
-              <span>Failed</span>
-            </div>
-            <div>
-              <b>{n(s.imports7.rows)}</b>
-              <span>Rows added</span>
-            </div>
-          </div>
         </section>
 
         <section className="bo-glass bo-card">

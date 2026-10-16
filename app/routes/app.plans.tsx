@@ -42,9 +42,17 @@ export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = await ensureShop(session.shop);
-  // The merchant came here to see or change the plan: read it fresh.
+  // The merchant came here to see or change the plan: read it fresh. Back from Shopify's
+  // approval page (returnUrl ?charge=1, Shopify adds charge_id), always: the 10 s limit on
+  // forced reads would otherwise show the old plan after a quick approval.
+  const url = new URL(request.url);
+  const backFromApproval =
+    url.searchParams.has("charge") || url.searchParams.has("charge_id");
   const [plan, used, plans, trialUsed] = await Promise.all([
-    shopPlan(admin.graphql, shop.id, { force: true }),
+    shopPlan(admin.graphql, shop.id, {
+      force: true,
+      bypassThrottle: backFromApproval,
+    }),
     usage(shop.id),
     getPlans(),
     trialDaysUsed(shop.id),

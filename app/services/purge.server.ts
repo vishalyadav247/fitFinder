@@ -36,6 +36,8 @@ export async function purgeShop(shop: { id: string; domain: string }) {
       // Sessions right away: a reinstall stores its new session before it reaches the locked
       // row, so deleting them after the (slow) file delete could remove that new session.
       await tx.session.deleteMany({ where: { shop: shop.domain } });
+      // Log entries name the shop (not tied to the shop row, so deleted here).
+      await tx.appLog.deleteMany({ where: { shopDomain: shop.domain } });
       await storage().deletePrefix(shopPrefix(shop.id));
       await tx.shop.delete({ where: { id: shop.id } });
       return true;

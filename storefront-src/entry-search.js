@@ -1,4 +1,4 @@
-// sp-search.js: the search section, and the widget + save prompt on the results page.
+// sp-search.js: the search section, and the widget on SpareFit's results page.
 import { boot, each } from "./core.js";
 import { initResults, initSearch } from "./search.js";
 

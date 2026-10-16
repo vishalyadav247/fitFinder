@@ -16,6 +16,34 @@ Status: **pass** (checked in code) · **fixed** (fixed on 2026-10-06) · **you**
 
 **AI self-review result (code-checkable requirements):** 0 likely failing after today's fixes · 3 need review (title bar, loading overlay, plan redirect — below) · groups skipped: 5.2 Payment, 5.4 Purchase option, 5.6 Checkout, 5.7 Sales channel, 5.8 Post purchase (no such extensions); 5.3, 5.5, 5.9, 5.10 are opt-in and don't apply.
 
+## 0. Automated review tests (run before every submission)
+
+`npm run test:review` builds the app and runs the review suites (it refuses a build older than the code); `npm test` includes the static half. Requirements re-fetched **2026-10-16** ([requirements](https://shopify.dev/docs/apps/launch/shopify-app-store/app-store-requirements), [AI self-review list](https://shopify.dev/docs/apps/launch/app-store-review/app-store-ai-self-review-requirements)).
+
+- `app/e2e/app-review.e2e.test.ts` runs the **production build** in-process (middleware, auth, loaders, rendering, headers, error pages), with Shopify faked at the HTTP boundary.
+- `app/tests/app-review-static.test.ts` reads the config, code and theme extension.
+- `app/e2e/journey.e2e.test.ts` walks every feature with two stores (tenant isolation, jobs, purge).
+
+| Req. | What reviewers check | Covered by |
+| --- | --- | --- |
+| 1.1.1 | Session tokens, no third-party cookies | HTTP: pages, data requests and API refuse missing/forged tokens; no `Set-Cookie`. Static: no `document.cookie`; every `app.*`/`api.*` route calls `authenticate.admin` |
+| 1.2.1 | Shopify billing only | Static: no Stripe/PayPal/etc.; `appSubscriptionCreate` only in `subscription.server.ts` |
+| 1.2.2 | Billing works | HTTP: Choose plan → `appSubscriptionCreate`, approval URL on the shop's admin, `returnUrl` back into the app, test charge on dev stores, real charge on a real store |
+| 1.2.3 | Change plans in-app | HTTP: approve Growth → Plans shows it at once (fresh read on return); upgrade to Pro (`replacementBehavior: STANDARD`; the app's record has Pro as the one active charge); down to free (`appSubscriptionCancel`). Forcing test charges is refused in production |
+| 2.1.x | No errors / broken UI | HTTP: every nav page 200 in < 2 s with no `undefined`/`NaN`/`null`/stack traces/placeholder text, also in Polaris attributes (headings, labels); friendly 404 outside and inside `/app` (inside: the app's own page with App Bridge and the menu); Shopify outage → "Something went wrong", no stack |
+| 2.2.2 / 2.2.3 | Embedded, latest App Bridge | HTTP: App Bridge (CDN) is the first script, API key present, Polaris loaded, `frame-ancestors` CSP for the shop + admin (a spoofed `?shop=` never widens it). Static: `embedded = true`, no legacy `@shopify/app-bridge` package |
+| 2.2.4 | GraphQL Admin API only | Static: no REST, ScriptTag or Asset API |
+| 2.3.1 | No shop-domain entry | HTTP: landing page has no shop input; `/auth/login` → landing page, or Shopify's install with a valid shop |
+| 2.3.2–2.3.4 | OAuth first, redirect to the app, reinstall | HTTP: no token → session-token bounce; first open → onboarding; uninstall on a paid plan → storefront stops; reinstall → app opens with its setup and no paid plan carried over |
+| Tenant isolation | One store can't see or change another's data | HTTP: another store's token reads none of the rows and can't edit or delete them; writes without a token change nothing; the backoffice is behind its own sign-in |
+| 3.1.1 | TLS | Static: production `application_url` / `redirect_urls` HTTPS on the app's own host, no placeholders |
+| Scopes | Minimal, none protected | Static: exactly `read_products,write_app_proxy,read_themes,write_files` in both tomls; no customer/order scopes; offline tokens only; no customer fields in the schema |
+| Webhooks | Uninstall + compliance, HMAC | HTTP: every topic in `shopify.app.toml` → 200 with a valid HMAC, 401 with a wrong one; `shop/redact` for an installed shop changes nothing; `scopes_update` stores the scopes. Static: compliance topics present, same in dev/prod, routes exist and verify the HMAC, API version = code's |
+| App proxy | Signed requests | HTTP: signed → 200; forged or unsigned → 400 on every proxy route (options, search, results, fits); uninstalled shop → 404. Static: every proxy route goes through the signature check |
+| 5.1.1–5.1.4 | Theme app extension, performance, branding | Static: theme extension with app embed + blocks; each asset < 10 KB (gzip < 5 KB), Liquid < 100 KB, scripts via the schema (deferred), non-blocking CSS, no jQuery; no "SpareFit" text shown to shoppers |
+
+**Still manual** (needs Shopify, a store or the listing; see §2–§4): Partner Dashboard pricing (manual) and listing prices = backoffice plans; emergency contact and API contact email; protected customer data opt-out; app icon, screenshots, screencast, privacy policy URL; dev-store walk-through in Chrome incognito and Safari (includes the support chat widget); billing approve/decline/reinstall on a dev store; `shopify app webhook trigger` for the compliance topics against production; Horizon and Dawn with the embed on/off; Lighthouse impact ≤ 10 points; TLS certificate on sparefit.progryss.com.
+
 ## 1. Code (this repo)
 
 | # | Requirement | Status | Evidence |

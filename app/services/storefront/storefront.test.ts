@@ -1,6 +1,11 @@
 // Storefront settings, config, picks and the results page (pure; M7).
 import { describe, expect, it } from "vitest";
-import { MAX_SEARCH_SKUS, SKU_FIELD, searchPlan } from "./search-query";
+import {
+  MAX_QUERY_LENGTH,
+  NO_MATCH_QUERY,
+  SKU_FIELD,
+  searchPlan,
+} from "./search-query";
 import { defaultSettings, resolveSettings } from "./settings";
 import { buildStorefrontConfig, byPosition, PROXY_PATH } from "./config";
 import {
@@ -8,9 +13,11 @@ import {
   parsePicks,
   picksBefore,
   picksKey,
+  picksLinkQuery,
   picksQuery,
   selectionLabel,
   sortOptions,
+  urlName,
   type PickField,
 } from "./picks";
 import {
@@ -133,6 +140,23 @@ describe("storefront config (app metafield)", () => {
     expect(c.fields[0].type).toBe("list");
   });
 
+  it("gives fields readable URL names and keeps the results setting valid", () => {
+    const c = buildStorefrontConfig({
+      config: searchConfig,
+      fields: fieldRows.map((f) => ({ ...f, id: "cmv-" + f.id })),
+      stored: { results: "app" },
+    });
+    expect(c.fields.map((f) => f.n)).toEqual(["make", "year", "model"]);
+    expect(c.s.results).toBe("app");
+    const d = buildStorefrontConfig({
+      config: searchConfig,
+      fields: fieldRows,
+      stored: { results: "elsewhere" },
+    });
+    expect(d.s.results).toBe("theme"); // default; unknown values ignored
+    expect(d.fields[0].n).toBeUndefined(); // the name equals an id: id only
+  });
+
   it("turns off the blocks the plan doesn't include", () => {
     const all = buildStorefrontConfig({
       config: searchConfig,
@@ -149,6 +173,39 @@ describe("storefront config (app metafield)", () => {
     });
     expect(c.off).toEqual({ badge: false, table: true });
     expect(c.s.garage).toBe(false);
+  });
+
+  it("publishes the custom CSS scoped to SpareFit, only when the plan includes it", () => {
+    const stored = { customCss: ".sp-sfw__go { color: red } @import url(x);" };
+    const c = buildStorefrontConfig({
+      config: searchConfig,
+      fields: fieldRows,
+      stored,
+    });
+    expect(c.css).toContain(":is(.sp-search-wrap,");
+    expect(c.css).toContain("{color: red}");
+    expect(c.css).not.toContain("@import");
+    expect(c.s).not.toHaveProperty("customCss");
+    const locked = buildStorefrontConfig({
+      config: searchConfig,
+      fields: fieldRows,
+      stored,
+      features: {
+        fitsBadge: true,
+        fitmentTable: true,
+        mySelection: true,
+        customCss: false,
+      },
+    });
+    expect(locked).not.toHaveProperty("css");
+    // No CSS: the key is absent, so existing configs (and their hash) don't change.
+    expect(
+      buildStorefrontConfig({
+        config: searchConfig,
+        fields: fieldRows,
+        stored: {},
+      }),
+    ).not.toHaveProperty("css");
   });
 
   it("drops hidden columns of gone fields and always keeps one column", () => {
@@ -248,6 +305,36 @@ describe("picks", () => {
     expect(picksQuery(fields, p).toString()).toBe(
       "make=AUDI&year=2008&model=A6",
     );
+  });
+
+  it("reads readable field names too, and writes them for links", () => {
+    const real: PickField[] = [
+      { id: "cmv1", label: "Make", type: "list", required: true },
+      { id: "cmv2", label: "Model year", type: "year_range", required: false },
+      { id: "cmv3", label: "Modèl", type: "list", required: true },
+      { id: "cmv4", label: "Page", type: "list", required: false }, // reserved
+      { id: "cmv5", label: "make", type: "list", required: false }, // taken
+    ];
+    expect(urlName("A5 Convertible (8F7)")).toBe("a5-convertible-8f7");
+    const p = parsePicks(
+      new URLSearchParams("make=Tata&model-year=2020&model=nexon&page=2"),
+      real,
+    )!;
+    expect([...p.entries()]).toEqual([
+      ["cmv1", "Tata"],
+      ["cmv2", 2020],
+      ["cmv3", "nexon"],
+    ]);
+    // ids still work, and win over a name
+    const q = parsePicks(new URLSearchParams("cmv1=AUDI&make=Tata"), real)!;
+    expect(q.get("cmv1")).toBe("AUDI");
+    p.set("cmv4", "x");
+    p.set("cmv5", "y");
+    expect(picksLinkQuery(real, p).toString()).toBe(
+      "make=Tata&model-year=2020&model=nexon&cmv4=x&cmv5=y",
+    );
+    // analytics and the page data keep field ids
+    expect(picksQuery(real, p).get("cmv1")).toBe("Tata");
   });
 
   it("labels a selection like My Selection (year, first and last dropdown)", () => {
@@ -361,26 +448,30 @@ describe("theme search plan", () => {
     expect(plan).toMatchObject({ mode: "search", skus: 1, missing: 2 });
   });
 
-  it("uses SpareFit's page when nothing fits, nothing is searchable or the list is too long", () => {
-    expect(searchPlan({ skus: [], products: 0, withoutSku: 0 })).toEqual({
-      mode: "page",
-      reason: "none",
-    });
-    expect(searchPlan({ skus: [], products: 2, withoutSku: 2 })).toEqual({
-      mode: "page",
-      reason: "unsearchable",
-    });
-    const many = Array.from({ length: MAX_SEARCH_SKUS + 1 }, (_, i) => `S${i}`);
-    expect(
-      searchPlan({ skus: many, products: many.length, withoutSku: 0 }),
-    ).toEqual({
-      mode: "page",
-      reason: "too-many",
-    });
-    const long = Array.from({ length: 50 }, (_, i) => `${"X".repeat(150)}${i}`);
-    expect(searchPlan({ skus: long, products: 50, withoutSku: 0 })).toEqual({
-      mode: "page",
-      reason: "too-many",
-    });
+  it("always searches the theme: no match when nothing is searchable", () => {
+    for (const found of [
+      { skus: [], products: 0, withoutSku: 0 },
+      { skus: [], products: 2, withoutSku: 2 },
+    ]) {
+      expect(searchPlan(found)).toEqual({
+        mode: "search",
+        q: NO_MATCH_QUERY,
+        skus: 0,
+        missing: found.products,
+      });
+    }
+  });
+
+  it("puts as many SKUs in the link as fit, and counts the rest as missing", () => {
+    const many = Array.from({ length: 400 }, (_, i) => `SKU-${i}`);
+    const plan = searchPlan({ skus: many, products: 400, withoutSku: 0 });
+    expect(plan.mode).toBe("search");
+    expect(encodeURIComponent(plan.q).length).toBeLessThanOrEqual(
+      MAX_QUERY_LENGTH,
+    );
+    expect(plan.skus).toBeGreaterThan(100);
+    expect(plan.skus).toBeLessThan(400);
+    expect(plan.missing).toBe(400 - plan.skus);
+    expect(plan.q.startsWith(`${SKU_FIELD}:"SKU-0" OR `)).toBe(true);
   });
 });

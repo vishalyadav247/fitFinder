@@ -4,7 +4,12 @@ import type { LoaderFunctionArgs } from "react-router";
 import { Readable } from "node:stream";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
-import { ImportError, getJob } from "../services/import/pipeline.server";
+import {
+  ImportError,
+  getJob,
+  importHistory,
+  keptFiles,
+} from "../services/import/pipeline.server";
 import { storage } from "../services/storage.server";
 import { gunzipIfNeeded } from "../services/import/csv-reader.server";
 
@@ -30,6 +35,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (error instanceof ImportError)
       return new Response(null, { status: 404 });
     throw error;
+  }
+  // The original file is a backup: only for imports Import history offers for download.
+  if (!report) {
+    const kept = await keptFiles(shop.id);
+    const offered = kept ? await importHistory(shop.id, kept) : [];
+    if (!offered.some((h) => h.id === job.id)) {
+      return new Response(null, { status: 404 });
+    }
   }
   const key = report ? job.reportKey : job.fileKey;
   if (!key || (await storage().size(key)) === null) {

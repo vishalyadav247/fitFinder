@@ -1,5 +1,7 @@
 // Footer under a paged s-table: "Showing 1–10 of 230 products" on the left, previous · page x of
 // y · next in the middle, rows per page on the right. Used by the Product mapping tables.
+import { Option, Select } from "./Select";
+
 /** Page count and the 1-based item range shown on a page (clamped to the last page). */
 export function pageRange(total: number, page: number, pageSize: number) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -70,19 +72,19 @@ export function TableFooter({
         <div className="sp-tf-size">
           <s-text color="subdued">Rows per page</s-text>
           <div className="sp-tf-select">
-            <s-select
+            <Select
               label="Rows per page"
               labelAccessibilityVisibility="exclusive"
               value={String(pageSize)}
               disabled={disabled}
-              onChange={(e) => onPageSize(Number(e.currentTarget.value))}
+              onChange={(v) => onPageSize(Number(v))}
             >
               {pageSizes.map((n) => (
-                <s-option key={n} value={String(n)}>
+                <Option key={n} value={String(n)}>
                   {n}
-                </s-option>
+                </Option>
               ))}
-            </s-select>
+            </Select>
           </div>
         </div>
       </s-grid>

@@ -210,6 +210,20 @@ export async function cleanLeftovers() {
     await prisma.session.deleteMany({ where: { shop: { in: domains } } });
     await prisma.shop.deleteMany({ where: { domain: { in: domains } } });
   }
+  // Log entries of earlier runs' shops (any e2e-… domain).
+  const logs = await prisma.appLog.findMany({
+    where: { shopDomain: { startsWith: "e2e-", endsWith: ".myshopify.com" } },
+    select: { shopDomain: true },
+    distinct: ["shopDomain"],
+  });
+  const logDomains = logs
+    .map((l) => l.shopDomain!)
+    .filter((d) => E2E_DOMAIN.test(d));
+  if (logDomains.length) {
+    await prisma.appLog.deleteMany({
+      where: { shopDomain: { in: logDomains } },
+    });
+  }
   await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS pgboss_e2e CASCADE`);
   for (const name of readdirSync(tmpdir())) {
     const dir = path.join(tmpdir(), name);
@@ -230,4 +244,48 @@ export async function stopJobs() {
 
 export function removeStorage() {
   rmSync(storageDir, { recursive: true, force: true });
+}
+
+// The seeded plans for the run (shared with the unit project's Postgres tests).
+export { seedPlansForRun } from "../tests/seeded-plans";
+
+/**
+ * The production server build (`npm run build`) as a request handler, in this process: requests
+ * go through everything a reviewer's browser hits (middleware, auth, loaders, rendering,
+ * document headers, error pages), with the fake Shopify behind fetch. Background jobs and log
+ * capture stay off here (the journey tests cover jobs; capture would patch this test's console).
+ */
+export async function productionHandler() {
+  const buildPath = path.resolve("build/server/index.js");
+  const { existsSync, statSync } = await import("node:fs");
+  if (!existsSync(buildPath)) {
+    throw new Error(
+      "No server build: run `npm run build` first (npm run test:review does).",
+    );
+  }
+  // A build older than the code would test old code and pass: refuse it.
+  const newest = (dir: string): number =>
+    readdirSync(dir, { withFileTypes: true }).reduce((max, e) => {
+      const file = path.join(dir, e.name);
+      return Math.max(
+        max,
+        e.isDirectory() ? newest(file) : statSync(file).mtimeMs,
+      );
+    }, 0);
+  const sourceTime = Math.max(
+    newest("app"),
+    statSync("react-router.config.ts").mtimeMs,
+  );
+  if (statSync(buildPath).mtimeMs < sourceTime) {
+    throw new Error(
+      "The server build is older than the code: run `npm run build` (npm run test:review does).",
+    );
+  }
+  process.env.JOBS_INLINE = "false";
+  process.env.LOG_CAPTURE = "false";
+  const { createRequestHandler } = await import("react-router");
+  const build = await import(
+    /* @vite-ignore */ `${buildPath}?t=${statSync(buildPath).mtimeMs}`
+  );
+  return createRequestHandler(build, "production");
 }

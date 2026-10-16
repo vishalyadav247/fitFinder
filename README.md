@@ -65,6 +65,7 @@ npm run typecheck                          # TypeScript types
 npm run lint                               # code style and common mistakes
 npm test                                   # unit tests
 npm run test:e2e                           # full app on local Postgres
+npm run test:review                        # App Store review checks (builds, then runs the production build)
 npm run build                              # production build
 npm run build:theme -- --check             # storefront assets rebuilt and under size limit
 npm run config:check                       # production TOML filled in and matches dev

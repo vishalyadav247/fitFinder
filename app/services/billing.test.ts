@@ -17,6 +17,7 @@ import {
 import {
   limitOf,
   planInputSchema,
+  backupsOf,
   readLimits,
   readToggles,
 } from "./plan-features";
@@ -33,7 +34,7 @@ describe("plans", () => {
     expect(limitsOf(effectivePlan(TEST_PLANS, "none"))).toEqual({
       rows: 5000,
       products: 50,
-      searchFields: 20,
+      searchFields: 10,
       backups: 5,
     });
     expect(limitsOf(effectivePlan(TEST_PLANS, "pro")).rows).toBe(Infinity);
@@ -47,13 +48,16 @@ describe("plans", () => {
     expect(Object.values(none.toggles).some(Boolean)).toBe(false);
   });
 
-  it("caps search fields at 20 on every plan", () => {
+  it("caps search fields and import backups at 10 on every plan", () => {
     expect(
       limitOf(
         { limits: { ...growth.limits, searchFields: 50 } },
         "searchFields",
       ),
-    ).toBe(20);
+    ).toBe(10);
+    expect(
+      limitOf({ limits: { ...growth.limits, backups: null } }, "backups"),
+    ).toBe(10);
     expect(
       limitOf(
         { limits: { ...growth.limits, searchFields: 4 } },
@@ -97,18 +101,23 @@ describe("plans", () => {
     expect(formatPrice(29.5)).toBe("$29.50");
     expect(formatPrice(1990)).toBe("$1,990");
     expect(planWith(TEST_PLANS, "mySelection")?.name).toBe("Growth");
-    expect(planWith(TEST_PLANS, "prioritySupport")?.name).toBe("Pro");
   });
 
   it("builds card lines from limits and features", () => {
     expect(planLines(TEST_PLANS[0])).toEqual([
       "50 linked products",
       "5,000 filter rows",
-      "20 search fields",
+      "10 search fields",
       "5 import backups",
       "Fits badge",
     ]);
     expect(planLines(TEST_PLANS[2])).toContain("Unlimited filter rows");
+    // Import backups off: no backups line, and the feature isn't listed on its own.
+    const noBackups = planLines({
+      ...TEST_PLANS[0],
+      toggles: { ...TEST_PLANS[0].toggles, importBackups: false },
+    });
+    expect(noBackups.some((l) => /backup/i.test(l))).toBe(false);
   });
 
   it("counts trial days left, rounding up", () => {
@@ -144,13 +153,31 @@ describe("plans", () => {
     expect(readLimits({ rows: 10, products: -1, searchFields: 2.5 })).toEqual({
       rows: 10,
       products: null,
-      searchFields: null,
-      backups: null,
+      searchFields: 10,
+      backups: 10,
+    });
+    // Stored before the caps: unlimited or above 10 reads as 10.
+    expect(readLimits({ searchFields: 20, backups: 0 })).toMatchObject({
+      searchFields: 10,
+      backups: 1,
     });
     expect(readToggles({ fitsBadge: true, mySelection: "yes" })).toMatchObject({
       fitsBadge: true,
       mySelection: false,
+      // Every plan had backups before it became a switch.
+      importBackups: true,
     });
+    expect(readToggles({ importBackups: false }).importBackups).toBe(false);
+    expect(readLimits({ backups: 0 }).backups).toBe(1);
+    expect(
+      backupsOf({
+        limits: { ...growth.limits, backups: 7 },
+        toggles: { ...growth.toggles, importBackups: false },
+      }),
+    ).toBe(0);
+    expect(
+      backupsOf({ ...growth, limits: { ...growth.limits, backups: 7 } }),
+    ).toBe(7);
   });
 });
 
@@ -221,5 +248,23 @@ describe("backoffice plan form", () => {
     expect(bad({ "limit.rows": "-1" })).toBe(false);
     expect(bad({ "limit.rows": "abc" })).toBe(false);
     expect(bad({ trialDays: "0" })).toBe(true); // no trial is allowed
+    // Search fields and backups: 0 to 10, never unlimited.
+    expect(bad({ "limit.searchFields": "11" })).toBe(false);
+    expect(bad({ "limit.backups": "11" })).toBe(false);
+    expect(
+      planInputSchema.parse(formToPlanInput(form(base))).toggles.importBackups,
+    ).toBe(false);
+    expect(
+      planInputSchema.parse(
+        formToPlanInput(form({ ...base, "toggle.importBackups": "on" })),
+      ).toggles.importBackups,
+    ).toBe(true);
+    expect(bad({ "limit.backups": "" })).toBe(false);
+    expect(bad({ "limit.backups": "", "unlimited.backups": "on" })).toBe(false);
+    expect(bad({ "limit.backups": "0" })).toBe(false); // switched off instead
+    expect(bad({ "limit.searchFields": "0", "limit.backups": "1" })).toBe(true);
+    expect(bad({ "limit.searchFields": "10", "limit.backups": "10" })).toBe(
+      true,
+    );
   });
 });

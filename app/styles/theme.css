@@ -130,6 +130,17 @@ body {
   scrollbar-width: none;
   scroll-margin-top: 16px;
 }
+/* Compact: as wide as its tabs, not the page (Settings). */
+.sp-tabs.sp-tabs--compact {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.sp-tabs--compact button {
+  flex: 0 0 auto;
+  min-width: 150px;
+  padding: 0 20px;
+}
 .sp-tabs::-webkit-scrollbar {
   display: none;
 }
@@ -226,4 +237,147 @@ body {
 }
 .sp-empty__text {
   text-align: center;
+}
+
+/* Select (app/components/Select.tsx): a field-styled trigger whose options open below it in an
+   s-popover. Label and details follow Polaris' field look. */
+.sp-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.sp-select-label {
+  font-size: 13px;
+  line-height: 20px;
+  color: #303030;
+}
+.sp-select-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-block-size: 20px;
+  font-size: 13px;
+  color: #303030;
+}
+.sp-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-select.is-disabled .sp-select-field {
+  color: #b5b5b5;
+  cursor: default;
+}
+.sp-select-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+.sp-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #303030;
+}
+
+/* Show / hide toggle of a collapsible card (FoldToggle: setup guide, theme integration). */
+.sp-fold-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--sp-line);
+  background: #ffffff;
+  color: #4a4a4a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.sp-fold-toggle:hover {
+  background: #f5f5f5;
+}
+
+/* Locked feature (LockedSection, agreed 2026-10-16): the content blurred behind a layer with a
+   gold plan badge and Upgrade. */
+.sp-locked {
+  position: relative;
+  min-height: 240px;
+}
+.sp-locked__content {
+  filter: blur(4px);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+}
+.sp-locked__layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.35),
+    rgba(255, 255, 255, 0.75)
+  );
+}
+.sp-locked__card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 340px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(181, 137, 0, 0.25),
+    0 10px 30px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+.sp-locked__text {
+  margin: 0 0 4px;
+  color: #616161;
+  text-align: center;
+  text-wrap: balance;
+}
+.sp-locked__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f7d774, #e0a82e 55%, #c98a12);
+  color: #4a3300;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+/* Accordion-style opening (Search setup: the import steps unfold where the Import card was and
+   push Import history down). Only while it runs: nothing stays clipped afterwards. */
+.sp-unfold {
+  animation: sp-unfold 380ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+@keyframes sp-unfold {
+  from {
+    max-height: 76px;
+    overflow: hidden;
+    opacity: 0.4;
+  }
+  to {
+    max-height: 1200px;
+    overflow: hidden;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-unfold {
+    animation: none;
+  }
 }

@@ -1,8 +1,8 @@
 // App proxy GET /apps/sparefit/search?{fieldId}={value}… → where "Show {products}" goes
 // (specs/storefront.md › Results): { mode: "search", q } = the theme's own search page for the
-// SKUs that fit (the theme's product cards and filters), or { mode: "page" } = SpareFit's
-// results page (nothing fits, or more SKUs than one search takes). Each one is counted for
-// Analytics (specs/analytics.md).
+// SKUs that fit (as many as one link takes; a no-match query when none). The widget opens it, or
+// SpareFit's results page when the merchant chose that. Each search is counted for Analytics
+// (specs/analytics.md).
 import type { LoaderFunctionArgs } from "react-router";
 import { json, proxyContext } from "../services/storefront/proxy.server";
 import { isComplete, parsePicks } from "../services/storefront/picks";

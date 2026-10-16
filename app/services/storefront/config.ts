@@ -3,6 +3,8 @@
 // (specs/storefront.md › Data). Pure.
 import type { FieldType, StoreType } from "@prisma/client";
 import { placeholderFor } from "../search-fields";
+import { scopeCss } from "./custom-css";
+import { urlNames } from "./picks";
 import {
   resolveSettings,
   wordingFor,
@@ -17,6 +19,8 @@ export const CONFIG_KEY = "config";
 
 export interface StorefrontField {
   id: string;
+  /** Readable URL name for results links (?make=…); absent: links use the id. */
+  n?: string;
   label: string;
   placeholder: string;
   type: "list" | "years";
@@ -33,6 +37,20 @@ export interface StorefrontConfig {
   s: StorefrontSettings;
   /** Blocks the store's plan doesn't include: they render nothing (plan-features.ts). */
   off: { badge: boolean; table: boolean };
+  /** The merchant's custom CSS, scoped to SpareFit's elements (custom-css.ts); absent: none. */
+  css?: string;
+}
+
+/** Where the merchant's raw custom CSS is kept: storefront_settings.settings, beside the settings. */
+export const CUSTOM_CSS_KEY = "customCss";
+
+/** The raw custom CSS in a stored settings document ("" when there is none). */
+export function storedCustomCss(stored: unknown): string {
+  const v =
+    stored && typeof stored === "object" && !Array.isArray(stored)
+      ? (stored as Record<string, unknown>)[CUSTOM_CSS_KEY]
+      : undefined;
+  return typeof v === "string" ? v : "";
 }
 
 /**
@@ -75,6 +93,7 @@ export interface ConfigSource {
     fitsBadge: boolean;
     fitmentTable: boolean;
     mySelection: boolean;
+    customCss?: boolean;
   };
 }
 
@@ -82,7 +101,12 @@ export function buildStorefrontConfig({
   config,
   fields,
   stored,
-  features = { fitsBadge: true, fitmentTable: true, mySelection: true },
+  features = {
+    fitsBadge: true,
+    fitmentTable: true,
+    mySelection: true,
+    customCss: true,
+  },
 }: ConfigSource): StorefrontConfig {
   const ordered = [...fields].sort(byPosition);
   const s = resolveSettings(stored, wordingFor(config));
@@ -94,6 +118,9 @@ export function buildStorefrontConfig({
   }
   // "Newest year first" needs a Year range field.
   const hasYears = ordered.some((f) => f.type === "year_range");
+  const names = urlNames(ordered);
+  // Custom CSS only when the plan includes it; absent when empty, so the config is unchanged.
+  const css = features.customCss ? scopeCss(storedCustomCss(stored)).css : "";
   return {
     v: 1,
     proxy: PROXY_PATH,
@@ -102,6 +129,7 @@ export function buildStorefrontConfig({
     things: config.thingsWord,
     fields: ordered.map((f) => ({
       id: f.id,
+      ...(names.has(f.id) ? { n: names.get(f.id) } : {}),
       label: f.label,
       placeholder: placeholderFor(f),
       type: f.type === "year_range" ? "years" : "list",
@@ -115,5 +143,6 @@ export function buildStorefrontConfig({
       tableHide: hide,
       tableSort: hasYears ? s.tableSort : "fields",
     },
+    ...(css ? { css } : {}),
   };
 }

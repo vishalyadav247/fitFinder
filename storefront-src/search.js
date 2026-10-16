@@ -1,7 +1,6 @@
 // Search widget and results page (specs/storefront.md › Search widget). Bundle: sp-search.js.
 import {
   api,
-  askToSave,
   cfg,
   CHANGE,
   clean,
@@ -14,6 +13,7 @@ import {
   save,
   setCurrent,
 } from "./core.js";
+import { enhance, usesList } from "./dropdown.js";
 
 const RADIUS = { square: 2, rounded: 10, pill: 999 };
 
@@ -101,6 +101,10 @@ export function initSearch(el) {
       : "") +
     "</div>";
   const selects = el.querySelectorAll("select");
+  // Mouse and trackpad screens get a list that opens under the field (dropdown.js).
+  const buttons = usesList() ? [...selects].map(enhance) : [];
+  const focusField = (sel, opts) =>
+    (buttons[[...selects].indexOf(sel)] || sel).focus(opts);
   const go = el.querySelector(".sp-sfw__go");
 
   const enabledAt = (i) =>
@@ -192,7 +196,7 @@ export function initSearch(el) {
     saveBtn.addEventListener("click", () => {
       if (!complete(picks)) {
         const empty = [...selects].find((x) => !x.disabled && !x.value);
-        if (empty) empty.focus();
+        if (empty) focusField(empty);
         return;
       }
       save({ ...picks });
@@ -219,16 +223,14 @@ export function initSearch(el) {
   el.spFocus = () => {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     const first = [...selects].find((x) => !x.disabled);
-    if (first) first.focus({ preventScroll: true });
+    if (first) focusField(first, { preventScroll: true });
   };
   refresh(0);
 }
 
-/** SpareFit's results page: its selection becomes the current one; offer to save it. */
+/** SpareFit's results page: its selection becomes the current one. */
 export function initResults(el) {
   const picks = pagePicks(el);
   if (!complete(picks)) return;
   if (keyOf(clean(getStore().current)) !== keyOf(picks)) setCurrent(picks);
-  const slot = el.querySelector("[data-sp-ask-save]");
-  if (slot) askToSave(slot, picks);
 }

@@ -94,8 +94,12 @@ export function query(picks, extra) {
   return q.toString();
 }
 
-/** SpareFit's own results page (also the no-JavaScript link target). */
-export const resultsUrl = (picks) => cfg.proxy + "/results?" + query(picks);
+/** SpareFit's own results page (also the no-JavaScript link target), with readable names. */
+export function resultsUrl(picks) {
+  const q = new URLSearchParams();
+  for (const f of cfg.fields) if (picks[f.id]) q.set(f.n || f.id, picks[f.id]);
+  return cfg.proxy + "/results?" + q;
+}
 
 /** The theme's search page for a query, under the shopper's language/market root. */
 export function searchUrl(q) {
@@ -122,17 +126,31 @@ export function openResults(picks) {
   try {
     sessionStorage.setItem(SEARCHED, keyOf(picks));
   } catch {
-    // no session storage: no save prompt on the search page
+    // no session storage: My Selection can't tell the search page came from SpareFit
   }
   return api("search", query(picks)).then(
     (plan) => {
+      // Setting "Show results on": SpareFit's page always, or the theme's search page.
       window.location.href =
-        plan.mode === "search" ? searchUrl(plan.q) : resultsUrl(picks);
+        plan.mode === "search" && cfg.s.results !== "app"
+          ? searchUrl(plan.q)
+          : resultsUrl(picks);
     },
     () => {
       window.location.href = resultsUrl(picks);
     },
   );
+}
+
+/**
+ * Theme search page opened by "Show {products}": the theme copies the SKU query
+ * (variants.sku:"…" OR …) into its search boxes. Empty them; the results stay as they are.
+ */
+export function clearSkuQuery() {
+  // Not hidden inputs: themes' filter and sort forms send q along with them.
+  for (const input of document.querySelectorAll("input[name=q]:not([type=hidden])")) {
+    if (input.value.startsWith("variants.sku:")) input.value = "";
+  }
 }
 
 /** On a results page SpareFit opened (its own, or the theme's search page after a search). */
@@ -148,25 +166,6 @@ export function onResultsPage() {
   } catch {
     return false;
   }
-}
-
-/** After a search: "Save {selection} to {name}?" (setting askSave), once per selection. */
-export function askToSave(container, picks, where = "beforeend") {
-  if (!cfg.s.askSave || !complete(picks) || isSaved(picks)) return;
-  container.insertAdjacentHTML(
-    where,
-    '<div class="sp-ask" data-sp-ask><span>Save <b>' +
-      esc(label(picks)) +
-      "</b> to " +
-      esc(cfg.s.garageName) +
-      '?</span><button type="button" class="sp-ask__save">Save</button>' +
-      '<button type="button" class="sp-ask__close" aria-label="Close">&times;</button></div>',
-  );
-  const bar = container.querySelector("[data-sp-ask]");
-  bar.addEventListener("click", (e) => {
-    if (e.target.closest(".sp-ask__save")) save(picks);
-    if (e.target.closest(".sp-ask__save, .sp-ask__close")) bar.remove();
-  });
 }
 
 /* ---------- My Selection store (this browser) ---------- */

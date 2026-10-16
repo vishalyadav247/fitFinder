@@ -61,6 +61,15 @@ export function StorefrontPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, kind, sample]);
 
+  // The document loads from a blob: URL made in the browser, not from a srcdoc attribute: the
+  // attribute's HTML got rewritten in the admin (every " became '), which broke the preview's
+  // scripts whenever the frame loaded from it (after a page reload, or when it reloaded itself).
+  useEffect(() => {
+    const url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
+    if (frame.current) frame.current.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [doc]);
+
   useEffect(() => {
     const onMessage = async (e: MessageEvent) => {
       const win = frame.current?.contentWindow;
@@ -85,6 +94,8 @@ export function StorefrontPreview({
       }
     };
     window.addEventListener("message", onMessage);
+    // The frame may have loaded (and sent its height or a request) before this listener existed.
+    frame.current?.contentWindow?.postMessage({ sp: "hello" }, "*");
     return () => window.removeEventListener("message", onMessage);
   }, [kind, onPicks]);
 
@@ -93,7 +104,6 @@ export function StorefrontPreview({
       ref={frame}
       title={title}
       sandbox="allow-scripts"
-      srcDoc={doc}
       className="sp-pv-frame"
       style={{ height }}
     />

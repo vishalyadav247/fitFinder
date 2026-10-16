@@ -431,13 +431,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ).toBe(5);
       });
 
-      it("allows up to the 20-field cap when the plan allows more", async () => {
+      it("allows up to the 10-field cap when the plan allows more", async () => {
         await setPlan(shopId, "none");
         // Phones preset: Brand, Series, Model (3 fields); Starter can go to 5 and on.
         await applyFieldIntent(shopId, { intent: "add" });
         await applyFieldIntent(shopId, { intent: "add" });
         expect(await prisma.searchField.count({ where: { shopId } })).toBe(5);
-        for (let i = 5; i < 20; i++) {
+        for (let i = 5; i < 10; i++) {
           await applyFieldIntent(shopId, { intent: "add" });
         }
         await expect(

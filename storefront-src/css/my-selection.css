@@ -407,10 +407,6 @@
     animation: none;
   }
 }
-.sp-ask-wrap {
-  padding-top: 16px;
-}
-
 /* panel: nothing saved yet */
 .sp-ms__empty {
   margin: 0 0 12px;

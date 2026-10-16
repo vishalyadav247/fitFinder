@@ -468,3 +468,47 @@ model BackofficeAdmin {
 
   @@map("backoffice_admins")
 }
+
+// Backoffice › Logs (specs/backoffice.md): warnings, errors and slow requests from the app and
+// the job worker. Repeats of the same entry within an hour are one row (count, first/last seen).
+// Not tied to the shop row: app-wide entries have no shop; a purged shop's entries are deleted
+// with it (purge.server.ts). Kept for the retention set in the backoffice (7, 14 or 30 days).
+enum LogLevel {
+  error
+  warn
+  slow // a request slower than the threshold (performance)
+}
+
+model AppLog {
+  id          String   @id @default(cuid())
+  level       LogLevel
+  // Where it came from: the message's area ("storefront", "import"…), a route, or "request".
+  source      String
+  message     String
+  // Stack and the extra values logged with it (secrets and emails removed).
+  detail      String?
+  shopDomain  String?  @map("shop_domain")
+  // Request path and duration for slow requests and route errors.
+  path        String?
+  durationMs  Int?     @map("duration_ms")
+  // Same level + source + message + shop within an hour → the same row.
+  fingerprint String
+  count       Int      @default(1)
+  firstAt     DateTime @default(now()) @map("first_at")
+  lastAt      DateTime @default(now()) @map("last_at")
+
+  @@index([lastAt])
+  @@index([level, lastAt])
+  @@index([shopDomain, lastAt])
+  @@index([fingerprint, lastAt])
+  @@map("app_logs")
+}
+
+// App-wide settings the super admin changes in the backoffice, one row per key.
+model BackofficeSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("backoffice_settings")
+}

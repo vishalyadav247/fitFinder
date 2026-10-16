@@ -6,12 +6,28 @@ import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { jobsRunInline, startWorkers } from "./services/jobs.server";
+import { installLogCapture } from "./services/logs/logs.server";
+
+// Warnings and errors also go to Backoffice › Logs (services/logs/logs.server.ts).
+installLogCapture();
 
 // Background jobs (imports) run in this process unless JOBS_INLINE=false (then: npm run worker).
 // startWorkers() is idempotent per process.
 if (jobsRunInline()) void startWorkers();
 
 export const streamTimeout = 5000;
+
+/** Errors no route handled (loaders, actions, rendering), with the path, for the logs. */
+export function handleError(error: unknown, { request }: { request: Request }) {
+  // A request the browser gave up on isn't an app error.
+  if (request.signal.aborted) return;
+  const url = new URL(request.url);
+  console.error("route: unhandled error", {
+    path: `${request.method} ${url.pathname}`,
+    shop: url.searchParams.get("shop") ?? undefined,
+    error,
+  });
+}
 
 export default async function handleRequest(
   request: Request,

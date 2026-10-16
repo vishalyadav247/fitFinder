@@ -7,6 +7,8 @@
 // matches any pick (a part without an engine fits every engine). Every query is scoped by shop.
 import { Prisma, type FieldType } from "@prisma/client";
 import prisma from "../../db.server";
+import { getPlans } from "../../models/plan.server";
+import { effectivePlan } from "../billing";
 import { withQuerySlot } from "./limits.server";
 import {
   picksBefore,
@@ -22,7 +24,17 @@ export interface ShopSearch {
   shopId: string;
   dataVersion: number;
   fields: (PickField & { label: string })[];
+  /** The shop's plan includes Universal products; without it they don't fit anything. */
+  universal?: boolean;
 }
+
+/** Universal products as extra hits (product_id, universal), only when the plan includes them. */
+const universalHits = (search: ShopSearch, variant: boolean) =>
+  search.universal
+    ? Prisma.sql`UNION ALL
+        SELECT u.product_id, ${variant ? Prisma.sql`NULL,` : Prisma.empty} true
+        FROM universal_products u WHERE u.shop_id = ${search.shopId}`
+    : Prisma.empty;
 
 const READ_TIMEOUT = "8s";
 export const MAX_OPTIONS = 5000;
@@ -49,9 +61,14 @@ function timedRead<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
 export async function shopSearch(domain: string): Promise<ShopSearch | null> {
   // One statement (every proxy request runs it): Prisma's nested select took three.
   const [shop] = await prisma.$queryRaw<
-    { id: string; data_version: number; fields: ShopSearch["fields"] }[]
+    {
+      id: string;
+      plan: string;
+      data_version: number;
+      fields: ShopSearch["fields"];
+    }[]
   >`
-    SELECT s.id, c.data_version,
+    SELECT s.id, s.plan, c.data_version,
            coalesce(json_agg(json_build_object(
              'id', f.id, 'label', f.label, 'type', f.type, 'required', f.required)
              ORDER BY f.position, f.id) FILTER (WHERE f.id IS NOT NULL), '[]') AS fields
@@ -59,12 +76,14 @@ export async function shopSearch(domain: string): Promise<ShopSearch | null> {
     JOIN search_configs c ON c.shop_id = s.id
     LEFT JOIN search_fields f ON f.shop_id = s.id
     WHERE s.domain = ${domain} AND s.uninstalled_at IS NULL
-    GROUP BY s.id, c.data_version`;
+    GROUP BY s.id, s.plan, c.data_version`;
   if (!shop) return null;
+  const plan = effectivePlan(await getPlans(), shop.plan);
   return {
     shopId: shop.id,
     dataVersion: shop.data_version,
     fields: shop.fields,
+    universal: plan.toggles.universalProducts,
   };
 }
 
@@ -244,10 +263,12 @@ export async function productFits(
         SELECT count(*)::int AS total FROM (
           SELECT DISTINCT f."values", f.year_from, f.year_to FROM fitment_rows f
           WHERE f.shop_id = ${shopId} AND f.attachment IN (${linked})) d`,
-      tx.universalProduct.findUnique({
-        where: { shopId_productId: { shopId, productId } },
-        select: { productId: true },
-      }),
+      search.universal
+        ? tx.universalProduct.findUnique({
+            where: { shopId_productId: { shopId, productId } },
+            select: { productId: true },
+          })
+        : null,
     ]);
     let state: FitsResult["state"] = "ask";
     if (picks.size) {
@@ -300,8 +321,7 @@ export async function searchResults(
           SELECT l.product_id, false AS universal FROM product_links l
           JOIN m ON m.attachment = l.attachment
           WHERE l.shop_id = ${shopId} AND l.product_id IS NOT NULL
-          UNION ALL
-          SELECT u.product_id, true FROM universal_products u WHERE u.shop_id = ${shopId}),
+          ${universalHits(search, false)}),
         p AS (
           SELECT c.handle, c.title, c.product_id, bool_and(h.universal) AS universal
           FROM hits h JOIN catalog_products c
@@ -365,8 +385,7 @@ export async function fitSkus(
         SELECT l.product_id, l.variant_id, false AS universal FROM product_links l
         JOIN m ON m.attachment = l.attachment
         WHERE l.shop_id = ${shopId} AND l.product_id IS NOT NULL
-        UNION ALL
-        SELECT u.product_id, NULL, true FROM universal_products u WHERE u.shop_id = ${shopId}),
+        ${universalHits(search, true)}),
       p AS (
         SELECT c.product_id, c.title, min(h.variant_id) AS variant_id,
                bool_and(h.universal) AS universal

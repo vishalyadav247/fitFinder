@@ -2,9 +2,9 @@
 // Storefront settings live in state.sf; defaults are filled in on first use.
 function sf() {
   const sp = setup(), t = tpl();
-  state.sf = Object.assign({ tab: 'widget', device: 'desktop', layout: 'bar', btn: '#1D4ED8', bg: '#FFFFFF', corners: 'rounded', button: 'Show ' + (t.things || 'products'), garage: true, reset: true,
+  state.sf = Object.assign({ tab: 'widget', device: 'desktop', layout: 'bar', btn: '#1D4ED8', bg: '#FFFFFF', corners: 'rounded', button: 'Show ' + (t.things || 'products'), garage: true, reset: true, results: 'theme',
     embed: false, fitsText: 'Fits your ' + sp.noun, noFitText: "Doesn't fit your " + sp.noun,
-    garageName: t.garage, maxSaved: '5', askSave: true, theme: 'live', themeSetup: {},
+    garageName: t.garage, maxSaved: '5', theme: 'live', themeSetup: {},
     text: '#1A1A1A', labels: false, showHeading: true, saveLink: true, saveText: 'Save to My Selection',
     tableStyle: 'collapsible', tableTitle: 'Fits these ' + sp.noun + 's', savedPos: 'right-middle', savedBg: '#FFFFFF', savedText: '#1A1A1A', savedIcon: tpl().icon, savedCount: true,
     askText: 'Select your ' + sp.noun + ' to check if it fits', badgeSel: true, noFitLink: true, noFitLinkText: 'See ' + (t.things || 'products') + ' that fit', tableOpen: true, tableRows: '5',
@@ -89,9 +89,16 @@ S.store = () => {
       : ['Fitment table', 'App block', 'Product page, with the description and specification tabs', blocks[2][2]],
     ['My Selection', 'App embed', 'Floating button on every page', th.embed && c.garage, 'embed']
   ];
+  // Show / hide: collapsed when everything is added (embed on, every block / code found; the My Selection switch doesn't
+  // count), open otherwise. A toggle is kept only while that state is unchanged, so finishing collapses the card.
+  const complete = th.embed && items.every(([, , , on, kind]) => kind === 'embed' || on);
+  const [foldFor, fold] = String(c.themeFold || '').split(':');
+  const open = foldFor === String(complete) ? fold === 'open' : !complete;
   const setupCard = `<s-section padding="none" accessibilityLabel="Theme integration">
-    <s-box padding="base" paddingBlockEnd="none"><h2 class="sec-title">Theme integration</h2></s-box>
-    <s-box padding="base"><s-grid gridTemplateColumns="minmax(0, 320px) 1fr auto" gap="large" alignItems="end">
+    <s-box padding="base" paddingBlockEnd="${open ? 'none' : 'base'}"><s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center"><h2 class="sec-title">Theme integration</h2>
+      <s-stack direction="inline" gap="small-300" alignItems="center">${!open && complete ? '<s-badge tone="success">All added</s-badge>' : ''}<button class="g-toggle" data-act="sf-set" data-key="themeFold" data-val="${complete}:${open ? 'closed' : 'open'}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} theme integration">${svg(open ? 'up' : 'down', 18, 2.2)}</button></s-stack>
+    </s-grid></s-box>
+    ${open ? `<s-box padding="base"><s-grid gridTemplateColumns="minmax(0, 320px) 1fr auto" gap="large" alignItems="end">
       <s-select label="Theme" data-act="sf" data-key="theme" value="${esc(c.theme)}">${THEMES.map((x) => `<s-option value="${x.id}">${esc(x.name)} (${x.role.toLowerCase()})</s-option>`).join('')}</s-select>
       <s-box></s-box>
       <s-stack direction="inline" gap="small-300" alignItems="center" justifyContent="end" paddingBlockEnd="small-300"><s-text type="strong">App embed</s-text><s-badge tone="${th.embed ? 'success' : 'critical'}">${th.embed ? 'On' : 'Off'}</s-badge><s-switch label="App embed" labelAccessibilityVisibility="exclusive" accessibilityLabel="Turn the app embed on or off in the theme editor" data-act="sf-embed"${th.embed ? ' checked' : ''}></s-switch></s-stack>
@@ -107,7 +114,7 @@ S.store = () => {
         <s-table-cell>${kind === 'code' ? '<s-button variant="tertiary" icon="settings" data-act="sf-set" data-key="tab" data-val="table">How to add</s-button>' : kind === 'embed' ? `<s-stack direction="inline" gap="small-200" alignItems="center"><s-switch label="Show My Selection" labelAccessibilityVisibility="exclusive" data-act="sf-bool" data-key="garage"${c.garage ? ' checked' : ''}${th.embed ? '' : ' disabled'}></s-switch><s-button variant="tertiary" icon="settings" data-act="sf-set" data-key="tab" data-val="garage">Settings</s-button></s-stack>` : on ? `<s-button variant="tertiary" icon="external" accessibilityLabel="Show ${name} in the theme editor">View in editor</s-button>`
           : `<s-button icon="plus"${th.embed ? '' : ' disabled'} accessibilityLabel="Add ${name} to the theme in the theme editor">Add to theme</s-button>`}</s-table-cell>
       </s-table-row>`).join('')}</s-table-body>
-    </s-table>
+    </s-table>` : ''}
   </s-section>`;
 
   const tabs = `<div class="tabs" role="tablist" aria-label="Storefront">${[['widget', 'Search widget'], ['badge', 'Fits badge'], ['table', 'Fitment table'], ['garage', 'My Selection']].map(([k, l]) =>
@@ -147,6 +154,7 @@ S.store = () => {
     </s-section>
     <s-section accessibilityLabel="Behaviour"><h2 class="sec-title sec-gap">Behaviour</h2>
       <s-stack gap="small">
+        ${sel('results', 'Show results on', [['theme', 'Default search page'], ['app', 'SpareFit&#39;s results page']])}
         <s-checkbox label="Show “${esc(c.saveText)}”" data-act="sf-bool" data-key="saveLink"${c.saveLink ? ' checked' : ''}></s-checkbox>
         <s-checkbox label="Show a reset link" data-act="sf-bool" data-key="reset"${c.reset ? ' checked' : ''}></s-checkbox>
       </s-stack>
@@ -279,7 +287,6 @@ S.store = () => {
         <s-select label="Saved selections per shopper" data-act="sf" data-key="maxSaved" value="${esc(c.maxSaved)}"><s-option value="3">3</s-option><s-option value="5">5</s-option><s-option value="10">10</s-option></s-select>
         <s-checkbox label="Show saved selection count" data-act="sf-bool" data-key="savedCount"${c.savedCount ? ' checked' : ''}></s-checkbox>
       </div></s-box>
-      <s-box paddingBlockStart="base"><s-checkbox label="Ask shoppers to save their selection after a search" data-act="sf-bool" data-key="askSave"${c.askSave ? ' checked' : ''}></s-checkbox></s-box>
     </s-section>
     <s-section><div class="pv-head"><s-badge tone="success" icon="view">Live preview</s-badge><s-text color="subdued">Hover the tab or click it to try it. Looks the same on desktop and mobile.</s-text></div>
       <div class="mini-win"><div class="mw-bar"><i></i><i></i><i></i><em>your-store.com</em></div><div class="mw-body">${floating}</div></div></s-section>

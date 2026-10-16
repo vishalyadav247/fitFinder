@@ -17,6 +17,8 @@
 /* Plans: usage meter */
 .meter{height:6px;border-radius:999px;background:#EBEBEB;overflow:hidden}.meter span{display:block;height:100%;border-radius:999px;background:#303030}
 .tabs{display:flex;gap:4px;border-bottom:1px solid #E3E3E3;overflow-x:auto}
+.tabs.tabs--compact{width:fit-content;max-width:100%}
+.tabs--compact button{min-width:150px;padding:0 20px}
 .tabs button{min-height:40px;padding:0 14px;border:0;border-bottom:2px solid transparent;background:transparent;font-weight:600;color:#616161;cursor:pointer;white-space:nowrap}
 .tabs button:hover{color:#303030;border-bottom-color:#CCCCCC}
 .tabs button[aria-selected="true"]{color:#303030;border-bottom-color:#303030}
@@ -96,3 +98,10 @@ s-table-row[hidden]{display:none}
 .an-bar:hover span{background:var(--p)}
 .an-axis{display:flex;justify-content:space-between;margin:8px 0 0 40px;font-size:11px;color:#8A8A8A}
 .an-share{width:120px}
+
+/* Look-alike of the App Bridge contextual save bar (the real one sits in the admin's top bar). */
+.savebar{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px;background:#1a1a1a;color:#fff;font-weight:600}
+.savebar[hidden]{display:none}
+.savebar-actions{display:flex;gap:8px}
+.savebar button{border:0;border-radius:8px;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer;background:#3a3a3a;color:#fff}
+.savebar button.primary{background:#fff;color:#1a1a1a}

@@ -12,6 +12,7 @@ import {
 } from "./linking/link-runs.server";
 import { purgeUninstalledShops } from "./purge.server";
 import { purgeOldStats } from "../models/analytics.server";
+import { purgeOldLogs } from "./logs/logs.server";
 import { publishForShop } from "./storefront/sync.server";
 
 export const QUEUES = {
@@ -250,11 +251,12 @@ export function startWorkers(): Promise<void> {
       // JOBS_SCHEDULES=false (end-to-end tests): no daily purge and no sweep of every shop's
       // imports; those act on the whole database, not just the test's shops.
       if (process.env.JOBS_SCHEDULES !== "false") {
-        // Uninstalled shops are deleted 30 days later (purge.server.ts), and analytics counts after
-        // 180 days. Once a day, at 03:15 UTC; pg-boss runs a schedule once across all processes.
+        // Uninstalled shops are deleted 30 days later (purge.server.ts), analytics counts after
+        // 180 days, and log entries after the backoffice's retention (7, 14 or 30 days). Once a day, at 03:15 UTC; pg-boss runs a schedule once across all processes.
         await boss.work(QUEUES.purge, { localConcurrency: 1 }, async () => {
           await purgeUninstalledShops();
           await purgeOldStats();
+          await purgeOldLogs();
         });
         await boss.schedule(QUEUES.purge, PURGE_CRON, null, {
           tz: "UTC",

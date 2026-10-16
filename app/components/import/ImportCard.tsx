@@ -23,6 +23,7 @@ import {
 } from "./client";
 import { SectionTitle } from "../SectionTitle";
 import { Icon } from "../Icon";
+import { Option, Select } from "../Select";
 
 type Mode = ImportJobView["mode"];
 
@@ -507,18 +508,18 @@ function MapStep({
             <tr>
               {titles.map((name, col) => (
                 <th key={col}>
-                  <s-select
+                  <Select
                     label={`Map ${hasHeader && name ? name : `column ${col + 1}`}`}
                     labelAccessibilityVisibility="exclusive"
                     value={choices[col] ?? SKIP}
-                    onChange={(e) => onPick(col, e.currentTarget.value)}
+                    onChange={(v) => onPick(col, v)}
                   >
                     {options.map(([v, l]) => (
-                      <s-option key={v} value={v}>
+                      <Option key={v} value={v}>
                         {l}
-                      </s-option>
+                      </Option>
                     ))}
-                  </s-select>
+                  </Select>
                 </th>
               ))}
             </tr>

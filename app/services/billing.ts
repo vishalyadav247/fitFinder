@@ -4,6 +4,7 @@
 // the charge with the plan's price and trial. Pure.
 import {
   LIMITS,
+  backupsOf,
   limitOf,
   TOGGLES,
   type LimitKey,
@@ -42,7 +43,8 @@ export const NO_PLAN: PlanView = {
     fitmentTable: false,
     mySelection: false,
     universalProducts: false,
-    prioritySupport: false,
+    importBackups: false,
+    customCss: false,
   },
   bullets: [],
 };
@@ -64,7 +66,7 @@ export const limitsOf = (plan: PlanView): Limits => ({
   rows: limitOf(plan, "rows"),
   products: limitOf(plan, "products"),
   searchFields: limitOf(plan, "searchFields"),
-  backups: limitOf(plan, "backups"),
+  backups: backupsOf(plan),
 });
 
 /** Plans shown to merchants, in order. The shop's own plan stays listed even when hidden. */
@@ -90,12 +92,14 @@ export const trialDaysFor = (plan: PlanView, usedDays: number) =>
 export interface Usage {
   rows: number;
   products: number;
+  /** Optional: only the dashboard counts fields. */
+  searchFields?: number;
 }
 
 /** Which of the usage's limits it is over (strictly more than allowed). */
 export function overLimits(usage: Usage, limits: Limits): (keyof Usage)[] {
   return (Object.keys(usage) as (keyof Usage)[]).filter(
-    (k) => usage[k] > limits[k],
+    (k) => (usage[k] ?? 0) > limits[k],
   );
 }
 
@@ -133,9 +137,10 @@ export function planLines(plan: PlanView): string[] {
     n("products"),
     n("rows"),
     n("searchFields"),
-    n("backups"),
+    // Import backups is a feature with a count: one line, "5 import backups", when it's on.
+    ...(plan.toggles.importBackups ? [n("backups")] : []),
     ...(Object.keys(TOGGLES) as ToggleKey[])
-      .filter((k) => plan.toggles[k])
+      .filter((k) => plan.toggles[k] && k !== "importBackups")
       .map((k) => TOGGLES[k].label),
   ];
 }

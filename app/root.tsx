@@ -7,6 +7,10 @@ import {
   ScrollRestoration,
   useRouteError,
 } from "react-router";
+import { timeRequests } from "./services/logs/slow.server";
+
+// Every request is timed; slow ones show in Backoffice › Logs (services/logs/slow.server.ts).
+export const middleware = [timeRequests];
 
 // Last resort for errors outside the app layout (an unknown URL, a failing landing page), instead
 // of React Router's bare default error page (App Store 2.1.1). Errors inside /app are handled by

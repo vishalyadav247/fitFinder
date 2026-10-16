@@ -29,7 +29,7 @@ import {
   applyFieldIntent,
   applyFieldSave,
   fieldIntentSchema,
-  MAX_FIELDS,
+  STORED_FIELDS_MAX,
   type SaveStep,
   listFields,
 } from "../models/search-field.server";
@@ -42,21 +42,22 @@ import {
   placeholderFor,
 } from "../services/search-fields";
 import prisma from "../db.server";
-import {
-  currentJob,
-  importHistory,
-  keptFiles,
-} from "../services/import/pipeline.server";
+import { currentJob, importHistory } from "../services/import/pipeline.server";
 import { jobView } from "../services/import/view.server";
 import { ImportCard } from "../components/import/ImportCard";
+import { getPlans } from "../models/plan.server";
+import { backupsOf, limitOf } from "../services/plan-features";
+import { effectivePlan, planWith } from "../services/billing";
 import {
   ImportHistory,
+  ImportStart,
   type HistoryItem,
 } from "../components/import/ImportHistory";
 import styles from "../styles/search-setup.css?url";
 import importStyles from "../styles/import.css?url";
 import { SectionTitle } from "../components/SectionTitle";
 import { PageHeader } from "../components/PageHeader";
+import { Option, Select } from "../components/Select";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: styles },
@@ -69,10 +70,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const config = await getSearchConfig(shop.id);
   // The layout redirects too, but child loaders run in parallel with it.
   if (!config) throw redirect("/app/onboarding");
-  const [fields, history, kept, current, currentRows] = await Promise.all([
+  const plans = await getPlans();
+  const plan = effectivePlan(plans, shop.plan);
+  const kept = backupsOf(plan);
+  const [fields, history, current, currentRows] = await Promise.all([
     listFields(shop.id),
-    importHistory(shop.id),
-    keptFiles(shop.id),
+    importHistory(shop.id, kept),
     currentJob(shop.id),
     prisma.fitmentRow.count({ where: { shopId: shop.id } }),
   ]);
@@ -82,7 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     finishedAt: j.finishedAt?.toISOString() ?? null,
     mode: j.mode,
     rows: j.totalRows,
-    hasFile: !!j.fileKey,
+    hasFile: kept > 0 && !!j.fileKey,
   }));
   // An import checking or running in the background reopens the card with its progress.
   const active =
@@ -93,8 +96,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     storeType: config.storeType,
     fields,
     history: items,
-    // How many imported files the plan keeps as backups.
+    // How many imported files the plan keeps as backups (0: Import backups isn't in the plan).
     kept,
+    // Without Import backups: the plan that adds it ("" = none yet).
+    backupsLocked: kept ? null : (planWith(plans, "importBackups")?.name ?? ""),
+    // Add field stops at the plan's search fields limit.
+    fieldLimit: limitOf(plan, "searchFields"),
+    planName: plan.name,
     active,
     currentRows,
   };
@@ -140,13 +148,13 @@ const saveSchema = z.object({
       z.object({
         edits: z
           .array(fieldEditSchema.extend({ fieldId: z.string().min(1) }))
-          .max(MAX_FIELDS),
+          .max(STORED_FIELDS_MAX),
         added: z
           .array(fieldEditSchema.extend({ key: z.string().regex(NEW_KEY) }))
-          .max(MAX_FIELDS),
+          .max(STORED_FIELDS_MAX),
         order: z
           .array(z.string().min(1))
-          .max(MAX_FIELDS * 2)
+          .max(STORED_FIELDS_MAX * 2)
           .optional(),
       }),
     ),
@@ -272,8 +280,17 @@ function useResultToast(result: ActionResult | undefined) {
 const DELETE_MODAL = "delete-field-modal";
 
 export default function SearchSetupPage() {
-  const { storeType, fields, history, kept, active, currentRows } =
-    useLoaderData<typeof loader>();
+  const {
+    storeType,
+    fields,
+    history,
+    kept,
+    backupsLocked,
+    fieldLimit,
+    planName,
+    active,
+    currentRows,
+  } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   // The import card replaces Import history while open (spec).
@@ -538,33 +555,47 @@ export default function SearchSetupPage() {
           ))}
           <s-box padding="base">
             <s-stack direction="inline" gap="base" alignItems="center">
-              <s-button icon="plus" disabled={saving} onClick={addField}>
+              <s-button
+                icon="plus"
+                disabled={saving || fields.length >= fieldLimit}
+                onClick={addField}
+              >
                 Add field
               </s-button>
-              <s-text color="subdued">{ADD_FIELD_HINT[storeType]}</s-text>
+              {fields.length >= fieldLimit ? (
+                <s-text color="subdued">
+                  {`The ${planName} plan allows up to ${fieldLimit} search fields. `}
+                  <s-link href="/app/plans">Upgrade</s-link> to add more.
+                </s-text>
+              ) : (
+                <s-text color="subdued">{ADD_FIELD_HINT[storeType]}</s-text>
+              )}
             </s-stack>
           </s-box>
         </s-section>
 
+        {/* The import steps take the Import card's place; Import history stays below. */}
         {importing ? (
-          <ImportCard
-            fields={fields.map((f) => ({
-              id: f.id,
-              label: f.label,
-              type: f.type,
-              required: f.required,
-            }))}
-            currentRows={currentRows}
-            resume={active}
-            onClose={closeImport}
-          />
+          <div className="sp-unfold">
+            <ImportCard
+              fields={fields.map((f) => ({
+                id: f.id,
+                label: f.label,
+                type: f.type,
+                required: f.required,
+              }))}
+              currentRows={currentRows}
+              resume={active}
+              onClose={closeImport}
+            />
+          </div>
         ) : (
-          <ImportHistory
-            items={history}
-            kept={kept}
+          <ImportStart
+            imported={history.length > 0}
             onImport={() => setImporting(true)}
           />
         )}
+        <ImportHistory items={history} kept={kept} lockedPlan={backupsLocked} />
       </s-stack>
 
       <s-modal
@@ -659,16 +690,16 @@ function FieldRow({
         disabled={locked}
         onInput={(e) => onEdit({ placeholder: valueOf(e) })}
       />
-      <s-select
+      <Select
         label={`Type of ${row.label}`}
         labelAccessibilityVisibility="exclusive"
         value={row.type}
         disabled={locked}
-        onChange={(e) => onEdit({ type: valueOf(e) as "list" | "year_range" })}
+        onChange={(v) => onEdit({ type: v as "list" | "year_range" })}
       >
-        <s-option value="list">Dropdown</s-option>
-        <s-option value="year_range">Year range</s-option>
-      </s-select>
+        <Option value="list">Dropdown</Option>
+        <Option value="year_range">Year range</Option>
+      </Select>
       <s-checkbox
         label="Required"
         accessibilityLabel={`${row.label} is required`}

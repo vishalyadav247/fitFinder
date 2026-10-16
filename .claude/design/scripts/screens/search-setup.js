@@ -32,23 +32,28 @@ S.fields = () => {
         <s-text color="subdued">${sp.type === 'automotive' ? 'For example Engine, Trim or Body type' : sp.type === 'phones' ? 'For example Storage size or Colour' : sp.type === 'beauty' ? 'For example Concern, Skin type or Age group' : 'For example Type, Series or Model number'}</s-text></s-stack></s-box>
     </s-section>
 
-    ${state.importStep ? `<div id="import-card">${importCard(sp)}</div>` : importHistory(sp)}
+    ${state.importStep ? `<div id="import-card">${importCard(sp)}</div>` + importHistory(sp, true) : importHistory(sp)}
   </s-stack>
   </s-page>`;
 };
 
-// Import history: the files the plan keeps (5 in this demo), newest first, each downloadable as a backup.
-function importHistory(sp) {
+// Import filter data (starts the CSV import), then Import history: the files the plan keeps (5 in
+// this demo), newest first, each downloadable as a backup. Hidden until something is imported.
+function importHistory(sp, historyOnly = false) {
   const hist = (sp.history || []).slice(0, 5);
-  return `<s-section padding="none" accessibilityLabel="Import history">
-      <s-box padding="base"><s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
-        <s-stack gap="small-100"><h2 class="sec-title">Import history</h2>
-          <s-text color="subdued">${hist.length ? 'We keep your last 5 files, so you can download a backup any time. A new import removes the oldest one.' : 'Nothing imported yet. Upload a CSV with your SKUs and what they fit.'}</s-text></s-stack>
+  const start = `<s-section accessibilityLabel="Import filter data">
+      <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+        <s-stack gap="small-100"><h2 class="sec-title">Import filter data</h2>
+          <s-text color="subdued">Upload a CSV with your SKUs and what they fit. You match its columns to your search fields next.</s-text></s-stack>
         <s-button variant="primary" icon="upload" data-act="imp-open">${hist.length ? 'Import new file' : 'Import CSV'}</s-button>
-      </s-grid></s-box>
-      ${hist.length ? `<s-table><s-table-header-row><s-table-header listSlot="primary">File</s-table-header><s-table-header>Imported</s-table-header><s-table-header>Import type</s-table-header><s-table-header format="numeric">Rows</s-table-header><s-table-header>Backup</s-table-header></s-table-header-row>
+      </s-grid></s-section>`;
+  if (!hist.length) return historyOnly ? '' : start;
+  return (historyOnly ? '' : start) + `<s-section padding="none" accessibilityLabel="Import history">
+      <s-box padding="base"><s-stack gap="small-100"><h2 class="sec-title">Import history</h2>
+        <s-text color="subdued">We keep your last 5 files, so you can download a backup any time. A new import removes the oldest one.</s-text></s-stack></s-box>
+      <s-table><s-table-header-row><s-table-header listSlot="primary">File</s-table-header><s-table-header>Imported</s-table-header><s-table-header>Import type</s-table-header><s-table-header format="numeric">Rows</s-table-header><s-table-header>Backup</s-table-header></s-table-header-row>
         <s-table-body>${hist.map((h, i) => `<s-table-row><s-table-cell><s-stack direction="inline" gap="small-200" alignItems="center"><s-text type="strong">${esc(h.file)}</s-text>${i === 0 ? '<s-badge tone="success">Current</s-badge>' : ''}</s-stack></s-table-cell><s-table-cell>${esc(h.when)}</s-table-cell><s-table-cell>${esc(h.mode)}</s-table-cell><s-table-cell>${esc(h.rows)}</s-table-cell>
-          <s-table-cell><s-button variant="tertiary" icon="download" accessibilityLabel="Download ${esc(h.file)}" data-act="hist-download" data-i="${i}">Download</s-button></s-table-cell></s-table-row>`).join('')}</s-table-body></s-table>` : ''}
+          <s-table-cell><s-button variant="tertiary" icon="download" accessibilityLabel="Download ${esc(h.file)}" data-act="hist-download" data-i="${i}">Download</s-button></s-table-cell></s-table-row>`).join('')}</s-table-body></s-table>
     </s-section>`;
 }
 

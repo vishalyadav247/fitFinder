@@ -43,12 +43,14 @@ import {
   StorefrontPreview,
 } from "../components/storefront/StorefrontPreview";
 import styles from "../styles/storefront.css?url";
+import { FoldToggle } from "../components/FoldToggle";
 import { SectionTitle } from "../components/SectionTitle";
 import { Icon, type IconName } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { getPlans, shopPlanView } from "../models/plan.server";
 import { planWith } from "../services/billing";
 import type { ToggleKey } from "../services/plan-features";
+import { Option, Select } from "../components/Select";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -570,117 +572,158 @@ export default function StorefrontPage() {
     );
   };
 
+  // Fully set up = app embed on and every feature the plan includes is in the theme. Locked rows
+  // can't be added, and My Selection's switch is a choice, so neither keeps the card open.
+  const integrated =
+    !data.themesError &&
+    !!status &&
+    embed &&
+    rows.every((row) =>
+      lockOf(row) || row.kind === "embed"
+        ? true
+        : row.kind === "code"
+          ? status.tableCodeFound
+          : blockStatus(row.key!) !== undefined,
+    );
+  // Collapsed once everything is added (also when that happens on this visit); the toggle still
+  // opens it.
+  const [themeOpen, setThemeOpen] = useState(!integrated);
+  const statusKnown = !!status || !!data.themesError;
+  useEffect(() => {
+    // While another theme is being read, keep the card as it is.
+    if (statusKnown) setThemeOpen(!integrated);
+  }, [integrated, statusKnown]);
+
   const themeCard = (
     <s-section padding="none" accessibilityLabel="Theme integration">
-      <s-box padding="base" paddingBlockEnd="none">
-        <SectionTitle icon="theme">Theme integration</SectionTitle>
+      <s-box padding="base" paddingBlockEnd={themeOpen ? "none" : "base"}>
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+          <SectionTitle icon="theme">Theme integration</SectionTitle>
+          <s-stack direction="inline" gap="small-300" alignItems="center">
+            {!themeOpen && integrated && (
+              <s-badge tone="success">All added</s-badge>
+            )}
+            <FoldToggle
+              open={themeOpen}
+              label="theme integration"
+              onToggle={() => setThemeOpen(!themeOpen)}
+            />
+          </s-stack>
+        </s-grid>
       </s-box>
-      {data.themesError === "access" && (
-        <s-box padding="base">
-          <s-banner
-            tone="warning"
-            heading="SpareFit needs access to your themes"
-          >
-            SpareFit checks your themes to show whether its blocks and app embed
-            are added. Open SpareFit from your apps list and approve the updated
-            permissions, then come back to this page.
-          </s-banner>
-        </s-box>
-      )}
-      {data.themesError === "other" && (
-        <s-box padding="base">
-          <s-banner tone="critical" heading="Your themes couldn't be read">
-            Reload the page to try again.
-          </s-banner>
-        </s-box>
-      )}
-      {!data.themesError && (
+      {themeOpen && (
         <>
-          <s-box padding="base">
-            <s-grid
-              gridTemplateColumns="minmax(0, 320px) 1fr auto"
-              gap="large"
-              alignItems="end"
-            >
-              <s-select
-                label="Theme"
-                value={themeId}
-                onChange={(e) => pickTheme(valueOf(e))}
+          {data.themesError === "access" && (
+            <s-box padding="base">
+              <s-banner
+                tone="warning"
+                heading="SpareFit needs access to your themes"
               >
-                {data.themes.map((t) => (
-                  <s-option key={t.id} value={t.id}>
-                    {themeLabel(t)}
-                  </s-option>
-                ))}
-              </s-select>
-              <s-box />
-              <s-stack
-                direction="inline"
-                gap="small-300"
-                alignItems="center"
-                justifyContent="end"
-                paddingBlockEnd="small-300"
+                SpareFit checks your themes to show whether its blocks and app
+                embed are added. Open SpareFit from your apps list and approve
+                the updated permissions, then come back to this page.
+              </s-banner>
+            </s-box>
+          )}
+          {data.themesError === "other" && (
+            <s-box padding="base">
+              <s-banner tone="critical" heading="Your themes couldn't be read">
+                Reload the page to try again.
+              </s-banner>
+            </s-box>
+          )}
+          {!data.themesError && (
+            <>
+              <s-box padding="base">
+                <s-grid
+                  gridTemplateColumns="minmax(0, 320px) 1fr auto"
+                  gap="large"
+                  alignItems="end"
+                >
+                  <Select
+                    label="Theme"
+                    value={themeId}
+                    onChange={(v) => pickTheme(v)}
+                  >
+                    {data.themes.map((t) => (
+                      <Option key={t.id} value={t.id}>
+                        {themeLabel(t)}
+                      </Option>
+                    ))}
+                  </Select>
+                  <s-box />
+                  <s-stack
+                    direction="inline"
+                    gap="small-300"
+                    alignItems="center"
+                    justifyContent="end"
+                    paddingBlockEnd="small-300"
+                  >
+                    <s-text type="strong">App embed</s-text>
+                    <s-badge tone={embed ? "success" : "critical"}>
+                      {embed ? "On" : "Off"}
+                    </s-badge>
+                    <s-switch
+                      label="App embed"
+                      labelAccessibilityVisibility="exclusive"
+                      accessibilityLabel="Turn the app embed on or off in the theme editor"
+                      checked={embed}
+                      disabled={!status || !themeId}
+                      onChange={(e) => {
+                        // Apps can't switch the embed: the theme editor opens on its App embeds panel,
+                        // and the status is read again when the merchant comes back.
+                        const on = checkedOf(e);
+                        e.currentTarget.checked = embed;
+                        openEditor(
+                          on ? links.embedOn : links.embedPanel,
+                          on
+                            ? "Theme editor opened. Turn on SpareFit there and save."
+                            : "Theme editor opened. Turn off SpareFit there and save.",
+                        );
+                      }}
+                    />
+                  </s-stack>
+                </s-grid>
+              </s-box>
+            </>
+          )}
+          {!data.themesError && theme && theme.role !== "MAIN" && (
+            <s-box paddingInline="base" paddingBlockEnd="base">
+              <s-banner
+                tone="info"
+                heading={`${theme.name} isn't your live theme`}
               >
-                <s-text type="strong">App embed</s-text>
-                <s-badge tone={embed ? "success" : "critical"}>
-                  {embed ? "On" : "Off"}
-                </s-badge>
-                <s-switch
-                  label="App embed"
-                  labelAccessibilityVisibility="exclusive"
-                  accessibilityLabel="Turn the app embed on or off in the theme editor"
-                  checked={embed}
-                  disabled={!status || !themeId}
-                  onChange={(e) => {
-                    // Apps can't switch the embed: the theme editor opens on its App embeds panel,
-                    // and the status is read again when the merchant comes back.
-                    const on = checkedOf(e);
-                    e.currentTarget.checked = embed;
-                    openEditor(
-                      on ? links.embedOn : links.embedPanel,
-                      on
-                        ? "Theme editor opened. Turn on SpareFit there and save."
-                        : "Theme editor opened. Turn off SpareFit there and save.",
-                    );
-                  }}
-                />
-              </s-stack>
-            </s-grid>
-          </s-box>
+                You can set SpareFit up here now. Shoppers see it once you
+                publish this theme.
+              </s-banner>
+            </s-box>
+          )}
+          <s-table>
+            <s-table-header-row>
+              <s-table-header listSlot="primary">Feature</s-table-header>
+              <s-table-header>Type</s-table-header>
+              <s-table-header>Placement</s-table-header>
+              <s-table-header>Status</s-table-header>
+              <s-table-header>Action</s-table-header>
+            </s-table-header-row>
+            <s-table-body>
+              {rows.map((row) => (
+                <s-table-row key={row.name}>
+                  <s-table-cell>
+                    <s-text type="strong">{row.name}</s-text>
+                  </s-table-cell>
+                  <s-table-cell>{row.type}</s-table-cell>
+                  <s-table-cell>
+                    <s-text color="subdued">{row.where}</s-text>
+                  </s-table-cell>
+                  <s-table-cell>{statusCell(row)}</s-table-cell>
+                  <s-table-cell>{actionCell(row)}</s-table-cell>
+                </s-table-row>
+              ))}
+            </s-table-body>
+          </s-table>
         </>
       )}
-      {!data.themesError && theme && theme.role !== "MAIN" && (
-        <s-box paddingInline="base" paddingBlockEnd="base">
-          <s-banner tone="info" heading={`${theme.name} isn't your live theme`}>
-            You can set SpareFit up here now. Shoppers see it once you publish
-            this theme.
-          </s-banner>
-        </s-box>
-      )}
-      <s-table>
-        <s-table-header-row>
-          <s-table-header listSlot="primary">Feature</s-table-header>
-          <s-table-header>Type</s-table-header>
-          <s-table-header>Placement</s-table-header>
-          <s-table-header>Status</s-table-header>
-          <s-table-header>Action</s-table-header>
-        </s-table-header-row>
-        <s-table-body>
-          {rows.map((row) => (
-            <s-table-row key={row.name}>
-              <s-table-cell>
-                <s-text type="strong">{row.name}</s-text>
-              </s-table-cell>
-              <s-table-cell>{row.type}</s-table-cell>
-              <s-table-cell>
-                <s-text color="subdued">{row.where}</s-text>
-              </s-table-cell>
-              <s-table-cell>{statusCell(row)}</s-table-cell>
-              <s-table-cell>{actionCell(row)}</s-table-cell>
-            </s-table-row>
-          ))}
-        </s-table-body>
-      </s-table>
     </s-section>
   );
 
@@ -735,28 +778,26 @@ export default function StorefrontPage() {
           Layout and style
         </SectionTitle>
         <div className="sp-opt-grid">
-          <s-select
+          <Select
             label="Layout"
             details="On phones the dropdowns always stack."
             value={s.layout}
-            onChange={(e) =>
-              save("layout", valueOf(e) as StorefrontSettings["layout"])
-            }
+            onChange={(v) => save("layout", v as StorefrontSettings["layout"])}
           >
-            <s-option value="bar">Horizontal (one row)</s-option>
-            <s-option value="card">Vertical (stacked)</s-option>
-          </s-select>
-          <s-select
+            <Option value="bar">Horizontal (one row)</Option>
+            <Option value="card">Vertical (stacked)</Option>
+          </Select>
+          <Select
             label="Corners"
             value={s.corners}
-            onChange={(e) =>
-              save("corners", valueOf(e) as StorefrontSettings["corners"])
+            onChange={(v) =>
+              save("corners", v as StorefrontSettings["corners"])
             }
           >
-            <s-option value="square">Square</s-option>
-            <s-option value="rounded">Rounded</s-option>
-            <s-option value="pill">Pill</s-option>
-          </s-select>
+            <Option value="square">Square</Option>
+            <Option value="rounded">Rounded</Option>
+            <Option value="pill">Pill</Option>
+          </Select>
         </div>
         <s-box paddingBlockStart="base">
           <div className="sp-opt-grid sp-three">
@@ -847,6 +888,16 @@ export default function StorefrontPage() {
             Behaviour
           </SectionTitle>
           <s-stack gap="small">
+            <Select
+              label="Show results on"
+              value={s.results}
+              onChange={(v) =>
+                save("results", v as StorefrontSettings["results"])
+              }
+            >
+              <Option value="theme">Default search page</Option>
+              <Option value="app">SpareFit&apos;s results page</Option>
+            </Select>
             <s-checkbox
               label={`Show “${live.saveText}”`}
               checked={s.saveLink}
@@ -862,6 +913,29 @@ export default function StorefrontPage() {
       </s-grid>
     </>
   );
+
+  // A feature the plan doesn't include: its settings stay editable, with this banner on top.
+  const lockBanner = (feature: string, lock: string | null) =>
+    lock && (
+      <s-box paddingBlockEnd="base">
+        <s-banner
+          tone="info"
+          heading={
+            lock === "a higher"
+              ? `${feature} needs a higher plan`
+              : `${feature} needs the ${lock} plan`
+          }
+        >
+          You can set it up now. It shows on your store after you upgrade.
+          <s-button
+            slot="secondary-actions"
+            onClick={() => navigate("/app/plans")}
+          >
+            Compare plans
+          </s-button>
+        </s-banner>
+      </s-box>
+    );
 
   const badgeTab = (
     <s-grid
@@ -879,6 +953,7 @@ export default function StorefrontPage() {
             Place it in the theme editor, usually above Add to cart.
           </s-paragraph>
         </s-box>
+        {lockBanner("Fits badge", data.locked.badge)}
         <s-stack gap="base">
           <s-stack gap="small-300">
             <p className="sp-grp-t">Before a selection</p>
@@ -955,23 +1030,21 @@ export default function StorefrontPage() {
             Lists everything this product fits.
           </s-paragraph>
         </s-box>
+        {lockBanner("Fitment table", data.locked.table)}
         <s-stack gap="base">
           <s-stack gap="small-300">
             <p className="sp-grp-t">Where to show it</p>
-            <s-select
+            <Select
               label="Show the table"
               labelAccessibilityVisibility="exclusive"
               value={s.tablePlace}
-              onChange={(e) =>
-                save(
-                  "tablePlace",
-                  valueOf(e) as StorefrontSettings["tablePlace"],
-                )
+              onChange={(v) =>
+                save("tablePlace", v as StorefrontSettings["tablePlace"])
               }
             >
-              <s-option value="block">Use as block</s-option>
-              <s-option value="tabs">Use as shortcode</s-option>
-            </s-select>
+              <Option value="block">Use as block</Option>
+              <Option value="tabs">Use as shortcode</Option>
+            </Select>
             {inTabs ? (
               <s-box padding="base" background="subdued" borderRadius="base">
                 <s-stack gap="small-300">
@@ -1027,19 +1100,16 @@ export default function StorefrontPage() {
             <p className="sp-grp-t">Display</p>
             {!inTabs && (
               <>
-                <s-select
+                <Select
                   label="Show as"
                   value={s.tableStyle}
-                  onChange={(e) =>
-                    save(
-                      "tableStyle",
-                      valueOf(e) as StorefrontSettings["tableStyle"],
-                    )
+                  onChange={(v) =>
+                    save("tableStyle", v as StorefrontSettings["tableStyle"])
                   }
                 >
-                  <s-option value="collapsible">Collapsible row</s-option>
-                  <s-option value="open">Open table</s-option>
-                </s-select>
+                  <Option value="collapsible">Collapsible row</Option>
+                  <Option value="open">Open table</Option>
+                </Select>
                 <s-text-field
                   label="Title"
                   maxLength={200}
@@ -1054,17 +1124,17 @@ export default function StorefrontPage() {
                 )}
               </>
             )}
-            <s-select
+            <Select
               label="Table style"
               value={s.tableLook}
-              onChange={(e) =>
-                save("tableLook", valueOf(e) as StorefrontSettings["tableLook"])
+              onChange={(v) =>
+                save("tableLook", v as StorefrontSettings["tableLook"])
               }
             >
-              <s-option value="lines">Lines between rows</s-option>
-              <s-option value="striped">Striped rows</s-option>
-              <s-option value="plain">Plain</s-option>
-            </s-select>
+              <Option value="lines">Lines between rows</Option>
+              <Option value="striped">Striped rows</Option>
+              <Option value="plain">Plain</Option>
+            </Select>
             {inTabs && (
               <s-text color="subdued">
                 The shortcode shows just the table. Add a heading above it in
@@ -1105,56 +1175,47 @@ export default function StorefrontPage() {
               gap="base"
               alignItems="end"
             >
-              <s-select
+              <Select
                 label="Sort by"
                 value={s.tableSort}
-                onChange={(e) =>
-                  save(
-                    "tableSort",
-                    valueOf(e) as StorefrontSettings["tableSort"],
-                  )
+                onChange={(v) =>
+                  save("tableSort", v as StorefrontSettings["tableSort"])
                 }
               >
-                <s-option value="fields">Search field order (A–Z)</s-option>
+                <Option value="fields">Search field order (A–Z)</Option>
                 {yearField && (
-                  <s-option value="year">
+                  <Option value="year">
                     Newest {yearField.label.toLowerCase()} first
-                  </s-option>
+                  </Option>
                 )}
-              </s-select>
-              <s-select
+              </Select>
+              <Select
                 label="Rows before “Show all”"
                 value={s.tableRows}
-                onChange={(e) =>
-                  save(
-                    "tableRows",
-                    valueOf(e) as StorefrontSettings["tableRows"],
-                  )
+                onChange={(v) =>
+                  save("tableRows", v as StorefrontSettings["tableRows"])
                 }
               >
-                <s-option value="5">5</s-option>
-                <s-option value="10">10</s-option>
-                <s-option value="all">All</s-option>
-              </s-select>
+                <Option value="5">5</Option>
+                <Option value="10">10</Option>
+                <Option value="all">All</Option>
+              </Select>
             </s-grid>
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
             <p className="sp-grp-t">When a product has no rows</p>
-            <s-select
+            <Select
               label="Show"
               labelAccessibilityVisibility="exclusive"
               value={s.tableEmpty}
-              onChange={(e) =>
-                save(
-                  "tableEmpty",
-                  valueOf(e) as StorefrontSettings["tableEmpty"],
-                )
+              onChange={(v) =>
+                save("tableEmpty", v as StorefrontSettings["tableEmpty"])
               }
             >
-              <s-option value="hide">Hide the table</s-option>
-              <s-option value="text">Show a text instead</s-option>
-            </s-select>
+              <Option value="hide">Hide the table</Option>
+              <Option value="text">Show a text instead</Option>
+            </Select>
             {s.tableEmpty === "text" && (
               <s-text-field
                 label="Text"
@@ -1202,7 +1263,8 @@ export default function StorefrontPage() {
             the theme.
           </s-paragraph>
         </s-box>
-        {status && !embed && (
+        {lockBanner("My Selection", data.locked.garage)}
+        {!data.locked.garage && status && !embed && (
           <s-box paddingBlockEnd="base">
             <s-banner
               tone="warning"
@@ -1212,7 +1274,7 @@ export default function StorefrontPage() {
             </s-banner>
           </s-box>
         )}
-        {embed && !s.garage && (
+        {!data.locked.garage && embed && !s.garage && (
           <s-box paddingBlockEnd="base">
             <s-banner tone="info" heading="My Selection is turned off">
               Turn it on with its switch in Theme integration above. You can
@@ -1228,37 +1290,37 @@ export default function StorefrontPage() {
               maxLength={200}
               {...textProps("garageName")}
             />
-            <s-select
+            <Select
               label="Position"
               value={s.savedPos}
-              onChange={(e) =>
-                save("savedPos", valueOf(e) as StorefrontSettings["savedPos"])
+              onChange={(v) =>
+                save("savedPos", v as StorefrontSettings["savedPos"])
               }
             >
-              <s-option value="right-middle">
+              <Option value="right-middle">
                 Right edge, middle (vertical tab)
-              </s-option>
-              <s-option value="left-middle">
+              </Option>
+              <Option value="left-middle">
                 Left edge, middle (vertical tab)
-              </s-option>
-              <s-option value="bottom-right">Bottom right</s-option>
-              <s-option value="bottom-left">Bottom left</s-option>
-            </s-select>
-            <s-select
+              </Option>
+              <Option value="bottom-right">Bottom right</Option>
+              <Option value="bottom-left">Bottom left</Option>
+            </Select>
+            <Select
               label="Icon"
               value={s.savedIcon}
-              onChange={(e) =>
-                save("savedIcon", valueOf(e) as StorefrontSettings["savedIcon"])
+              onChange={(v) =>
+                save("savedIcon", v as StorefrontSettings["savedIcon"])
               }
             >
-              <s-option value="star">Star</s-option>
-              <s-option value="heart">Heart</s-option>
-              <s-option value="bookmark">Bookmark</s-option>
-              <s-option value="clock">Clock (recent)</s-option>
-              <s-option value={data.storeIcon}>{nounLabel}</s-option>
-              <s-option value="custom">Custom (upload your own)</s-option>
-              <s-option value="none">No icon</s-option>
-            </s-select>
+              <Option value="star">Star</Option>
+              <Option value="heart">Heart</Option>
+              <Option value="bookmark">Bookmark</Option>
+              <Option value="clock">Clock (recent)</Option>
+              <Option value={data.storeIcon}>{nounLabel}</Option>
+              <Option value="custom">Custom (upload your own)</Option>
+              <Option value="none">No icon</Option>
+            </Select>
             {s.savedIcon === "custom" && (
               <s-stack gap="small-200">
                 <s-drop-zone
@@ -1317,30 +1379,23 @@ export default function StorefrontPage() {
                 />
               ))}
             </s-grid>
-            <s-select
+            <Select
               label="Saved selections per shopper"
               value={s.maxSaved}
-              onChange={(e) =>
-                save("maxSaved", valueOf(e) as StorefrontSettings["maxSaved"])
+              onChange={(v) =>
+                save("maxSaved", v as StorefrontSettings["maxSaved"])
               }
             >
-              <s-option value="3">3</s-option>
-              <s-option value="5">5</s-option>
-              <s-option value="10">10</s-option>
-            </s-select>
+              <Option value="3">3</Option>
+              <Option value="5">5</Option>
+              <Option value="10">10</Option>
+            </Select>
             <s-checkbox
               label="Show saved selection count"
               checked={s.savedCount}
               onChange={(e) => save("savedCount", checkedOf(e))}
             />
           </div>
-        </s-box>
-        <s-box paddingBlockStart="base">
-          <s-checkbox
-            label="Ask shoppers to save their selection after a search"
-            checked={s.askSave}
-            onChange={(e) => save("askSave", checkedOf(e))}
-          />
         </s-box>
       </s-section>
       <s-section accessibilityLabel="Live preview">

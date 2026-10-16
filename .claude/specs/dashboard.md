@@ -59,4 +59,11 @@ The `/app` loader (no separate API): `dashboardFacts` in `app/services/dashboard
 
 ## Build notes
 - Banner and setup guide are custom components; everything else uses Polaris.
-- The guide's collapsed state is kept per shop in the merchant's browser (localStorage).
+- The guide's collapsed state is kept per shop in the merchant's browser (localStorage). Once all 5 steps are done the guide starts collapsed whatever was stored (and collapses by itself when the last step is done); the toggle still opens it.
+
+## App-wide error pages (every `/app` page)
+
+- An unknown page inside the app (`/app/…` with no route): status 404, the app's own page with a warning banner "Page not found" / "This page doesn't exist. Use the app menu to go to another page." (plain markup when the app layout couldn't load). Never the raw error text.
+- Any other failure: critical banner "Something went wrong" / "This page couldn't be loaded. Reload the page to try again. If it keeps happening, contact support from Settings."
+- `/auth/login` (the library's login path) has no page: without a valid `?shop=` it goes to the landing page; with one, Shopify's install / OAuth starts (App Store 2.3.1: no shop-domain field).
+

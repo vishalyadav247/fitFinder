@@ -14,6 +14,7 @@ import {
   shopify,
   stopJobs,
   storageDir,
+  seedPlansForRun,
   waitFor,
 } from "./harness";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -61,6 +62,8 @@ const routes = {
   boLogin: await import("../routes/backoffice_.login"),
   boPlans: await import("../routes/backoffice.plans._index"),
   boOverview: await import("../routes/backoffice._index"),
+  boStores: await import("../routes/backoffice.stores"),
+  boLogs: await import("../routes/backoffice.logs"),
   boPlan: await import("../routes/backoffice.plans.$key"),
   boProfile: await import("../routes/backoffice.profile"),
   subscriptionsWebhook:
@@ -123,8 +126,11 @@ describe("SpareFit end to end", () => {
     FakeProduct
   >;
 
+  let restorePlans: () => Promise<void> = async () => {};
+
   beforeAll(async () => {
     await cleanLeftovers();
+    restorePlans = await seedPlansForRun();
     shopify.shop(OTHER);
     catalog.brakes = shopify.addProduct(SHOP, {
       title: "Brake Pad Set",
@@ -160,9 +166,13 @@ describe("SpareFit end to end", () => {
   });
 
   afterAll(async () => {
+    await restorePlans();
     await stopJobs();
     await prisma.session.deleteMany({ where: { shop: { in: [SHOP, OTHER] } } });
     await prisma.shop.deleteMany({ where: { domain: { in: [SHOP, OTHER] } } });
+    await prisma.appLog.deleteMany({
+      where: { shopDomain: { in: [SHOP, OTHER] } },
+    });
     removeStorage();
   });
 
@@ -1397,12 +1407,13 @@ describe("SpareFit end to end", () => {
         trialDays: "7",
         "limit.rows": "500000",
         "limit.products": "5000",
-        "unlimited.searchFields": "on",
+        "limit.searchFields": "10",
         "limit.backups": "5",
         "toggle.fitsBadge": "on",
         "toggle.fitmentTable": "on",
         "toggle.mySelection": "on",
         "toggle.universalProducts": "on",
+        "toggle.importBackups": "on",
         bullets: "Everything in Starter",
       };
       const bad = await run(
@@ -1433,15 +1444,66 @@ describe("SpareFit end to end", () => {
       ).body.stats;
       expect(overview.stores.installed).toBeGreaterThanOrEqual(2);
       expect(overview.stores.installsByDay).toHaveLength(30);
-      expect(overview.setup.onboarded).toBeGreaterThanOrEqual(2);
-      expect(overview.setup.withData).toBeGreaterThanOrEqual(1);
-      expect(overview.imports7.completed).toBeGreaterThanOrEqual(1);
       expect(
         overview.activity.some(
           (a: { domain: string; kind: string }) =>
             a.domain === SHOP && a.kind === "install",
         ),
       ).toBe(true);
+      // Stores page: every store with its plan, search fields and usage; filters in the URL.
+      expect(
+        (await run(routes.boStores.loader, bo("/backoffice/stores"))).location,
+      ).toBe("/backoffice/login");
+      const stores = async (query: string) =>
+        (
+          await run(
+            routes.boStores.loader,
+            bo(`/backoffice/stores?${query}`, undefined, cookie),
+          )
+        ).body;
+      const mine = await stores(`q=${RUN}&sort=domain`);
+      expect(mine.stores.total).toBe(2);
+      expect(
+        mine.stores.stores.map((st: { domain: string }) => st.domain),
+      ).toEqual([SHOP, OTHER]);
+      expect(mine.stores.stores[0]).toMatchObject({
+        domain: SHOP,
+        storeType: "automotive",
+        plan: "starter",
+        planName: "Starter",
+        fields: ["Make", "Year", "Model"],
+        rows: 6,
+        searches30: 2,
+        uninstalledAt: null,
+      });
+      expect(mine.stores.stores[0].linkedSkus).toBeGreaterThanOrEqual(1);
+      expect(mine.stores.stores[1]).toMatchObject({
+        domain: OTHER,
+        storeType: "phones",
+        rows: 0,
+        searches30: 0,
+      });
+      const starter = await stores(`q=${RUN}&plan=starter`);
+      expect(
+        starter.stores.stores.map((st: { domain: string }) => st.domain),
+      ).toEqual([SHOP]);
+      expect((await stores(`q=${RUN}&status=uninstalled`)).stores.total).toBe(
+        0,
+      );
+      // Odd values fall back; a page past the end shows the last page.
+      const odd = await stores(
+        `q=${RUN}&plan=nope&status=zzz&sort=x&size=7&page=99`,
+      );
+      expect(odd.filters).toMatchObject({
+        plan: "all",
+        status: "installed",
+        sort: "newest",
+        pageSize: 10,
+        page: 1,
+      });
+      expect(odd.stores.stores).toHaveLength(2);
+      const paged = await stores(`q=${RUN}&size=10&page=1`);
+      expect(paged.stores).toMatchObject({ page: 1, pageSize: 10, total: 2 });
       expect(
         (await run(routes.boOverview.loader, bo("/backoffice"))).location,
       ).toBe("/backoffice/login");
@@ -1689,6 +1751,157 @@ describe("SpareFit end to end", () => {
     ).toBe("/backoffice/login");
   });
 
+  it("backoffice logs: errors, warnings and slow requests, per store, kept for the set time", async () => {
+    const { clearFailures } =
+      await import("../services/backoffice-auth.server");
+    const logs = await import("../services/logs/logs.server");
+    const { entryFromConsole } = await import("../services/logs/entry");
+    const { slowEntry } = await import("../services/logs/slow.server");
+    clearFailures();
+    const origin = "https://app.e2e.test";
+    const bo = (
+      path: string,
+      form?: Record<string, string>,
+      cookie = "",
+      from = origin,
+    ) =>
+      new Request(`${origin}${path}`, {
+        method: form ? "POST" : "GET",
+        headers: {
+          Origin: from,
+          Host: "app.e2e.test",
+          Cookie: cookie,
+          ...(form
+            ? { "Content-Type": "application/x-www-form-urlencoded" }
+            : {}),
+        },
+        body: form ? new URLSearchParams(form) : undefined,
+      });
+    expect(
+      (await run(routes.boLogs.loader, bo("/backoffice/logs"))).location,
+    ).toBe("/backoffice/login");
+    const login = await run(
+      routes.boLogin.action,
+      bo("/backoffice/login", {
+        email: BACKOFFICE.email,
+        password: BACKOFFICE.password,
+      }),
+    );
+    const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0];
+
+    // What the app logs: an error for this shop (twice), a warning for the other, a slow request.
+    const error = new Error("Throttled");
+    logs.recordLog(
+      entryFromConsole("error", [
+        "storefront: e2e publish failed",
+        { shop: SHOP, error },
+      ]),
+    );
+    logs.recordLog(
+      entryFromConsole("error", [
+        "storefront: e2e publish failed",
+        { shop: SHOP, error },
+      ]),
+    );
+    logs.recordLog(
+      entryFromConsole("warn", ["import: e2e odd column", { shop: OTHER }]),
+    );
+    logs.recordLog(
+      slowEntry(
+        new Request(`${APP_URL}/app/filter-data.data?shop=${SHOP}`),
+        200,
+        5200,
+      )!,
+    );
+    await logs.flushLogs();
+
+    const page = async (query: string) =>
+      (
+        await run(
+          routes.boLogs.loader,
+          bo(`/backoffice/logs?${query}`, undefined, cookie),
+        )
+      ).body;
+    const shop = await page(`store=${SHOP}`);
+    expect(shop.filters).toMatchObject({
+      store: SHOP,
+      level: "all",
+      range: "24h",
+    });
+    expect(shop.logs.counts).toEqual({ error: 1, warn: 0, slow: 1 });
+    const err = shop.logs.rows.find(
+      (r: { level: string }) => r.level === "error",
+    );
+    expect(err).toMatchObject({
+      source: "storefront",
+      message: "storefront: e2e publish failed",
+      shopDomain: SHOP,
+      count: 2,
+    });
+    expect(err.detail).toContain("Error: Throttled");
+    expect((await page(`store=${SHOP}&level=slow`)).logs.rows).toEqual([
+      expect.objectContaining({
+        message: "Slow request: GET /app/filter-data",
+        durationMs: 5200,
+      }),
+    ]);
+    expect((await page(`store=${OTHER}&level=warn`)).logs.total).toBe(1);
+    expect((await page(`store=${OTHER}&level=error`)).logs.total).toBe(0);
+    expect((await page(`store=${SHOP}&q=publish`)).logs.total).toBe(1);
+    expect(shop.stores).toEqual(expect.arrayContaining([SHOP, OTHER]));
+    // Odd values fall back.
+    expect(
+      (await page("store=evil.example.com&level=x&range=y")).filters,
+    ).toMatchObject({
+      store: "all",
+      level: "all",
+      range: "24h",
+    });
+
+    // Retention: saved with an Origin-checked post; 7, 14 or 30 days only.
+    const saved = await prisma.backofficeSetting.findUnique({
+      where: { key: "logRetentionDays" },
+    });
+    try {
+      const forged = await run(
+        routes.boLogs.action,
+        bo(
+          "/backoffice/logs",
+          { intent: "retention", days: "30" },
+          cookie,
+          "https://evil.example",
+        ),
+      );
+      expect(forged.status).toBe(403);
+      const bad = await run(
+        routes.boLogs.action,
+        bo("/backoffice/logs", { intent: "retention", days: "3" }, cookie),
+      );
+      expect(bad.status).toBe(400);
+      const ok = await run(
+        routes.boLogs.action,
+        bo("/backoffice/logs", { intent: "retention", days: "30" }, cookie),
+      );
+      expect(ok.body).toMatchObject({ ok: true, days: 30 });
+      expect((await page("")).retention).toBe(30);
+    } finally {
+      if (saved) {
+        await prisma.backofficeSetting.update({
+          where: { key: "logRetentionDays" },
+          data: { value: saved.value as number },
+        });
+      } else {
+        await prisma.backofficeSetting.deleteMany({
+          where: { key: "logRetentionDays" },
+        });
+      }
+    }
+    // Stays for the uninstall step: the purge deletes this shop's entries with the shop.
+    expect(
+      await prisma.appLog.count({ where: { shopDomain: SHOP } }),
+    ).toBeGreaterThan(0);
+  });
+
   it("settings shows the store type, and replacing a store type resets only that shop", async () => {
     const settings = await run(
       routes.settings.loader,
@@ -1714,6 +1927,69 @@ describe("SpareFit end to end", () => {
       "Gender",
     ]);
     expect(await prisma.fitmentRow.count({ where: { shopId } })).toBe(6);
+  });
+
+  it("custom CSS on Settings is a plan feature and reaches the theme scoped to SpareFit", async () => {
+    const { getPlan, updatePlan, clearPlansCache } =
+      await import("../models/plan.server");
+    const page = async () =>
+      (await run(routes.settings.loader, adminRequest(SHOP, "/app/settings")))
+        .body;
+    const save = (css: string) =>
+      run(
+        routes.settings.action,
+        adminRequest(SHOP, "/app/settings", {
+          method: "POST",
+          body: { form: { intent: "css", css } },
+        }),
+      );
+    const published = () =>
+      JSON.parse(shopify.shop(SHOP).appMetafields.get("sparefit.config")!);
+
+    // Not in the seeded plans: locked, and a save is refused.
+    // No plan has it yet: "" (no plan to name).
+    expect((await page()).cssLocked).toBe("");
+    expect((await save(".sp-fit { color: red }")).body).toEqual({
+      ok: false,
+      error: "Your plan doesn't include custom CSS.",
+    });
+
+    const original = (await getPlan("growth"))!;
+    try {
+      await updatePlan(
+        "growth",
+        { ...original, toggles: { ...original.toggles, customCss: true } },
+        "e2e",
+      );
+      clearPlansCache();
+      expect((await page()).cssLocked).toBeNull();
+
+      const css =
+        ".sp-sfw__go { text-transform: uppercase } @import url(https://x.test/a.css); body { display: none }";
+      const saved = await save(css);
+      expect(saved.body).toEqual({
+        ok: true,
+        dropped: ["@import"],
+        theme: "published",
+      });
+      const theme = published().css as string;
+      expect(theme).toContain("text-transform: uppercase");
+      expect(theme).not.toContain("@import");
+      // body only matches inside SpareFit's elements.
+      expect(theme).toContain(":is(.sp-search-wrap,");
+      expect(theme.split("\n").every((r) => !r.startsWith("body"))).toBe(true);
+      expect((await page()).customCss).toBe(css);
+
+      const tooLong = await save("a".repeat(5001));
+      expect(tooLong.body.ok).toBe(false);
+
+      // Clearing it removes the CSS from the theme.
+      expect((await save("")).body.ok).toBe(true);
+      expect(published()).not.toHaveProperty("css");
+    } finally {
+      await updatePlan("growth", { ...original }, "e2e-restore");
+      clearPlansCache();
+    }
   });
 
   it("scopes_update webhook stores the scopes the merchant granted", async () => {
@@ -1865,6 +2141,7 @@ describe("SpareFit end to end", () => {
     expect(await prisma.shop.findUnique({ where: { id: shopId } })).toBeNull();
     expect(await prisma.fitmentRow.count({ where: { shopId } })).toBe(0);
     expect(await prisma.importJob.count({ where: { shopId } })).toBe(0);
+    expect(await prisma.appLog.count({ where: { shopDomain: SHOP } })).toBe(0);
     expect(existsSync(path.join(storageDir, "imports", shopId))).toBe(false);
     // The other shop is untouched.
     expect(

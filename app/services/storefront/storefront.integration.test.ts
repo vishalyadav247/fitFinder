@@ -79,6 +79,11 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     });
     shopId = (await upsertShopOnInstall(DOMAIN)).id;
     otherId = (await upsertShopOnInstall(OTHER)).id;
+    // Growth includes Universal products (the free fallback plan doesn't).
+    await prisma.shop.update({
+      where: { id: shopId },
+      data: { plan: "growth" },
+    });
     for (const id of [shopId, otherId]) {
       await applyStoreType(id, "automotive", { replace: false });
     }
@@ -228,6 +233,23 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     expect(none.products).toEqual([{ handle: "product-3", universal: true }]);
   });
 
+  it("leaves universal products out when the plan doesn't include them", async () => {
+    await prisma.shop.update({ where: { id: shopId }, data: { plan: "none" } });
+    const s = await search();
+    expect(s.universal).toBe(false);
+    const audi = await picks(
+      `${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`,
+    );
+    expect((await q.searchResults(s, audi, 1)).products).toEqual([
+      { handle: "product-1", universal: false },
+    ]);
+    const bmw = await picks(`${ids.make}=BMW&${ids.year}=2009&${ids.model}=X3`);
+    expect((await q.searchResults(s, bmw, 1)).products).toEqual([]);
+    expect((await q.fitSkus(s, bmw, 10)).products).toBe(0);
+    const fits = await q.productFits(s, P(3), bmw);
+    expect(fits).toMatchObject({ state: "no-fit", universal: false });
+  });
+
   it("finds one SKU per fitting product for the theme search", async () => {
     // a manual link without a variant uses the product's first SKU; products without SKUs are
     // counted
@@ -323,6 +345,7 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       shopId,
       dataVersion: await version(),
       fields,
+      universal: true,
     });
     // A shop without fields still has a (blank) search; one not set up has none.
     await prisma.searchField.deleteMany({ where: { shopId: otherId } });

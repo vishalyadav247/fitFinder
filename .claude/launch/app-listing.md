@@ -32,7 +32,7 @@ Billing method **Recurring charge** with one plan marked **Free** (shows "Free p
 | --- | --- | --- | --- |
 | Starter | Free | — | 50 linked products · 5,000 filter rows |
 | Growth | $29/month or $290/year | 14 days | 5,000 linked products · 500,000 filter rows |
-| Pro | $99/month or $990/year | 14 days | Unlimited products and rows · priority support |
+| Pro | $99/month or $990/year | 14 days | Unlimited products and rows |
 
 These are the seeded plans (migration `20261013120000_plans_backoffice`); the backoffice is the source of truth. Keep the listing's pricing identical to the backoffice plans and to the Plans page in the app (4.2.1: include trial length and every charge).
 

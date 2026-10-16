@@ -97,6 +97,18 @@ describe.skipIf(!process.env.DATABASE_URL)("analytics (Postgres)", () => {
     await prisma.universalProduct.create({ data: { shopId, productId: P(2) } });
   });
 
+  it("knows whether shoppers searched recently (review prompt signal)", async () => {
+    expect(await report.hasRecentSearches(shopId, 30)).toBe(false);
+    expect(await click("AUDI", "2012", "A4")).toBe(true);
+    expect(await report.hasRecentSearches(shopId, 30)).toBe(true);
+    // Only this shop's searches count.
+    expect(await report.hasRecentSearches(otherId, 30)).toBe(false);
+    await age(29);
+    expect(await report.hasRecentSearches(shopId, 30)).toBe(true);
+    await age(2);
+    expect(await report.hasRecentSearches(shopId, 30)).toBe(false);
+  });
+
   it("counts searches per selection and day, and which found nothing", async () => {
     expect(await click("AUDI", "2012", "A4")).toBe(true);
     expect(await click("AUDI", "2012", "A4")).toBe(true);

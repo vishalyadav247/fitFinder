@@ -6,7 +6,8 @@ const all = {
   fitmentTable: true,
   mySelection: true,
   universalProducts: true,
-  prioritySupport: true,
+  importBackups: true,
+  customCss: true,
 };
 
 export const TEST_PLANS: PlanView[] = [
@@ -26,7 +27,8 @@ export const TEST_PLANS: PlanView[] = [
       fitmentTable: false,
       mySelection: false,
       universalProducts: false,
-      prioritySupport: false,
+      importBackups: true,
+      customCss: false,
     },
     bullets: ["Search section", "CSV import with column mapping"],
   },
@@ -41,7 +43,7 @@ export const TEST_PLANS: PlanView[] = [
     trialDays: 14,
     visible: true,
     limits: { rows: 500_000, products: 5000, searchFields: null, backups: 5 },
-    toggles: { ...all, prioritySupport: false },
+    toggles: all,
     bullets: ["Everything in Starter"],
   },
   {

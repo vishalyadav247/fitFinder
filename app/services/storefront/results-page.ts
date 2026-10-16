@@ -40,14 +40,16 @@ export function resultsLiquid({
   pageHref,
 }: ResultsView): string {
   const { s } = config;
-  const head = `<div class="sp-results page-width" data-sp-results data-sp-picks="${t(JSON.stringify(picks))}">
+  // The theme's page-width container (Dawn and similar), and our own width inside it for themes
+  // that don't have that class (Horizon: content 90rem/120rem with page margins).
+  const head = `<div class="page-width sp-results-outer"><div class="sp-results" data-sp-results data-sp-picks="${t(JSON.stringify(picks))}">
   <div class="sp-search-wrap" data-sp-search data-sp-context="results"></div>
   <h1 class="sp-results__title">${t(`${capitalize(config.things)} that fit your ${config.noun}`)}</h1>
   ${label ? `<p class="sp-results__sel">${t(label)}</p>` : ""}`;
   if (!complete || !results) {
     return `${STYLE}${head}
   <p class="sp-results__empty">${t(`Select your ${config.noun} to see the ${config.things} that fit.`)}</p>
-</div>`;
+</div></div>`;
   }
   const cards = results.products
     .filter((p) => SAFE_HANDLE.test(p.handle))
@@ -79,16 +81,17 @@ export function resultsLiquid({
         }</nav>`
       : "";
   return `${STYLE}${head}
-  <div data-sp-ask-save></div>
   ${cards ? `<ul class="sp-grid">${cards}</ul>` : ""}
   ${empty}
   ${pager}
-</div>`;
+</div></div>`;
 }
 
 // Inline, so the page has a grid even when the app embed (and its stylesheet) is off.
 const STYLE = `<style>
-.sp-results{padding-top:24px;padding-bottom:48px}
+.sp-results{box-sizing:border-box;width:min(100%,var(--narrow-page-width,1440px),100vw - 80px);margin-inline:auto;padding-top:24px;padding-bottom:48px}
+.page-width-normal .sp-results{width:min(100%,var(--normal-page-width,1920px),100vw - 80px)}
+@media (max-width:749px){.sp-results{width:min(100%,100vw - 40px)}.page-width-normal .sp-results{width:min(100%,100vw - 40px)}}
 .sp-results__title{margin:20px 0 4px}
 .sp-results__sel{margin:0 0 16px;opacity:.75}
 .sp-results__empty{margin:16px 0}

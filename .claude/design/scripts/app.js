@@ -50,6 +50,10 @@ function render() {
   const view = document.getElementById('view');
   view.innerHTML = (S[state.screen] || S.home)() + confirmModal();
   view.querySelectorAll('s-select[data-act], s-drop-zone[data-act], s-text-field[data-act], s-email-field[data-act], s-switch[data-act], s-choice-list[data-act], s-checkbox[data-act], s-color-field[data-act], select[data-act]').forEach((el) => el.addEventListener('change', onChange));
+  // Custom CSS: Save is on only while the text differs from what was saved.
+  view.querySelectorAll('s-text-area[data-act="css-input"]').forEach((el) => el.addEventListener('input', () => {
+    const bar = view.querySelector('[data-savebar]'); if (bar) bar.hidden = String(el.value || '').trim() === (state.css || '');
+  }));
   view.querySelectorAll('s-search-field[data-act="q"]').forEach((el) => el.addEventListener('input', () => {
     const q = String(el.value || '').toLowerCase().trim(); let shown = 0;
     view.querySelectorAll('s-table-row[data-row-text]').forEach((row) => { const hit = !q || row.dataset.rowText.includes(q); row.hidden = !hit; if (hit) shown++; });
@@ -117,7 +121,11 @@ document.addEventListener('click', (e) => {
   switch (a) {
     case 'guide': state.guide = Number(el.dataset.i); break;
     case 'view-store': showToast('Opens your online store in a new tab'); return;
-    case 'guide-toggle': state.guideClosed = !state.guideClosed; break;
+    case 'settings-tab': state.settingsTab = el.dataset.val; break;
+    case 'css-discard': break; // re-render puts the saved CSS back
+    case 'css-lock': state.cssLocked = !state.cssLocked; break;
+    case 'css-save': { const v = String(document.querySelector('s-text-area[data-act="css-input"]')?.value || '').trim(); state.css = v; state.cssDropped = ['@import', '@font-face', '@keyframes'].filter((a) => v.toLowerCase().includes(a)); state.flash = 'Custom CSS saved'; break; }
+    case 'guide-toggle': if (el.dataset.done === '1') state.guideOpenDone = !state.guideOpenDone; else state.guideClosed = !state.guideClosed; break;
     case 'ms-state': { // My Selection preview: the tab opens the panel, the handle closes it (animated by CSS)
       const ms = document.querySelector('.ms'); if (!ms) return;
       ms.classList.toggle('is-open', el.dataset.val === 'open'); ms.classList.toggle('is-hover', el.dataset.val === 'hover');

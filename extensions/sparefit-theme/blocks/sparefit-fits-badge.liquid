@@ -7,6 +7,8 @@
 {%- assign sp = app.metafields.sparefit.config.value -%}
 {%- if sp and product -%}
   <script type="application/json" data-sp-config>{{ sp | json }}</script>
+  {%- comment -%} The merchant's custom CSS, scoped to SpareFit (custom-css.ts; "<" escaped). {%- endcomment -%}
+  {%- if sp.css != blank -%}<style data-sp-css>{{ sp.css }}</style>{%- endif -%}
   <div class="sp-badge-wrap" data-sp-badge data-product="{{ product.id }}"{% if request.design_mode %} data-sp-editor{% endif %}>
     <div class="sp-fit sp-fit--ask">{{ sp.s.askText | escape }}</div>
   </div>

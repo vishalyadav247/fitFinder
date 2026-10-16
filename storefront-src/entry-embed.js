@@ -1,32 +1,10 @@
 // sp-embed.js (app embed, every page): My Selection, the [sparefit-table] code in theme tabs
 // (filled by sp-product.js),
-// the save prompt on the theme's search page after a SpareFit search, and the search bundle
+// a clean search box on the theme's search page after a SpareFit search, and the search bundle
 // for SpareFit's own results page (which has no block to load it).
-import { askToSave, boot, each, getStore, onResultsPage } from "./core.js";
+import { boot, clearSkuQuery, each } from "./core.js";
 import { initMySelection } from "./my-selection.js";
 import { markTableCode } from "./product.js";
-
-const ASKED = "sparefit:asked";
-
-/** Theme search page opened by "Show {products}": ask once to save the selection. */
-function askOnSearchPage() {
-  if (document.querySelector("[data-sp-results]") || !onResultsPage()) return;
-  const picks = getStore().current;
-  const key = JSON.stringify(picks);
-  try {
-    if (sessionStorage.getItem(ASKED) === key) return;
-    sessionStorage.setItem(ASKED, key);
-  } catch {
-    return;
-  }
-  const main = document.querySelector("main, #MainContent, [role=main]");
-  if (!main) return;
-  const box = document.createElement("div");
-  box.className = "sp-ask-wrap page-width";
-  main.prepend(box);
-  askToSave(box, picks);
-  if (!box.firstChild) box.remove();
-}
 
 /** A block brings its own script and stylesheet; without one, the embed adds both. */
 function need(flag, src, css) {
@@ -50,9 +28,10 @@ if (!window.__sparefitEmbed) {
   boot(() => {
     each("[data-sp-embed]", "spEmbed", (el) => {
       initMySelection();
-      askOnSearchPage();
+      clearSkuQuery();
       // Features without a block on this page: run their bundle (load it, or run it again).
-      if (markTableCode(el)) need(
+      if (markTableCode(el))
+        need(
           "__sparefitProduct",
           el.getAttribute("data-product-src"),
           el.getAttribute("data-product-css"),

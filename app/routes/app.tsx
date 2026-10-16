@@ -25,6 +25,9 @@ import { queueStorefrontPublish } from "../services/jobs.server";
 import { shopPlan } from "../services/billing.server";
 import { AppLoading } from "../components/AppLoading";
 import { SupportChat } from "../components/SupportChat";
+import { ReviewPrompt } from "../components/ReviewPrompt";
+import { hasRecentSearches } from "../models/analytics.server";
+import { isReviewPromptEligible, REVIEW_ACTIVE_DAYS } from "../services/review";
 import theme from "../styles/theme.css?url";
 import appLoading from "../styles/app-loading.css?url";
 
@@ -80,14 +83,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
+  // App Store review prompt (services/review.ts): never while onboarding. A failed read only skips
+  // the ask; the page never fails over it.
+  let reviewEligible = false;
+  if (!onOnboarding) {
+    try {
+      reviewEligible = isReviewPromptEligible({
+        installedAt: shop.installedAt,
+        hasRecentSearches: await hasRecentSearches(shop.id, REVIEW_ACTIVE_DAYS),
+      });
+    } catch (error) {
+      console.error("review prompt check failed", {
+        shop: session.shop,
+        error,
+      });
+    }
+  }
+
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return { apiKey: process.env.SHOPIFY_API_KEY || "", reviewEligible };
 };
 
 const homeRel = { rel: "home" } as Record<string, string>;
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, reviewEligible } = useLoaderData<typeof loader>();
   // No sidebar menu while onboarding (specs/onboarding.md).
   const showNav = useLocation().pathname !== ONBOARDING;
 
@@ -114,6 +134,7 @@ export default function App() {
         )}
         <Outlet />
         <SupportChat />
+        <ReviewPrompt eligible={reviewEligible} />
       </AppProvider>
     </>
   );
@@ -126,7 +147,34 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
   const data = useRouteLoaderData<typeof loader>("routes/app");
-  if (isRouteErrorResponse(error)) return boundary.error(error);
+  // An unknown page inside the app: a friendly page (boundary.error would print the raw error).
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    const text =
+      "This page doesn't exist. Use the app menu to go to another page.";
+    if (!data?.apiKey) {
+      return (
+        <div style={{ padding: "48px 16px", maxWidth: 560, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 20, margin: "0 0 8px" }}>Page not found</h1>
+          <p style={{ margin: 0 }}>{text}</p>
+        </div>
+      );
+    }
+    return (
+      <AppProvider apiKey={data.apiKey}>
+        <s-page inlineSize="base">
+          <s-banner tone="warning" heading="Page not found">
+            {text}
+          </s-banner>
+        </s-page>
+      </AppProvider>
+    );
+  }
+  // Shopify's own responses (re-auth, bounce and exit-iframe pages) need boundary.error. A server
+  // error (e.g. Shopify unreachable during sign-in) gets the friendly page below: boundary.error
+  // would show only "Handling response".
+  if (isRouteErrorResponse(error) && error.status < 500) {
+    return boundary.error(error);
+  }
 
   const message =
     "This page couldn't be loaded. Reload the page to try again. If it keeps happening, contact support from Settings.";

@@ -179,3 +179,21 @@ export async function purgeOldStats(): Promise<number> {
   ]);
   return searches + checks;
 }
+
+/**
+ * Whether shoppers searched on the storefront in the last `days` days (the review prompt's
+ * engagement signal, services/review.ts). A read on the primary key (shop_id, day); runs on every
+ * admin page load.
+ */
+export async function hasRecentSearches(
+  shopId: string,
+  days: number,
+  now = new Date(),
+): Promise<boolean> {
+  const since = new Date(now.getTime() - days * 86_400_000);
+  const row = await prisma.searchStat.findFirst({
+    where: { shopId, day: { gte: since }, searches: { gt: 0 } },
+    select: { shopId: true },
+  });
+  return row !== null;
+}

@@ -48,6 +48,8 @@ import {
   type LinkCheckView,
 } from "../services/linking/link-runs.server";
 import { requestLinkCheck } from "../services/jobs.server";
+import { getPlans } from "../models/plan.server";
+import { effectivePlan, planWith } from "../services/billing";
 import { MAX_PICK } from "../services/linking/attachment";
 import { cellDisplay, type RowField } from "../services/fitment/rows";
 import { TableFooter } from "../components/TableFooter";
@@ -61,6 +63,7 @@ import {
 import styles from "../styles/product-mapping.css?url";
 import { SectionTitle } from "../components/SectionTitle";
 import { PageHeader } from "../components/PageHeader";
+import { LockedSection } from "../components/LockedSection";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -141,8 +144,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       productsWithoutData(shop.id, page, sizeParam(url, "pn")),
     x: (page: number) => universalProducts(shop.id, page, sizeParam(url, "xn")),
   };
-  const [fields, counts, firstUnlinked, firstWithout, firstUniversal] =
+  const [plans, fields, counts, firstUnlinked, firstWithout, firstUniversal] =
     await Promise.all([
+      getPlans(),
       listRowFields(shop.id),
       rowCounts(shop.id),
       read.u(pageParam(url, "u")),
@@ -174,6 +178,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     unlinked,
     withoutData,
     universal,
+    // Without Universal products in the plan: the plan that adds it ("" = none yet).
+    universalLocked: effectivePlan(plans, shop.plan).toggles.universalProducts
+      ? null
+      : (planWith(plans, "universalProducts")?.name ?? ""),
     linkCheck,
   };
 };
@@ -328,8 +336,10 @@ export default function ProductMappingPage() {
     unlinked,
     withoutData,
     universal,
+    universalLocked,
     linkCheck,
   } = useLoaderData<typeof loader>();
+  const locked = universalLocked !== null;
   const shopify = useAppBridge();
   const navigate = useNavigate();
   const navigation = useNavigation();
@@ -505,6 +515,62 @@ export default function ProductMappingPage() {
   const addRow = (sku: string) =>
     navigate(`/app/filter-data?add=${encodeURIComponent(sku)}`);
 
+  // The universal products list, or its empty state (blurred when the plan lacks the feature).
+  const universalList = universal.items.length ? (
+    <>
+      <s-table loading={paging("x")}>
+        <s-table-header-row>
+          <s-table-header listSlot="primary">Product</s-table-header>
+          <s-table-header>SKU</s-table-header>
+          <s-table-header>Action</s-table-header>
+        </s-table-header-row>
+        <s-table-body>
+          {universal.items.map((p) => (
+            <s-table-row key={p.productId}>
+              <s-table-cell>
+                <s-text type="strong">{p.title || "Unknown product"}</s-text>
+              </s-table-cell>
+              <s-table-cell>{p.sku || "—"}</s-table-cell>
+              <s-table-cell>
+                <s-button
+                  variant="tertiary"
+                  disabled={busy}
+                  onClick={() =>
+                    submit({
+                      intent: "universal-remove",
+                      productId: p.productId,
+                    })
+                  }
+                >
+                  Remove
+                </s-button>
+              </s-table-cell>
+            </s-table-row>
+          ))}
+        </s-table-body>
+      </s-table>
+      {footer("x", universal, universal.total, "products")}
+    </>
+  ) : (
+    <EmptyState
+      icon="globe"
+      heading="No universal products yet"
+      actions={
+        <s-button
+          variant="primary"
+          icon="plus"
+          disabled={busy || locked}
+          onClick={() => void addProducts()}
+        >
+          Add products
+        </s-button>
+      }
+    >
+      Universal products show in every search result, whatever the shopper
+      picks. For example tools, cleaning kits or cables.
+    </EmptyState>
+  );
+
   return (
     <s-page inlineSize="base">
       <PageHeader title="Product mapping">
@@ -653,9 +719,9 @@ export default function ProductMappingPage() {
                   )}
                 </s-stack>
                 <s-text color="subdued">
-                  These products have no filter rows, so they never appear in a
-                  search. Add rows for them, or mark them as universal if they
-                  fit every {noun}.
+                  {locked
+                    ? "These products have no filter rows, so they never appear in a search. Add rows for them."
+                    : `These products have no filter rows, so they never appear in a search. Add rows for them, or mark them as universal if they fit every ${noun}.`}
                 </s-text>
               </s-stack>
             </s-box>
@@ -691,18 +757,20 @@ export default function ProductMappingPage() {
                             >
                               Add filter row
                             </s-button>
-                            <s-button
-                              variant="tertiary"
-                              disabled={busy}
-                              onClick={() =>
-                                submit({
-                                  intent: "universal-mark",
-                                  productId: p.productId,
-                                })
-                              }
-                            >
-                              Mark as universal
-                            </s-button>
+                            {!locked && (
+                              <s-button
+                                variant="tertiary"
+                                disabled={busy}
+                                onClick={() =>
+                                  submit({
+                                    intent: "universal-mark",
+                                    productId: p.productId,
+                                  })
+                                }
+                              >
+                                Mark as universal
+                              </s-button>
+                            )}
                           </s-stack>
                         </s-table-cell>
                       </s-table-row>
@@ -745,7 +813,7 @@ export default function ProductMappingPage() {
                   </s-text>
                 </s-stack>
                 {/* Empty list: the empty state below has the button instead. */}
-                {universal.items.length > 0 && (
+                {universal.items.length > 0 && !locked && (
                   <s-button
                     icon="plus"
                     disabled={busy}
@@ -756,61 +824,20 @@ export default function ProductMappingPage() {
                 )}
               </s-grid>
             </s-box>
-            {universal.items.length ? (
-              <>
-                <s-table loading={paging("x")}>
-                  <s-table-header-row>
-                    <s-table-header listSlot="primary">Product</s-table-header>
-                    <s-table-header>SKU</s-table-header>
-                    <s-table-header>Action</s-table-header>
-                  </s-table-header-row>
-                  <s-table-body>
-                    {universal.items.map((p) => (
-                      <s-table-row key={p.productId}>
-                        <s-table-cell>
-                          <s-text type="strong">
-                            {p.title || "Unknown product"}
-                          </s-text>
-                        </s-table-cell>
-                        <s-table-cell>{p.sku || "—"}</s-table-cell>
-                        <s-table-cell>
-                          <s-button
-                            variant="tertiary"
-                            disabled={busy}
-                            onClick={() =>
-                              submit({
-                                intent: "universal-remove",
-                                productId: p.productId,
-                              })
-                            }
-                          >
-                            Remove
-                          </s-button>
-                        </s-table-cell>
-                      </s-table-row>
-                    ))}
-                  </s-table-body>
-                </s-table>
-                {footer("x", universal, universal.total, "products")}
-              </>
-            ) : (
-              <EmptyState
-                icon="globe"
-                heading="No universal products yet"
-                actions={
-                  <s-button
-                    variant="primary"
-                    icon="plus"
-                    disabled={busy}
-                    onClick={() => void addProducts()}
-                  >
-                    Add products
-                  </s-button>
+            {locked ? (
+              <LockedSection
+                plan={universalLocked ?? ""}
+                feature="Universal products"
+                text={
+                  universal.total
+                    ? "Your universal products show in searches again after you upgrade."
+                    : "Show products like tools or cables in every search result."
                 }
               >
-                Universal products show in every search result, whatever the
-                shopper picks. For example tools, cleaning kits or cables.
-              </EmptyState>
+                {universalList}
+              </LockedSection>
+            ) : (
+              universalList
             )}
           </s-section>
         )}

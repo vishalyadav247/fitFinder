@@ -87,6 +87,28 @@ beforeEach(() => {
   events.length = 0;
 });
 
+describe("theme search page after a SpareFit search", () => {
+  it("empties search boxes holding the SKU query and leaves the shopper's own text", () => {
+    const boxes = [
+      { value: 'variants.sku:"11241124" OR variants.sku:"4362"' },
+      { value: "brake pads" },
+    ];
+    const original = document.querySelectorAll;
+    const asked: string[] = [];
+    Object.assign(document, {
+      querySelectorAll: (sel: string) => (asked.push(sel), boxes),
+    });
+    try {
+      core.clearSkuQuery();
+    } finally {
+      Object.assign(document, { querySelectorAll: original });
+    }
+    expect(boxes.map((b) => b.value)).toEqual(["", "brake pads"]);
+    // hidden q inputs (filter/sort forms) keep the query
+    expect(asked).toEqual(["input[name=q]:not([type=hidden])"]);
+  });
+});
+
 describe("selections", () => {
   it("labels like the app (year + first dropdown, last dropdown)", () => {
     const p = sel("AUDI", "2008", "A6 C6 Avant (4F5)");
@@ -113,6 +135,21 @@ describe("selections", () => {
     expect(core.resultsUrl(sel("AUDI", "2008", "A6 C6"))).toBe(
       "/apps/sparefit/results?make=AUDI&year=2008&model=A6+C6",
     );
+  });
+
+  it("results links use the fields' readable names when the config has them", () => {
+    const named = {
+      ...config,
+      fields: config.fields.map((f) => ({ ...f, id: "id-" + f.id, n: f.id })),
+    };
+    core.loadConfig(named);
+    try {
+      expect(core.resultsUrl({ "id-make": "Tata", "id-model": "nexon" })).toBe(
+        "/apps/sparefit/results?make=Tata&model=nexon",
+      );
+    } finally {
+      core.loadConfig(config);
+    }
   });
 });
 

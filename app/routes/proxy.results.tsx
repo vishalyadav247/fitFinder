@@ -9,6 +9,7 @@ import {
 import {
   isComplete,
   parsePicks,
+  picksLinkQuery,
   picksQuery,
   selectionLabel,
 } from "../services/storefront/picks";
@@ -60,7 +61,7 @@ async function page({ request }: LoaderFunctionArgs) {
   }
   const query = picksQuery(search.fields, picks);
   const pageHref = (n: number) => {
-    const q = new URLSearchParams(query);
+    const q = picksLinkQuery(search.fields, picks);
     if (n > 1) q.set("page", String(n));
     return `${config.proxy}/results?${q}`;
   };

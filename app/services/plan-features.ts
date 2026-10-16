@@ -20,15 +20,28 @@ export const TOGGLE_KEYS = [
   "fitmentTable",
   "mySelection",
   "universalProducts",
-  "prioritySupport",
+  "importBackups",
+  "customCss",
 ] as const;
 export type ToggleKey = (typeof TOGGLE_KEYS)[number];
 
-/** Technical caps that no plan can raise. */
+/**
+ * Limits that are always a number from 0 to their cap (agreed 2026-10-16): no "Unlimited", and no
+ * plan can set more. The cap is also the most import files kept in storage.
+ */
 export const HARD_LIMITS: Partial<Record<LimitKey, number>> = {
-  searchFields: 20,
-  // "Unlimited" backups still keep the files of 100 imports at most (storage).
-  backups: 100,
+  searchFields: 10,
+  backups: 10,
+};
+/** The lowest value of a capped limit (0 when not listed). Backups are switched off as a feature. */
+const MIN_LIMITS: Partial<Record<LimitKey, number>> = { backups: 1 };
+
+/**
+ * A feature missing from a stored plan: off, except import backups, which every plan had before it
+ * became a switch (2026-10-16).
+ */
+const TOGGLE_DEFAULTS: Partial<Record<ToggleKey, boolean>> = {
+  importBackups: true,
 };
 
 export const LIMITS: Record<
@@ -48,12 +61,12 @@ export const LIMITS: Record<
   searchFields: {
     label: "Search fields",
     unit: "search fields",
-    help: "Dropdowns in the search. Never more than 20.",
+    help: "Dropdowns in the search. 0 to 10.",
   },
   backups: {
     label: "Import backups",
     unit: "import backups",
-    help: "Finished imports whose file and report are kept for download.",
+    help: "Downloadable import files, 1 to 10.",
   },
 };
 
@@ -74,9 +87,13 @@ export const TOGGLES: Record<ToggleKey, { label: string; help: string }> = {
     label: "Universal products",
     help: "Products that fit every selection.",
   },
-  prioritySupport: {
-    label: "Priority support",
-    help: "Shown on the plan card only.",
+  importBackups: {
+    label: "Import backups",
+    help: "Set in Limits.",
+  },
+  customCss: {
+    label: "Custom CSS",
+    help: "The merchant's own CSS for SpareFit's storefront parts (Settings).",
   },
 };
 
@@ -121,6 +138,16 @@ const limit = z.union([
     .max(1_000_000_000, "The limit is too high."),
 ]);
 
+/** A capped limit: a whole number from its minimum to the cap, never unlimited. */
+const capped = (min: number, cap: number) => {
+  const message = `Enter a number from ${min} to ${cap}.`;
+  return z.coerce
+    .number({ message })
+    .int(message)
+    .min(min, message)
+    .max(cap, message);
+};
+
 /** What the backoffice saves for one plan. Free plans get no price and no trial. */
 export const planInputSchema = z
   .object({
@@ -140,10 +167,15 @@ export const planInputSchema = z
       .min(0, "Trial days can't be negative.")
       .max(MAX_TRIAL_DAYS, `Use ${MAX_TRIAL_DAYS} days or fewer.`),
     limits: z.object(
-      Object.fromEntries(LIMIT_KEYS.map((k) => [k, limit])) as Record<
-        LimitKey,
-        typeof limit
-      >,
+      Object.fromEntries(
+        LIMIT_KEYS.map((k) => {
+          const cap = HARD_LIMITS[k];
+          return [
+            k,
+            cap === undefined ? limit : capped(MIN_LIMITS[k] ?? 0, cap),
+          ];
+        }),
+      ) as Record<LimitKey, typeof limit>,
     ),
     toggles: z.object(
       Object.fromEntries(TOGGLE_KEYS.map((k) => [k, z.boolean()])) as Record<
@@ -184,7 +216,10 @@ export const planInputSchema = z
 
 export type PlanInput = z.output<typeof planInputSchema>;
 
-/** A stored limits/toggles JSON value read defensively (missing keys: unlimited / off). */
+/**
+ * A stored limits/toggles JSON value read defensively (missing keys: unlimited / off). A capped
+ * limit is never above its cap; stored as unlimited (before the caps) it reads as the cap.
+ */
 export function readLimits(value: unknown): PlanLimits {
   const v = (value && typeof value === "object" ? value : {}) as Record<
     string,
@@ -193,10 +228,13 @@ export function readLimits(value: unknown): PlanLimits {
   return Object.fromEntries(
     LIMIT_KEYS.map((k) => {
       const n = v[k];
-      return [
-        k,
-        typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : null,
-      ];
+      const ok = typeof n === "number" && Number.isInteger(n) && n >= 0;
+      const cap = HARD_LIMITS[k];
+      if (cap !== undefined) {
+        const min = MIN_LIMITS[k] ?? 0;
+        return [k, ok ? Math.max(min, Math.min(n, cap)) : cap];
+      }
+      return [k, ok ? n : null];
     }),
   ) as PlanLimits;
 }
@@ -207,7 +245,10 @@ export function readToggles(value: unknown): PlanToggles {
     unknown
   >;
   return Object.fromEntries(
-    TOGGLE_KEYS.map((k) => [k, v[k] === true]),
+    TOGGLE_KEYS.map((k) => [
+      k,
+      typeof v[k] === "boolean" ? v[k] : (TOGGLE_DEFAULTS[k] ?? false),
+    ]),
   ) as PlanToggles;
 }
 
@@ -216,4 +257,9 @@ export function limitOf(plan: Pick<PlanView, "limits">, key: LimitKey): number {
   const n = plan.limits[key];
   const hard = HARD_LIMITS[key] ?? Infinity;
   return n === null ? hard : Math.min(n, hard);
+}
+
+/** Imported files a plan lets the merchant download: 0 without the Import backups feature. */
+export function backupsOf(plan: Pick<PlanView, "limits" | "toggles">): number {
+  return plan.toggles.importBackups ? limitOf(plan, "backups") : 0;
 }

@@ -11,6 +11,8 @@ S.home = () => {
     ['Go live', 'Add the search to your store', 'Add the search block to your home page and the fits badge to product pages in the theme editor. It only takes a few clicks.', 'store', 'Open storefront settings', 'store'],
     ['Plan', 'Choose a plan', 'Pick the plan that suits your catalog. Starter is free; paid plans start with a 14-day free trial.', 'plans', 'Compare plans', 'plans']];
   const doneCount = done.filter(Boolean).length;
+  // Once every step is done the guide starts collapsed; the toggle still opens it.
+  const closed = doneCount === 5 ? !state.guideOpenDone : !!state.guideClosed;
   const cur = Number.isInteger(state.guide) ? state.guide : Math.max(0, done.indexOf(false));
   const [, title, desc, go, cta, ic] = steps[cur];
   return `<s-page heading="Dashboard" inlineSize="base">
@@ -39,9 +41,9 @@ S.home = () => {
           <span>${doneCount}/5</span>
         </div>
         <div><h2>${doneCount === 5 ? 'You’re all set' : 'Setup guide'}</h2><p>${doneCount === 5 ? 'Your search is live on your store.' : 'Finish these steps to show the search on your store.'}</p></div>
-        <button class="g-toggle" data-act="guide-toggle" aria-expanded="${!state.guideClosed}" aria-label="${state.guideClosed ? 'Show' : 'Hide'} setup guide">${svg(state.guideClosed ? 'down' : 'up', 18, 2.2)}</button>
+        <button class="g-toggle" data-act="guide-toggle" data-done="${doneCount === 5 ? 1 : 0}" aria-expanded="${!closed}" aria-label="${closed ? 'Show' : 'Hide'} setup guide">${svg(closed ? 'down' : 'up', 18, 2.2)}</button>
       </div>
-      ${state.guideClosed ? '' : `
+      ${closed ? '' : `
       <div class="g-seg" aria-hidden="true">${steps.map((x, i) => `<span class="${done[i] ? 'done' : i === done.indexOf(false) ? 'cur' : ''}"></span>`).join('')}</div>
       <ol class="g-steps" aria-label="Setup steps">${steps.map(([label, , , , , sic], i) => `<li><button data-act="guide" data-i="${i}" class="${done[i] ? 'done' : ''}${i === done.indexOf(false) ? ' now' : ''}${i === cur ? ' cur' : ''}" aria-current="${i === cur ? 'step' : 'false'}">
         <span class="gs-ico">${svg(done[i] ? 'check' : sic, 14, 2.4)}</span>

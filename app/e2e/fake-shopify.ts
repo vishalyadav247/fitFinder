@@ -69,6 +69,10 @@ export class FakeShopify {
   readonly uploads = new Map<string, Uint8Array>();
   /** Operation names answered once with a THROTTLED error (then normally). */
   readonly throttleOnce = new Set<string>();
+  /** While true, the OAuth token exchange answers 503 (a Shopify outage). */
+  tokenExchangeDown = false;
+  /** Shops that are real (paying) stores, not development stores. */
+  readonly liveStores = new Set<string>();
   /** Status polls a new bulk export answers RUNNING before it is COMPLETED. */
   bulkRunningPolls = 0;
   private bulkPolls = new Map<string, number>();
@@ -146,6 +150,9 @@ export class FakeShopify {
         const shop = this.shops.get(url.hostname);
         if (!shop) return this.miss(`unknown shop ${url.hostname}`);
         if (url.pathname === "/admin/oauth/access_token") {
+          if (this.tokenExchangeDown) {
+            return new Response("Service Unavailable", { status: 503 });
+          }
           return this.tokenExchange(shop);
         }
         if (/^\/admin\/api\/[^/]+\/graphql\.json$/.test(url.pathname)) {
@@ -225,7 +232,9 @@ export class FakeShopify {
     ShopGid: (shop) => ({ shop: { id: shop.gid } }),
 
     // Billing API (Manual Pricing). Test stores are development stores.
-    ShopPlanKind: () => ({ shop: { plan: { partnerDevelopment: true } } }),
+    ShopPlanKind: (shop) => ({
+      shop: { plan: { partnerDevelopment: !this.liveStores.has(shop.domain) } },
+    }),
 
     ActiveSubscriptions: (shop) => ({
       currentAppInstallation: {

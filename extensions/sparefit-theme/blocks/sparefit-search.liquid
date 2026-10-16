@@ -6,6 +6,8 @@
 <div class="sp-search-wrap" data-sp-search>
   {%- if sp -%}
     <script type="application/json" data-sp-config>{{ sp | json }}</script>
+    {%- comment -%} The merchant's custom CSS, scoped to SpareFit (custom-css.ts; "<" escaped). {%- endcomment -%}
+    {%- if sp.css != blank -%}<style data-sp-css>{{ sp.css }}</style>{%- endif -%}
     {%- comment -%} The first dropdown's values (sync.server.ts › publishFirstList): no request on page load. {%- endcomment -%}
     <script type="application/json" data-sp-first>{{ app.metafields.sparefit.first.value | json }}</script>
     {%- liquid

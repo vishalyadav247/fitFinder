@@ -311,7 +311,7 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
       "f3.csv",
       "f2.csv",
     ]);
-    // Files are only deleted past the technical cap (100), never by the plan's limit.
+    // Files are only deleted past the backups cap (10), never by the plan's limit.
     expect(await storage().size(keys[0])).not.toBeNull();
     expect(await storage().size(keys[1])).not.toBeNull();
     expect(await storage().size(keys[6])).not.toBeNull();

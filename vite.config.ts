@@ -77,6 +77,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
+          // Seeded plans during the run, the dev database's own afterwards.
+          globalSetup: ["app/tests/global-setup.ts"],
           // vitest's default excludes, written out: this file must not import vitest at runtime
           // (the production image builds with dev dependencies left out).
           exclude: ["**/node_modules/**", "**/.git/**", "app/e2e/**"],
@@ -88,6 +90,21 @@ export default defineConfig({
         test: {
           name: "e2e",
           include: ["app/e2e/**/*.e2e.test.ts"],
+          // The App Store review suite runs the production build: npm run test:review builds first.
+          exclude: ["app/e2e/app-review.e2e.test.ts"],
+          // One file at a time: they share the e2e shops, the pgboss_e2e schema and its cleanup.
+          fileParallelism: false,
+          testTimeout: 120_000,
+          hookTimeout: 60_000,
+        },
+      },
+      {
+        // npm run test:review: the App Store review suite against the production build.
+        extends: true,
+        test: {
+          name: "review",
+          include: ["app/e2e/app-review.e2e.test.ts"],
+          fileParallelism: false,
           testTimeout: 120_000,
           hookTimeout: 60_000,
         },

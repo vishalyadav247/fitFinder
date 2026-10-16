@@ -279,14 +279,19 @@ describe("GET search", () => {
     );
   });
 
-  it("falls back to SpareFit's page when nothing fits", async () => {
+  it("searches the theme with a no-match query when nothing fits", async () => {
     fitSkus.mockResolvedValue({ skus: [], products: 0, withoutSku: 0 });
     const res = await call(
       searchRoute,
       "search",
       "make=AUDI&year=2008&model=A6",
     );
-    expect(await res.json()).toEqual({ mode: "page", reason: "none" });
+    expect(await res.json()).toEqual({
+      mode: "search",
+      q: 'variants.sku:"sparefit-no-match"',
+      skus: 0,
+      missing: 0,
+    });
   });
 
   it("refuses incomplete selections", async () => {

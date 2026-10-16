@@ -22,7 +22,7 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
 - **Design:** dark glass panels (blur, light borders) over a deep gradient with slow-moving colour blobs (`app/styles/backoffice.css`). The pages use plain HTML; there are no Polaris web components or App Bridge, because those need the Shopify admin. Colour motion stops under reduced motion.
 - **Left sidebar:** sticky.
   - At the top, the logo with "SpareFit · Backoffice".
-  - Under the label "Manage", the nav items **Overview**, **Plans** and **Profile**. The active item is highlighted, and Plans also stays active on its edit pages. Signing in lands on Overview. A new section is one entry in `NAV` in `app/routes/backoffice.tsx`.
+  - Under the label "Manage", the nav items **Overview**, **Plans**, **Stores**, **Logs** and **Profile**. The active item is highlighted, and Plans also stays active on its edit pages. Signing in lands on Overview. A new section is one entry in `NAV` in `app/routes/backoffice.tsx`.
   - At the bottom, the admin's avatar letter and name (or email) and **Sign out**.
 - **Contextual save bar (Shopify admin style):** edit pages have no buttons at the bottom.
   - As soon as a field changes, a bar appears at the top with "Unsaved changes", **Discard** and **Save**. While saving, it shows "Saving…" with a spinner.
@@ -32,6 +32,8 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
   - Success toasts hide after 5 s; errors are red and hide after 8 s.
   - Saves show "{Plan} saved" or "Profile saved".
   - Errors show "Check the highlighted fields." or the server's message, with the field errors under the fields.
+
+- **Error page:** a backoffice page that fails shows the backoffice's own glass card, "Something went wrong" / "This page couldn't be loaded. Try again; if it keeps happening, the error is in Logs." (or "Page not found" / "This backoffice page doesn't exist.") with **Back to Overview**, not the merchant-facing app message.
 
 ## Screens
 1. **Sign in** (`/backoffice/login`):
@@ -47,14 +49,6 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
      - **Uninstalls**, with "In the last 30 days" under it.
    - **Installs, last 30 days:** one bar per UTC day on a shared baseline, a dashed line at the highest value, and the first and last date under the chart. Hovering a bar shows "{date} · {n} installs". A hidden table gives the same numbers to screen readers. With no installs: "No installs in the last 30 days."
    - **Stores per plan:** a labelled bar per plan ("{name} (free)" on free plans) plus "No plan picked yet" in grey, with the count at the right, and a "Manage plans →" link.
-   - **Setup progress:** of the installed stores, how many have:
-     - Installed
-     - Search set up (store type chosen)
-     - Filter data added
-     - Products linked
-
-     Each shows a count and a percentage, with "Of the stores that have SpareFit installed now." under the bars.
-   - **Imports, last 7 days:** Finished, Failed (red when above 0) and Rows added.
    - **Trials ending in 7 days:** up to 8 rows (domain, plan, "Ends {date}"), or "No trials end in the next 7 days."
    - **Recent activity:** the last 10 events of the past 30 days, newest first: "Installed SpareFit", "Uninstalled SpareFit", "Started {plan}" and "Left {plan}". Each row has a coloured dot, the domain and "{n} h ago" (the exact UTC time on hover). With no events: "Nothing happened in the last 30 days."
 3. **Plans** (`/backoffice/plans`; was `/backoffice` until 2026-10-14, and the app-wide numbers moved to Overview):
@@ -66,7 +60,34 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
      - The four limits.
      - The included features as chips, or "No extra features".
      - "{n} stores", and an **Edit** button that shows a spinner while opening.
-4. **Edit plan** (`/backoffice/plans/{key}`; "← Plans" goes to `/backoffice/plans`):
+4. **Stores** (`/backoffice/stores`, after Plans in the nav; added 2026-10-15, product owner): every store, from `storeList` in `app/models/backoffice-stats.server.ts`. Read-only. After the store type ("Automotive · Logs"), a **Logs** link (labelled "Logs for {domain}") opens Logs filtered to that store (last 7 days). The domain link says "(opens in a new tab)" to screen readers.
+   - Header: "Stores" and "Every store with SpareFit: its plan, search fields and how much it uses them."
+   - One glass card with the filters, the table and the footer:
+   - **Filters** (in the URL, so a view can be bookmarked; a GET form): "Search by domain" (applies 350 ms after typing), Status (**Installed** default / Uninstalled / All stores), Plan (All plans / each plan / No plan picked yet), Sort (**Newest installs** default / Last active / Domain A–Z). A changed filter goes back to page 1; odd URL values fall back to the defaults, and a page past the end shows the last page.
+   - **Columns:** Store (domain, a link to the storefront in a new tab, with the store type under it or "Not set up yet") · Plan (plan badge, "No plan", or red "Uninstalled {date}"; plus "Trial · ends {date}" while in a trial) · Search fields (the field names in order, "Make › Year › Model"; "—" before onboarding) · Filter rows · Linked SKUs · Searches (30 d) · Installed (date) · Last active (last admin visit, "{n} h ago"). Uninstalled rows are dimmed.
+   - The counts are read only for the stores on the page (a big catalog doesn't slow the list).
+   - **Footer** (the paged-table standard): "Showing x–y of n" left, ‹ Page n of m › centred, Rows per page 10 / 25 / 50 right.
+   - Empty: "No stores have SpareFit installed yet.", or "No stores match these filters." when filtered.
+5. **Logs** (`/backoffice/logs`, after Stores in the nav; added 2026-10-15, product owner): the app's errors, warnings and slow requests, to understand performance and debug. Read-only, apart from the retention.
+   - **What is logged** (`app/services/logs/`):
+     - Every `console.error` (**Error**) and `console.warn` (**Warning**) of the web server and the job worker; they still print to the server console. "area: what happened" messages give the source ("storefront", "import"…), otherwise "app". The shop is read from the logged values (`shop`, `domain`…, or `shopId`, looked up when the entry is saved).
+     - Errors no route handled (`handleError` in `entry.server.tsx`: "route: unhandled error" with the method and path); requests the browser cancelled are left out.
+     - **Slow requests:** the root route's middleware (`v8_middleware`) times every request (pages, data requests, API, app proxy, webhooks); slower than `LOG_SLOW_MS` (default 3,000 ms) → "Slow request: {METHOD} {path}" with the duration. Uploads and file downloads are left out (slow because of their size). The shop is named only for successful (2xx) requests to routes that verify the caller (`/app`, `/api`, `/proxy`, `/webhooks`). Only the path is kept, never the query string. Bots are left out (their pages render fully before the response).
+     - Framework and dev-server notices are ignored. `LOG_CAPTURE=false` turns capture off.
+   - **Privacy and safety:** access and session tokens, bearer values, passwords and secrets (also `client_secret`, `…_API_SECRET`, escaped JSON), whole cookie headers, signatures and HMACs, URL credentials (`user:pass@`), OAuth `code` / `state` / `session` URL parameters, shopper ids (`logged_in_customer_id`), IP addresses and email addresses are removed before saving; error codes (Prisma `P2002`) stay readable. Messages are cut at 500 characters, details at 8,000. Saving runs in the background and never holds up or fails the request; at most 200 entries wait, more are dropped and reported as one warning.
+   - **Grouping:** the same level, source, message, store, request path and error (type + first line; numbers ignored) within an hour is one row with **Times**, first and last seen; slow requests keep the slowest duration.
+   - **Header:** "Logs", "Errors, warnings and slow requests from the app and its background jobs." and, on the right, **Keep logs for** 7 days / 14 days (default) / 1 month (Origin-checked post).
+     - A longer period saves at once (nothing is deleted).
+     - A shorter one asks first (confirm every delete): a dialog "Keep logs for {n}?", "Entries last seen more than {n} ago will be deleted now. This can't be undone.", **Cancel** (focused; Esc too) and red **Delete older entries**. Cancel puts the select back.
+     - Saved: toast "Logs are kept for {n}" (+ " · {n} older entries deleted"). Refused: red toast "Choose 7, 14 or 30 days." and the select goes back to the saved value.
+   - **Level tabs** with counts for the current store, time and search: **All**, **Errors**, **Warnings**, **Slow requests**.
+   - **Filters** (in the URL): "Search messages, sources and paths" (350 ms after typing), Store (**All stores** / App-wide (no store) / each store with entries, most recent first), Time (Last hour / **Last 24 hours** / Last 7 days / Everything kept). Odd URL values fall back to the defaults; a page past the end shows the last page.
+   - **Table:** Level (red Error with an alert icon, amber Warning with an info icon, blue Slow request with a clock icon) · Message (source and duration under it) · Store ("App-wide" when none) · Times · Last seen ("{n} h ago", exact UTC time on hover), newest first. Durations show as "{n.n} s". Clicking a message (a button with `aria-expanded`) opens its details under the row: **First seen**, **Last seen** (UTC), **Times**, **Request** and **Slowest** (when known), then the logged details (stack, values) in a scrolling monospace box, or "No more details were logged."
+   - Filter fields follow the URL (opening Logs from the nav shows the defaults again).
+   - Footer: the paged-table standard (shared `TableFooter`).
+   - Empty: "Nothing logged in the last 24 hours. All quiet." (the chosen time), "No errors, warnings or slow requests. All quiet." (everything kept), or "No log entries match these filters."
+   - **Deleting:** every night in the daily purge job (03:15 UTC), entries last seen before the retention, in batches of 5,000; a purged store's entries are deleted with the store (`purge.server.ts`). The store filter lists stores with entries in the chosen time.
+6. **Edit plan** (`/backoffice/plans/{key}`; "← Plans" goes to `/backoffice/plans`):
    - Header: "← Plans", the title "Edit {plan}" and "Changes to limits and features apply right away. Price and trial changes apply to new subscriptions."
    - Sections in glass cards, with toggle switches instead of checkboxes:
      - **General:** Name (max 40), Description (max 160; one line on the card), and "Show this plan to merchants". Hidden plans can't be picked; stores already on them keep them. At least one plan must stay shown.
@@ -76,22 +97,22 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
          - Monthly price in USD, above 0.
          - Yearly price, optional (empty means monthly only; above 0 when set).
          - Free trial in days, 0–365, default 14. The days a store has already used are taken off.
-     - **Limits:** one box per limit, with a number (an empty box is refused) and an "Unlimited" switch. Search fields says "Up to the maximum (20)" instead.
+     - **Limits:** one box per limit, with a number (an empty box is refused). Filter rows and linked products also have an "Unlimited" switch; search fields (0 to 10) and import backups (1 to 10) have none. Import backups has an "Included in this plan" switch instead (the `importBackups` feature); switched off, its number is dimmed and kept.
        - Filter rows
        - Linked products
-       - Search fields (never more than 20)
-       - Import backups ("unlimited" lists up to 100)
+       - Search fields (0 to 10)
+       - Import backups (1 to 10, "Downloadable import files, 1 to 10."; switch "Included in this plan")
        - Lowering a limit never deletes data.
      - **Features:** one switch per feature, each with its help text.
        - Fits badge
        - Fitment table
        - My Selection floating button
        - Universal products
-       - Priority support (shown on the card only)
+       - Custom CSS (Settings › Custom CSS; added 2026-10-16, off on every plan until switched on)
      - **Extra card lines:** one line per row (max 12, 120 characters each), shown after the generated lines.
    - **Validation:** zod `planInputSchema` (`app/services/plan-features.ts`). Errors appear under each field, plus the error toast.
    - **Saving:** a save returns to Plans (`/backoffice/plans?saved={key}`) with the toast "{Plan} saved".
-5. **Profile** (`/backoffice/profile`):
+7. **Profile** (`/backoffice/profile`):
    - The title "Profile" and "Your name, sign-in email and password."
    - While the env values are still the login, an info banner: "You're signed in with the email and password from the server settings. Save this page once to manage them here; after that, these values are used to sign in."
    - **Account:** Name (optional, max 80; shown in the sidebar) and Email ("You sign in with this email.").

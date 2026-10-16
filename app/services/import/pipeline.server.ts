@@ -32,7 +32,7 @@ import {
 import { buildRow } from "./transform";
 import { overLimitMessage } from "../billing.server";
 import { limitMessage } from "../billing";
-import { HARD_LIMITS, limitOf } from "../plan-features";
+import { HARD_LIMITS, backupsOf, limitOf } from "../plan-features";
 import { shopPlanView } from "../../models/plan.server";
 
 export const KEEP_FILES = 5;
@@ -167,12 +167,16 @@ export async function currentJob(shopId: string) {
   });
 }
 
-/** Import history: the newest finished imports that still have their file (plan's backups). */
-export async function importHistory(shopId: string) {
+/**
+ * Import history: the newest finished imports, as many as the plan's backups. Without the Import
+ * backups feature, the newest 3 (shown locked, without downloads).
+ */
+export async function importHistory(shopId: string, kept?: number) {
   return prisma.importJob.findMany({
     where: { shopId, status: "completed" },
     orderBy: { finishedAt: "desc" },
-    take: await keptFiles(shopId),
+    // Without backups, the newest few show blurred behind the upgrade layer.
+    take: (kept ?? (await keptFiles(shopId))) || 3,
     // What the history list shows; not the stored columns/mapping documents.
     select: {
       id: true,
@@ -865,14 +869,13 @@ async function saveJobMapping(job: ImportJob) {
   ]);
 }
 
-/** How many finished imports the history shows: the plan's import backups (at least 1). */
+/** Imported files the merchant can download: the plan's import backups (0 without the feature). */
 export async function keptFiles(shopId: string) {
-  const n = limitOf(await shopPlanView(shopId), "backups");
-  return Math.max(1, n);
+  return backupsOf(await shopPlanView(shopId));
 }
 
 /**
- * Deletes the files of finished imports past the technical cap (100). The plan's backups limit only
+ * Deletes the files of finished imports past the backups cap (10). The plan's backups limit only
  * decides how many the history shows (keptFiles), so a downgrade or a lower limit never deletes a
  * backup the shop could need after an upgrade.
  */

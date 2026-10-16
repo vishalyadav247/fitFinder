@@ -19,6 +19,7 @@ import { shopPlanView } from "../models/plan.server";
 import { dashboardFacts } from "../services/dashboard.server";
 import { guideSteps, overviewCards } from "../services/dashboard";
 import { STORE_TYPES } from "../services/store-types";
+import { FoldToggle } from "../components/FoldToggle";
 import { Icon } from "../components/Icon";
 import styles from "../styles/dashboard.css?url";
 import { SectionTitle } from "../components/SectionTitle";
@@ -51,7 +52,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       linkedProductCount(shop.id),
     ]);
     if (!facts) throw new Error("SpareFit isn't set up for this store.");
-    const used = { rows: facts.rowCount, products };
+    const used = {
+      rows: facts.rowCount,
+      products,
+      searchFields: fields.length,
+    };
     const limits = limitsOf(await shopPlanView(shop.id));
     return {
       facts,
@@ -216,16 +221,22 @@ function DashboardDetails({
   const firstOpen = steps.findIndex((s) => !s.done);
   const [cur, setCur] = useState(Math.max(0, firstOpen));
 
-  // The guide's collapsed state is kept per shop in this browser.
+  // The guide's collapsed state is kept per shop in this browser. Once every step is done it
+  // starts collapsed whatever was stored; the toggle still opens it.
+  const allDone = doneCount === steps.length;
   const closedKey = `sparefit:guide-closed:${shop}`;
   const [closed, setClosed] = useState<boolean | null>(null);
   useEffect(() => {
+    if (allDone) {
+      setClosed(true);
+      return;
+    }
     try {
       setClosed(localStorage.getItem(closedKey) === "1");
     } catch {
       setClosed(false); // storage blocked: open
     }
-  }, [closedKey]);
+  }, [closedKey, allDone]);
   const toggle = () => {
     const next = closed !== true;
     setClosed(next);
@@ -244,8 +255,8 @@ function DashboardDetails({
       {data.over.length > 0 && (
         <s-box paddingBlockEnd="base">
           <s-banner tone="warning" heading="You're over your plan's limits">
-            The {data.planName} plan allows {listText(data.over)}. New rows or
-            links are refused until you upgrade or remove some.
+            The {data.planName} plan allows {listText(data.over)}. New rows,
+            links or fields are refused until you upgrade or remove some.
             <s-button
               slot="secondary-actions"
               onClick={() => navigate("/app/plans")}
@@ -306,19 +317,11 @@ function DashboardDetails({
                   : "Finish these steps to show the search on your store."}
               </p>
             </div>
-            <button
-              type="button"
-              className="sp-g-toggle"
-              onClick={toggle}
-              aria-expanded={closed === false}
-              aria-label={`${closed !== false ? "Show" : "Hide"} setup guide`}
-            >
-              <Icon
-                name={closed !== false ? "down" : "up"}
-                size={18}
-                stroke={2.2}
-              />
-            </button>
+            <FoldToggle
+              open={closed === false}
+              label="setup guide"
+              onToggle={toggle}
+            />
           </div>
           {closed === false && (
             <>

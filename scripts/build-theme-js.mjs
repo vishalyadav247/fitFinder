@@ -2,7 +2,7 @@
 // extensions/sparefit-theme/assets/, minified: one bundle per place it runs, so a page loads
 // only what it shows. JS bundles stay under Theme Check's AssetSizeAppBlockJavaScript threshold
 // (10,000 bytes). The embed's stylesheet loads on every page and blocks rendering, so it holds
-// only the save prompt and My Selection; blocks bring their own.
+// only My Selection; blocks bring their own.
 //   node scripts/build-theme-js.mjs          build
 //   node scripts/build-theme-js.mjs --check  fail when an asset is out of date or too big
 import { build, transform } from "esbuild";
@@ -18,8 +18,8 @@ export const BUNDLES = {
 const CSS = "storefront-src/css/";
 /** Stylesheets: concatenated source parts. */
 export const STYLES = {
-  "sp-embed.css": ["base.css", "ask.css", "my-selection.css"],
-  "sp-search.css": ["base.css", "search.css", "ask.css"],
+  "sp-embed.css": ["base.css", "my-selection.css"],
+  "sp-search.css": ["base.css", "search.css"],
   "sp-product.css": ["base.css", "product.css"],
 };
 

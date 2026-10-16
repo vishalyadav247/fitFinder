@@ -430,7 +430,9 @@ export async function dbNow(): Promise<Date> {
 /**
  * Replaces the cache with a fresh export, in one transaction. `exportStartedAt` (database time,
  * taken before the export started): products the webhook job wrote or deleted after that are
- * newer than the export and are kept as they are.
+ * newer than the export and are kept as they are. updated_at has millisecond precision, so a write
+ * in the same millisecond as the start ties with it: ties go to the webhook write (at least as new
+ * as the export's copy), otherwise a delete in that millisecond came back with the export.
  */
 export async function replaceCatalog(
   shopId: string,
@@ -443,16 +445,16 @@ export async function replaceCatalog(
         (
           await tx.$queryRaw<{ product_id: string }[]>`
             SELECT product_id FROM catalog_products
-            WHERE shop_id = ${shopId} AND updated_at > ${exportStartedAt}`
+            WHERE shop_id = ${shopId} AND updated_at >= ${exportStartedAt}`
         ).map((r) => r.product_id),
       );
       await tx.$executeRaw`
         DELETE FROM catalog_variants v WHERE v.shop_id = ${shopId} AND NOT EXISTS (
           SELECT 1 FROM catalog_products p WHERE p.shop_id = v.shop_id
-            AND p.product_id = v.product_id AND p.updated_at > ${exportStartedAt})`;
+            AND p.product_id = v.product_id AND p.updated_at >= ${exportStartedAt})`;
       await tx.$executeRaw`
         DELETE FROM catalog_products
-        WHERE shop_id = ${shopId} AND updated_at <= ${exportStartedAt}`;
+        WHERE shop_id = ${shopId} AND updated_at < ${exportStartedAt}`;
       const fresh = products.filter((p) => !newer.has(p.productId));
       await insertProducts(tx, shopId, fresh);
       await insertVariants(tx, shopId, fresh);

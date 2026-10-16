@@ -1,6 +1,6 @@
 // Backoffice layout (/backoffice): the super admin's panel outside the Shopify admin
-// (specs/backoffice.md). Glass sidebar with the sections (Plans for now; new sections are one
-// entry in NAV) and the signed-in admin with Sign out. No App Bridge or Polaris here.
+// (specs/backoffice.md). Glass sidebar with the sections (Overview, Plans, Stores, Logs, Profile; a
+// new section is one entry in NAV) and the signed-in admin with Sign out. No App Bridge or Polaris here.
 import type {
   LinksFunction,
   LoaderFunctionArgs,
@@ -8,12 +8,14 @@ import type {
 } from "react-router";
 import {
   Form,
+  isRouteErrorResponse,
   Link,
   NavLink,
   Outlet,
   useLoaderData,
   useLocation,
   useNavigation,
+  useRouteError,
 } from "react-router";
 import { requireAdmin } from "../services/backoffice-auth.server";
 import { Blobs, Icon, type IconName } from "../components/backoffice/ui";
@@ -39,6 +41,8 @@ const NAV: { to: string; label: string; icon: IconName; match?: RegExp }[] = [
     icon: "plans",
     match: /^\/backoffice\/plans(\/.*)?$/,
   },
+  { to: "/backoffice/stores", label: "Stores", icon: "store" },
+  { to: "/backoffice/logs", label: "Logs", icon: "alert" },
   { to: "/backoffice/profile", label: "Profile", icon: "user" },
 ];
 
@@ -103,6 +107,38 @@ export default function BackofficeLayout() {
           </div>
         </main>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A backoffice page that failed (a loader or action error): the backoffice's own message, not the
+ * merchant-facing one of the root boundary. The detail is in Logs ("route: unhandled error").
+ */
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const notFound = isRouteErrorResponse(error) && error.status === 404;
+  return (
+    <div className="bo">
+      <Blobs />
+      <main className="bo-login">
+        <div className="bo-glass bo-login-card">
+          <h1 className="bo-title">
+            {notFound ? "Page not found" : "Something went wrong"}
+          </h1>
+          <p className="bo-sub">
+            {notFound
+              ? "This backoffice page doesn't exist."
+              : "This page couldn't be loaded. Try again; if it keeps happening, the error is in Logs."}
+          </p>
+          <a
+            href="/backoffice"
+            className="bo-btn bo-btn--primary bo-btn--block"
+          >
+            Back to Overview
+          </a>
+        </div>
+      </main>
     </div>
   );
 }

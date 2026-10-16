@@ -25,6 +25,7 @@ import { PageHeader } from "../components/PageHeader";
 import { SectionTitle } from "../components/SectionTitle";
 import { EmptyState } from "../components/EmptyState";
 import styles from "../styles/analytics.css?url";
+import { Option, Select } from "../components/Select";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
@@ -89,8 +90,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 type Data = ReturnType<typeof useLoaderData<typeof loader>>;
 
-const valueOf = (e: Event) => (e.currentTarget as HTMLSelectElement).value;
-
 export default function AnalyticsPage() {
   const data = useLoaderData<typeof loader>();
   const [params, setParams] = useSearchParams();
@@ -106,18 +105,18 @@ export default function AnalyticsPage() {
     <s-page inlineSize="base">
       <PageHeader title="Analytics">
         <div className="sp-an-period">
-          <s-select
+          <Select
             label="Period"
             labelAccessibilityVisibility="exclusive"
             value={String(data.days)}
-            onChange={(e) => setParam("days", valueOf(e))}
+            onChange={(v) => setParam("days", v)}
           >
             {PERIODS.map((p) => (
-              <s-option key={p} value={String(p)}>
+              <Option key={p} value={String(p)}>
                 Last {p} days
-              </s-option>
+              </Option>
             ))}
-          </s-select>
+          </Select>
         </div>
       </PageHeader>
       {!r.hasData ? (
@@ -399,18 +398,18 @@ function FieldValues({
             Most searched by field
           </SectionTitle>
           <div className="sp-an-field">
-            <s-select
+            <Select
               label="Search field"
               labelAccessibilityVisibility="exclusive"
               value={data.field}
-              onChange={(e) => onField(valueOf(e))}
+              onChange={(v) => onField(v)}
             >
               {data.fields.map((f) => (
-                <s-option key={f.id} value={f.id}>
+                <Option key={f.id} value={f.id}>
                   {f.label}
-                </s-option>
+                </Option>
               ))}
-            </s-select>
+            </Select>
           </div>
         </s-grid>
         {data.values.length === 0 ? (

@@ -71,6 +71,7 @@ This is prototype code, not app code. In the real app the screens become React r
 6. **Notifications:** after an action (saved, deleted, imported, exported, linked) show a Shopify toast — App Bridge `shopify.toast.show(message)`, `{ isError: true }` for errors. Use `s-banner` only for lasting states on a page (e.g. "Your search is hidden"). The prototype draws a toast look-alike (`showToast()` in `scripts/core/shared-ui.js`).
 7. **Confirm every delete** with a small Polaris `s-modal` (red primary button + Cancel). Never delete on one click.
 8. **No AI features.** Automatic matching is rule-based (header names, SKUs).
+9. **Dropdowns open below the field** (2026-10-16). The built app uses `Select` / `Option` (`app/components/Select.tsx`) instead of `s-select`: `s-select` is the native `<select>`, which macOS draws over the field. `Select` is a field-styled `s-clickable` that opens an `s-popover` list below it (selected option ticked; Up/Down/Home/End, Escape). Where a spec says `s-select`, read it as `Select`. The prototype keeps `s-select`.
 
 ## What is simulated
 

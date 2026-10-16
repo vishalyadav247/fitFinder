@@ -1,6 +1,6 @@
 // The backoffice plan form as planInputSchema's input: checkboxes are "on" when ticked, a ticked
-// "unlimited" box makes the limit null, card lines are one per row. Pure.
-import { LIMIT_KEYS, TOGGLE_KEYS } from "./plan-features";
+// "unlimited" box makes the limit null (capped limits have none), card lines are one per row. Pure.
+import { HARD_LIMITS, LIMIT_KEYS, TOGGLE_KEYS } from "./plan-features";
 
 export function formToPlanInput(form: FormData) {
   const text = (k: string) => String(form.get(k) ?? "");
@@ -18,7 +18,9 @@ export function formToPlanInput(form: FormData) {
       LIMIT_KEYS.map((k) => [
         k,
         // An empty box is refused ("Enter a whole number."), not saved as 0.
-        on(`unlimited.${k}`) ? null : text(`limit.${k}`).trim() || undefined,
+        on(`unlimited.${k}`) && HARD_LIMITS[k] === undefined
+          ? null
+          : text(`limit.${k}`).trim() || undefined,
       ]),
     ),
     toggles: Object.fromEntries(TOGGLE_KEYS.map((k) => [k, on(`toggle.${k}`)])),
