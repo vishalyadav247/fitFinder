@@ -30,11 +30,13 @@ Billing method **Recurring charge** with one plan marked **Free** (shows "Free p
 
 | Plan | Price | Trial | Plan features (for the pricing card) |
 | --- | --- | --- | --- |
-| Starter | Free | — | 50 linked products · 5,000 filter rows |
-| Growth | $29/month or $290/year | 14 days | 5,000 linked products · 500,000 filter rows |
-| Pro | $99/month or $990/year | 14 days | Unlimited products and rows |
+| Starter | Free | — | 5,000 filter rows · 50 linked products · fits badge · 5 import backups |
+| Growth | $29/month or $290/year | 14 days | 500,000 filter rows · 5,000 linked products · fits badge · fitment table · My Selection · universal products · 5 import backups |
+| Pro | $99/month or $990/year | 14 days | Unlimited filter rows and linked products · everything in Growth |
 
-These are the seeded plans (migration `20261013120000_plans_backoffice`); the backoffice is the source of truth. Keep the listing's pricing identical to the backoffice plans and to the Plans page in the app (4.2.1: include trial length and every charge).
+The fourth slot (Business, $199/month or $1,990/year) is hidden and stays off the listing while it is hidden. Custom CSS is off on every seeded plan; list it only on plans where the backoffice turns it on. Search fields have no plan limit in the seed (the app caps them at 20).
+
+These are the seeded plans (migration `20261013120000_plans_backoffice`); the backoffice is the source of truth. Keep the listing's pricing identical to the backoffice plans and to the Plans page in the app (4.2.1: include trial length and every charge). The review notes (step 6) say Starter is free and applies until a plan is picked: keep one plan marked Free in the production backoffice, or rewrite that step (without a free plan, a shop gets no rows or features until it picks a plan).
 
 ## App introduction (≤ 100 characters)
 
@@ -81,7 +83,7 @@ English (or English subtitles), unlisted YouTube/Vimeo/Loom link in the review f
 5. Product mapping → unlinked SKUs → **Choose product** for one SKU → it moves to linked.
 6. Storefront → App embed switch → theme editor (App embeds) → turn SpareFit on → Save → back in the app the badge shows On. **Add to theme** for Search section, Fits badge and Fitment table → each opens the theme editor with the block placed → Save → rows show Added.
 7. Storefront (shop): pick Make → Year → Model → **Show parts** → the theme search page lists the fitting product; product page shows "Fits your vehicle" and the fitment table; My Selection saves the vehicle.
-8. Plans → **Choose Growth** → Shopify's plan page → Approve → back on Plans (welcome link) with Growth and the trial badge → downgrade to Starter the same way.
+8. Plans → **Choose Growth** → Shopify's charge approval page → Approve → back on Plans (welcome link) with Growth and the trial badge → downgrade to Starter the same way.
 9. Settings → Your data text; uninstall → storefront search disappears.
 
 ## Review notes (paste into the review form's testing instructions)
@@ -96,7 +98,7 @@ English (or English subtitles), unlisted YouTube/Vimeo/Loom link in the review f
 > 3. The sample's Attachment values are SKUs (`SP-BRAKE-001` …) that won't exist on your test store. Either give one or two test products these variant SKUs (they link within seconds), or open **Product mapping** and use **Choose product** on an unlinked SKU.
 > 4. **Storefront › Theme integration**: turn on the **App embed** (opens the theme editor on App embeds; save there), then use **Add to theme** for Search section, Fits badge and Fitment table. Each button opens the theme editor with the block placed; click Save.
 > 5. On the storefront, pick Make → Year → Model and click **Show parts**: the theme's search page lists the linked products. A linked product's page shows "Fits your vehicle" and the fitment table.
-> 6. **Plans**: there is a free Starter plan; the app works on Starter limits until a plan is picked, so no plan is forced at install. To test billing: click **Choose** on Growth or Pro → Shopify's plan page → approve → you return to the Plans page (welcome link `/app/plans`) showing the plan and trial. Switch plans the same way to downgrade; cancelling returns the shop to Starter limits.
+> 6. **Plans**: there is a free Starter plan; the app works on Starter limits until a plan is picked, so no plan is forced at install. To test billing: click **Choose** on Growth or Pro → Shopify's charge approval page → approve → you return to the Plans page (welcome link `/app/plans`) showing the plan and trial. Switch plans the same way to downgrade; cancelling returns the shop to Starter limits.
 >
 > **Demo store:** [demo store URL] (password: [password]) — product page with the badge and table: [URL].
 > **Screencast:** [link].

@@ -7,7 +7,7 @@ Goal (archived BUILD-PLAN M11): Bilstein NL's real fitment data live on a stagin
 - [ ] **(you)** Deploy to Fly.io EU (web + worker or `JOBS_INLINE=true`), managed Postgres EU, `STORAGE_DRIVER=r2` with the R2 bucket and its CORS for PUT from the app origin (PROGRESS › Follow-ups). Set `DATABASE_URL` with `?connection_limit=…` and keep `PROXY_MAX_QUERIES` below it.
 - [ ] **(you)** Fly proxy/request timeout ≥ 120 s (Delete all, Remove duplicates and field rewrites run in the request).
 - [ ] **(you)** Env: `SHOPIFY_API_KEY/SECRET`, `SHOPIFY_APP_URL`, `SHOPIFY_APP_HANDLE`, the backoffice vars (`BACKOFFICE_EMAIL`, `BACKOFFICE_PASSWORD`, 12+ characters), database and storage vars (see `.env.example`).
-- [ ] **(you)** Partner Dashboard: set the Pricing method to **Manual pricing (legacy)**, then add the app icon and emergency contact. Set the plans in `/backoffice`.
+- [ ] **(you)** Partner Dashboard: check the distribution is **Public** (the Billing API needs it; done 2026-10-15), then add the app icon and emergency contact. Set the plans in `/backoffice`.
 - [ ] **(you)** `shopify app deploy` (config with compliance webhooks, scopes `read_products,write_app_proxy,read_themes,write_files`, theme extension).
 
 ## 1. Staging store

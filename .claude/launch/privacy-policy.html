@@ -1,5 +1,5 @@
 <div class="sparefit-privacy-policy">
-<p><strong>Last updated:</strong> 15 October 2026</p>
+<p><strong>Last updated:</strong> 16 October 2026</p>
 <p>SpareFit – Parts Finder ("SpareFit", "the App") is a "find products that fit" search for Shopify stores, built and operated by Progryss Media Private Limited ("Progryss", "we", "us"). The App adds a search to a merchant's storefront where shoppers pick values such as year, make and model (or any fields the merchant sets up) and see only the products that fit. It can also show a "fits / doesn't fit" badge and a fitment table on product pages, and lets shoppers keep their selections in "My Selection". Merchants fill the search with their own fitment data, imported from CSV files or added by hand, and link it to their products. This policy explains what data the App collects, how we use it, who we share it with, and the choices merchants and shoppers have.</p>
 <p>By installing SpareFit, you agree to the collection and use of information as described here. If you do not agree, please do not install or use the App.</p>
 <h2>1. Who is responsible for what</h2>
@@ -18,11 +18,11 @@
   <li><strong>Files</strong> (<code>write_files</code>): only the My Selection icon you upload yourself is stored in your store's Files.</li>
   <li><strong>Storefront proxy</strong> (<code>write_app_proxy</code>): lets your storefront search reach the App through Shopify's signed app proxy.</li>
   <li><strong>App configuration:</strong> your store type, search fields, fitment (filter) rows, product links, universal products, storefront texts, colours and settings. Your search fields and storefront texts are also saved as an app setting (an app-owned metafield) on your store so your theme can show them.</li>
-  <li><strong>Imported files:</strong> the CSV files you import, with your column mapping. We keep your last 5 imports as backups you can download, together with the error reports we create from them.</li>
+  <li><strong>Imported files:</strong> the CSV files you import, with your column mapping. We keep your most recent imports as backups you can download (how many depends on your plan; 5 on the standard plans), together with the error reports we create from them.</li>
   <li><strong>Billing status:</strong> your plan, subscription state and trial dates. All charges are handled by the Shopify Billing API; we never see or store payment details.</li>
   <li><strong>Search statistics:</strong> daily counts for the Analytics page (see section 3). These are aggregate numbers, not personal data.</li>
   <li><strong>Support chat:</strong> when you use the support chat inside the App, the messages you send and any contact details you choose to give are handled by our own support chat service (chat.progryss.com), so we can answer you. We use them only to give you support.</li>
-  <li><strong>Operational logs:</strong> technical events such as webhook deliveries, background jobs and errors, with your store's domain. They never contain shopper data.</li>
+  <li><strong>Operational logs:</strong> technical events such as webhook deliveries, background jobs, errors, warnings and slow requests, with your store's domain and the page or job involved. Access tokens, passwords and other secrets are removed before an entry is saved, and the logs never contain shopper data.</li>
 </ul>
 <h2>3. What we collect from shoppers</h2>
 <p>SpareFit does <strong>not</strong> collect or store personal information about shoppers.</p>
@@ -48,7 +48,7 @@
   <li>To import, check and store your fitment data, link it to your products, and keep those links up to date when your catalog changes.</li>
   <li>To show you your setup, data, product mapping and search statistics in the App.</li>
   <li>To manage plans and billing through Shopify, provide support, diagnose errors, and keep the App secure and compliant.</li>
-  <li>To run the App as a business: our own administration area shows us app-wide figures such as the number of installed stores, plans, trials and setup progress.</li>
+  <li>To run the App as a business: our own administration area shows us app-wide figures such as the number of installed stores, plans and trials, each store's setup (search fields, row and link counts, search counts) and the operational logs described in section 2.</li>
 </ul>
 <p>We do not sell or rent any merchant or shopper data, we do not share it with advertisers or data brokers, we do not use it for our own marketing, and we never use one merchant's data to serve another merchant.</p>
 <p><strong>No AI and no automated decisions.</strong> SpareFit does not use artificial intelligence. Matching, column mapping and product linking are rule-based. The App does not make decisions with legal or similarly significant effects about any individual.</p>
@@ -66,9 +66,9 @@
 <h2>9. Retention and deletion</h2>
 <ul>
   <li><strong>Store configuration, fitment data, product links and catalog copy</strong> — kept for as long as the App is installed.</li>
-  <li><strong>Imported files</strong> — the last 5 imports per store are kept as backups; older ones are deleted when a new import replaces them.</li>
+  <li><strong>Imported files</strong> — the most recent imports your plan includes (5 on the standard plans) are kept as backups; older ones are deleted when a new import replaces them.</li>
   <li><strong>Search statistics</strong> — deleted after 180 days by a daily job.</li>
-  <li><strong>Operational logs</strong> — kept for [30] days by our hosting provider, then deleted.</li>
+  <li><strong>Operational logs</strong> — the errors, warnings and slow requests the App records are kept for up to 30 days (14 days by default), then deleted by a daily job; a store's entries are also deleted with the rest of its data after uninstall. Our hosting provider's own server logs are kept for [30] days, then deleted.</li>
   <li><strong>After uninstall</strong> — the search disappears from your store straight away and billing stops. Your data is kept for 30 days so an accidental uninstall or a quick reinstall does not lose your setup. After 30 days, every record belonging to your store is permanently deleted: search setup, fitment data, product links, imports, backups, reports, statistics, settings and access tokens. This meets the 30-day deadline Shopify sets for its shop/redact request.</li>
   <li><strong>Earlier deletion</strong> — you can ask us to delete your store's data sooner by contacting us (section 16).</li>
 </ul>

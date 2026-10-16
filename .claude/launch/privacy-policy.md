@@ -1,8 +1,8 @@
 # SpareFit privacy policy
 
-> Editor's note (remove before publishing): publish this on a dedicated public page (your website, not a cloud document) and use its URL as the App Store listing's privacy policy URL. Rewritten 2026-10-15 in the structure of the ChatConvert policy. Checked against the code: `shopify.app.toml` scopes (`read_products, write_app_proxy, read_themes, write_files`), `prisma/schema.prisma` (offline sessions only, no customer tables), `app/services/purge.server.ts` (30 days after uninstall), the 180-day analytics purge in `app/services/jobs.server.ts`, `app/routes/webhooks.compliance.tsx`, `app/services/subscription.server.ts` (Billing API) and the storefront scripts in `extensions/sparefit-theme/assets/` (localStorage and sessionStorage only, no cookies). **Confirm before publishing:** the hosting providers in section 8 (the build plan names Fly.io, Neon or Supabase and Cloudflare R2, all EU) and the log retention period in section 9. Update this page whenever scopes, providers or stored data change.
+> Editor's note (remove before publishing): publish this on a dedicated public page (your website, not a cloud document) and use its URL as the App Store listing's privacy policy URL. Rewritten 2026-10-15 in the structure of the ChatConvert policy. Checked against the code: `shopify.app.toml` scopes (`read_products, write_app_proxy, read_themes, write_files`), `prisma/schema.prisma` (offline sessions only, no customer tables), `app/services/purge.server.ts` (30 days after uninstall), the 180-day analytics purge in `app/services/jobs.server.ts`, `app/routes/webhooks.compliance.tsx`, `app/services/subscription.server.ts` (Billing API) and the storefront scripts in `extensions/sparefit-theme/assets/` (localStorage and sessionStorage only, no cookies). Updated 2026-10-16: app logs (`app/services/logs/`, 7/14/30-day retention set in `/backoffice/logs`, default 14, deleted with the shop by `purge.server.ts`) and per-plan backup counts. **Confirm before publishing (still in [brackets]):** the hosting providers in section 8 (the build plan names Fly.io, Neon or Supabase and Cloudflare R2, all EU; replace them with what `sparefit.progryss.com` actually runs on) and your hosting provider's own log retention in section 9. If you change the in-app log retention above 30 days, update section 9. Update this page whenever scopes, providers or stored data change.
 
-**Last updated:** 15 October 2026
+**Last updated:** 16 October 2026
 
 SpareFit – Parts Finder ("SpareFit", "the App") is a "find products that fit" search for Shopify stores, built and operated by Progryss Media Private Limited ("Progryss", "we", "us"). The App adds a search to a merchant's storefront where shoppers pick values such as year, make and model (or any fields the merchant sets up) and see only the products that fit. It can also show a "fits / doesn't fit" badge and a fitment table on product pages, and lets shoppers keep their selections in "My Selection". Merchants fill the search with their own fitment data, imported from CSV files or added by hand, and link it to their products. This policy explains what data the App collects, how we use it, who we share it with, and the choices merchants and shoppers have.
 
@@ -26,11 +26,11 @@ When you install SpareFit, Shopify gives the App access to some information abou
 - **Files** (`write_files`): only the My Selection icon you upload yourself is stored in your store's Files.
 - **Storefront proxy** (`write_app_proxy`): lets your storefront search reach the App through Shopify's signed app proxy.
 - **App configuration:** your store type, search fields, fitment (filter) rows, product links, universal products, storefront texts, colours and settings. Your search fields and storefront texts are also saved as an app setting (an app-owned metafield) on your store so your theme can show them.
-- **Imported files:** the CSV files you import, with your column mapping. We keep your last 5 imports as backups you can download, together with the error reports we create from them.
+- **Imported files:** the CSV files you import, with your column mapping. We keep your most recent imports as backups you can download (how many depends on your plan; 5 on the standard plans), together with the error reports we create from them.
 - **Billing status:** your plan, subscription state and trial dates. All charges are handled by the Shopify Billing API; we never see or store payment details.
 - **Search statistics:** daily counts for the Analytics page (see section 3). These are aggregate numbers, not personal data.
 - **Support chat:** when you use the support chat inside the App, the messages you send and any contact details you choose to give are handled by our own support chat service (chat.progryss.com), so we can answer you. We use them only to give you support.
-- **Operational logs:** technical events such as webhook deliveries, background jobs and errors, with your store's domain. They never contain shopper data.
+- **Operational logs:** technical events such as webhook deliveries, background jobs, errors, warnings and slow requests, with your store's domain and the page or job involved. Access tokens, passwords and other secrets are removed before an entry is saved, and the logs never contain shopper data.
 
 ## 3. What we collect from shoppers
 
@@ -62,7 +62,7 @@ SpareFit does not request access to orders or customers (no `read_orders`, `read
 - To import, check and store your fitment data, link it to your products, and keep those links up to date when your catalog changes.
 - To show you your setup, data, product mapping and search statistics in the App.
 - To manage plans and billing through Shopify, provide support, diagnose errors, and keep the App secure and compliant.
-- To run the App as a business: our own administration area shows us app-wide figures such as the number of installed stores, plans, trials and setup progress.
+- To run the App as a business: our own administration area shows us app-wide figures such as the number of installed stores, plans and trials, each store's setup (search fields, row and link counts, search counts) and the operational logs described in section 2.
 
 We do not sell or rent any merchant or shopper data, we do not share it with advertisers or data brokers, we do not use it for our own marketing, and we never use one merchant's data to serve another merchant.
 
@@ -86,9 +86,9 @@ Beyond these, we disclose data only if required by law. Merchants are notified o
 ## 9. Retention and deletion
 
 - **Store configuration, fitment data, product links and catalog copy** — kept for as long as the App is installed.
-- **Imported files** — the last 5 imports per store are kept as backups; older ones are deleted when a new import replaces them.
+- **Imported files** — the most recent imports your plan includes (5 on the standard plans) are kept as backups; older ones are deleted when a new import replaces them.
 - **Search statistics** — deleted after 180 days by a daily job.
-- **Operational logs** — kept for [30] days by our hosting provider, then deleted.
+- **Operational logs** — the errors, warnings and slow requests the App records are kept for up to 30 days (14 days by default), then deleted by a daily job; a store's entries are also deleted with the rest of its data after uninstall. Our hosting provider's own server logs are kept for [30] days, then deleted.
 - **After uninstall** — the search disappears from your store straight away and billing stops. Your data is kept for 30 days so an accidental uninstall or a quick reinstall does not lose your setup. After 30 days, every record belonging to your store is permanently deleted: search setup, fitment data, product links, imports, backups, reports, statistics, settings and access tokens. This meets the 30-day deadline Shopify sets for its shop/redact request.
 - **Earlier deletion** — you can ask us to delete your store's data sooner by contacting us (section 16).
 
