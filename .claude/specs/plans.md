@@ -64,3 +64,6 @@
 | Business | $199 | $1,990 | 14 days | Unlimited products and rows | as Pro | no |
 
 Every plan: up to 10 search fields; Import backups (when on) keeps the last 5 imports. Old `searchFields` / `backups` keys in the seeded limits are ignored.
+
+## Public landing page (`/`)
+Since 2026-10-19 the landing page has a **Pricing** section between the features and "Already using SpareFit?": the shown plans as cards (name, price "Free" / "$29 / month", description, a trial line only when paid plans differ, the same `cardLines` with check icons), a Monthly / Yearly switch when a plan has a yearly price, "Every paid plan starts with a {n}-day free trial. Billed through Shopify." when all trials match, and a button to the App Store listing ("Get started free" / "Start free trial" / "Get started"). Read from the plans table like the Plans page; when it can't be read, the section is left out. (Prices on our own site are fine; the App Store listing keeps prices in its Pricing section only.)

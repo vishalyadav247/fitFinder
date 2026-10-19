@@ -1,8 +1,12 @@
 // The app URL opened outside the Shopify admin: a public landing page. App Store requirement
 // 2.3.1: no shop-domain field; the app is installed and opened from Shopify only. Links that carry
 // ?shop= go into the app. Layout follows the ChatConvert landing page, in SpareFit's Sky colours.
+import { useState } from "react";
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { redirect, useLoaderData } from "react-router";
+
+import { getPlans } from "../../models/plan.server";
+import { cardLines, formatPrice, visiblePlans } from "../../services/billing";
 
 import styles from "./styles.module.css";
 
@@ -20,13 +24,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (url.searchParams.get("shop")) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
+  // The plans merchants see on the Plans page (backoffice-edited). The page still renders
+  // without them if the database can't be read.
+  let plans: LandingPlan[] = [];
+  try {
+    plans = visiblePlans(await getPlans()).map((p) => ({
+      key: p.key,
+      name: p.name,
+      description: p.description,
+      isFree: p.isFree,
+      priceMonthly: p.priceMonthly,
+      priceYearly: p.priceYearly,
+      trialDays: p.isFree ? 0 : p.trialDays,
+      lines: cardLines(p),
+    }));
+  } catch (error) {
+    console.error("landing: plans not loaded", { error });
+  }
   return {
+    plans,
     // Set APP_STORE_URL once the listing is live; until then the App Store search finds it.
     appStoreUrl:
       process.env.APP_STORE_URL || "https://apps.shopify.com/search?q=SpareFit",
-    privacyPolicyUrl: process.env.PRIVACY_POLICY_URL || null
+    privacyPolicyUrl: process.env.PRIVACY_POLICY_URL || null,
   };
 };
+
+interface LandingPlan {
+  key: string;
+  name: string;
+  description: string;
+  isFree: boolean;
+  priceMonthly: number;
+  priceYearly: number | null;
+  trialDays: number;
+  lines: string[];
+}
 
 type IconProps = { size?: number; d: string };
 
@@ -95,8 +128,97 @@ const FEATURES: { tone: string; icon: string; title: string; body: string }[] =
     },
   ];
 
+/** Pricing: the same plan cards as the app's Plans page, with a Monthly / Yearly switch. */
+function Pricing({
+  plans,
+  installUrl,
+}: {
+  plans: LandingPlan[];
+  installUrl: string;
+}) {
+  const [yearly, setYearly] = useState(false);
+  if (!plans.length) return null;
+  const hasYearly = plans.some((p) => !p.isFree && p.priceYearly !== null);
+  const trials = plans.filter((p) => !p.isFree).map((p) => p.trialDays);
+  const sameTrial = trials.length > 0 && trials.every((d) => d === trials[0]);
+  const showYearly = yearly && hasYearly;
+  const yearlyOf = (p: LandingPlan) =>
+    showYearly && !p.isFree && p.priceYearly !== null;
+
+  return (
+    <section className={styles.pricing} aria-labelledby="pricing-title">
+      <div className={styles.pricingHead}>
+        <div>
+          <h2 id="pricing-title" className={styles.bandTitle}>
+            Pricing
+          </h2>
+          <p className={styles.bandSub}>
+            {sameTrial && trials[0] > 0
+              ? `Every paid plan starts with a ${trials[0]}-day free trial. Billed through Shopify.`
+              : "Billed through Shopify."}
+          </p>
+        </div>
+        {hasYearly && (
+          <div className={styles.switch} role="group" aria-label="Billing">
+            <button
+              type="button"
+              aria-pressed={!yearly}
+              onClick={() => setYearly(false)}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              aria-pressed={yearly}
+              onClick={() => setYearly(true)}
+            >
+              Yearly
+            </button>
+          </div>
+        )}
+      </div>
+      <div className={styles.plans}>
+        {plans.map((p) => (
+          <article key={p.key} className={styles.planCard}>
+            <h3 className={styles.planName}>{p.name}</h3>
+            <p className={styles.planPrice}>
+              {p.isFree
+                ? "Free"
+                : formatPrice(yearlyOf(p) ? p.priceYearly! : p.priceMonthly)}
+              {!p.isFree && <span>{yearlyOf(p) ? " / year" : " / month"}</span>}
+            </p>
+            {p.description && (
+              <p className={styles.planDesc}>{p.description}</p>
+            )}
+            {!sameTrial && p.trialDays > 0 && (
+              <p
+                className={styles.planDesc}
+              >{`${p.trialDays}-day free trial`}</p>
+            )}
+            <ul className={styles.planLines}>
+              {p.lines.map((line, i) => (
+                <li key={i}>
+                  <Icon size={15} d={CHECK} />
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <a className={styles.planButton} href={installUrl}>
+              {p.isFree
+                ? "Get started free"
+                : p.trialDays > 0
+                  ? "Start free trial"
+                  : "Get started"}
+            </a>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
-  const { appStoreUrl, privacyPolicyUrl } =
+  const { appStoreUrl, privacyPolicyUrl, plans } =
     useLoaderData<typeof loader>();
 
   return (
@@ -157,6 +279,8 @@ export default function App() {
             </article>
           ))}
         </section>
+
+        <Pricing plans={plans} installUrl={appStoreUrl} />
 
         <section className={styles.band}>
           <div>
