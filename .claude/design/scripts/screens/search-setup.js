@@ -24,12 +24,13 @@ S.fields = () => {
     <s-section padding="none" accessibilityLabel="Fields shoppers pick">
       <s-box padding="base"><s-stack gap="small-100">
         <h2 class="sec-title">Fields shoppers pick</h2>
-        <s-text color="subdued">${esc(t.label)} · Shoppers pick these in this order. When you import a CSV, you choose which column fills each field.</s-text>
+        <s-stack gap="none"><s-text color="subdued">${esc(t.label)} · Shoppers pick these in this order. Your CSV columns fill them on import.</s-text>
+        <s-text color="subdued">Up to 10 fields. Add more, such as ${sp.type === 'automotive' ? 'Engine, Trim or Body type' : sp.type === 'phones' ? 'Storage size or Colour' : sp.type === 'beauty' ? 'Concern, Skin type or Age group' : 'Type, Series or Model number'}.</s-text></s-stack>
       </s-stack></s-box>
       <div class="fgrid fhead" aria-hidden="true"><span>Order</span><span>Field name</span><span>Placeholder</span><span>Type</span><span>Required</span><span>Actions</span></div>
       ${fieldRows}
-      <s-box padding="base"><s-stack direction="inline" gap="base" alignItems="center"><s-button icon="plus" data-act="field-add">Add field</s-button>
-        <s-text color="subdued">${sp.type === 'automotive' ? 'For example Engine, Trim or Body type' : sp.type === 'phones' ? 'For example Storage size or Colour' : sp.type === 'beauty' ? 'For example Concern, Skin type or Age group' : 'For example Type, Series or Model number'}</s-text></s-stack></s-box>
+      <s-box padding="base"><s-stack direction="inline" gap="base" alignItems="center"><s-button icon="plus" data-act="field-add"${sp.fields.length >= 10 ? ' disabled' : ''}>Add field</s-button>
+        ${sp.fields.length >= 10 ? '<s-text color="subdued">All 10 fields are in use.</s-text>' : ''}</s-stack></s-box>
     </s-section>
 
     ${state.importStep ? `<div id="import-card">${importCard(sp)}</div>` + importHistory(sp, true) : importHistory(sp)}

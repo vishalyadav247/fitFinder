@@ -63,7 +63,7 @@ export async function seedPlansForRun(): Promise<() => Promise<void>> {
       priceYearly: null,
       trialDays: 0,
       visible: true,
-      limits: { rows: 5000, products: 50, searchFields: null, backups: 5 },
+      limits: { rows: 5000, products: 50 },
       toggles: {
         fitsBadge: true,
         fitmentTable: false,
@@ -84,7 +84,7 @@ export async function seedPlansForRun(): Promise<() => Promise<void>> {
       priceYearly: 290,
       trialDays: 14,
       visible: true,
-      limits: { rows: 500000, products: 5000, searchFields: null, backups: 5 },
+      limits: { rows: 500000, products: 5000 },
       toggles: {
         fitsBadge: true,
         fitmentTable: true,
@@ -105,7 +105,7 @@ export async function seedPlansForRun(): Promise<() => Promise<void>> {
       priceYearly: 990,
       trialDays: 14,
       visible: true,
-      limits: { rows: null, products: null, searchFields: null, backups: 5 },
+      limits: { rows: null, products: null },
       toggles: {
         fitsBadge: true,
         fitmentTable: true,
@@ -126,7 +126,7 @@ export async function seedPlansForRun(): Promise<() => Promise<void>> {
       priceYearly: 1990,
       trialDays: 14,
       visible: false,
-      limits: { rows: null, products: null, searchFields: null, backups: 20 },
+      limits: { rows: null, products: null },
       toggles: {
         fitsBadge: true,
         fitmentTable: true,

@@ -35,7 +35,7 @@ import {
 } from "../models/search-field.server";
 import { STORE_TYPES } from "../services/store-types";
 import {
-  ADD_FIELD_HINT,
+  FIELD_EXAMPLES,
   LABEL_MAX,
   NEW_FIELD_LABEL,
   PLACEHOLDER_MAX,
@@ -46,7 +46,7 @@ import { currentJob, importHistory } from "../services/import/pipeline.server";
 import { jobView } from "../services/import/view.server";
 import { ImportCard } from "../components/import/ImportCard";
 import { getPlans } from "../models/plan.server";
-import { backupsOf, limitOf } from "../services/plan-features";
+import { backupsOf, MAX_SEARCH_FIELDS } from "../services/plan-features";
 import { effectivePlan, planWith } from "../services/billing";
 import {
   ImportHistory,
@@ -100,9 +100,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     kept,
     // Without Import backups: the plan that adds it ("" = none yet).
     backupsLocked: kept ? null : (planWith(plans, "importBackups")?.name ?? ""),
-    // Add field stops at the plan's search fields limit.
-    fieldLimit: limitOf(plan, "searchFields"),
-    planName: plan.name,
+    // Add field stops at the search fields cap (the same on every plan).
+    fieldLimit: MAX_SEARCH_FIELDS,
     active,
     currentRows,
   };
@@ -287,7 +286,6 @@ export default function SearchSetupPage() {
     kept,
     backupsLocked,
     fieldLimit,
-    planName,
     active,
     currentRows,
   } = useLoaderData<typeof loader>();
@@ -524,11 +522,14 @@ export default function SearchSetupPage() {
           <s-box padding="base">
             <s-stack gap="small-100">
               <SectionTitle icon="filter">Fields shoppers pick</SectionTitle>
-              <s-text color="subdued">
-                {STORE_TYPES[storeType].label} · Shoppers pick these in this
-                order. When you import a CSV, you choose which column fills each
-                field.
-              </s-text>
+              <s-stack gap="none">
+                <s-text color="subdued">
+                  {`${STORE_TYPES[storeType].label} · Shoppers pick these in this order. Your CSV columns fill them on import.`}
+                </s-text>
+                <s-text color="subdued">
+                  {`Up to ${fieldLimit} fields. Add more, such as ${FIELD_EXAMPLES[storeType]}.`}
+                </s-text>
+              </s-stack>
             </s-stack>
           </s-box>
           <div className="sp-fgrid sp-fhead" aria-hidden="true">
@@ -562,13 +563,10 @@ export default function SearchSetupPage() {
               >
                 Add field
               </s-button>
-              {fields.length >= fieldLimit ? (
+              {fields.length >= fieldLimit && (
                 <s-text color="subdued">
-                  {`The ${planName} plan allows up to ${fieldLimit} search fields. `}
-                  <s-link href="/app/plans">Upgrade</s-link> to add more.
+                  {`All ${fieldLimit} fields are in use.`}
                 </s-text>
-              ) : (
-                <s-text color="subdued">{ADD_FIELD_HINT[storeType]}</s-text>
               )}
             </s-stack>
           </s-box>

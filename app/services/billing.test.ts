@@ -8,6 +8,8 @@ import {
   limitMessage,
   limitsOf,
   overLimits,
+  cardLines,
+  mergeCardLines,
   planLines,
   planWith,
   trialDaysFor,
@@ -34,8 +36,6 @@ describe("plans", () => {
     expect(limitsOf(effectivePlan(TEST_PLANS, "none"))).toEqual({
       rows: 5000,
       products: 50,
-      searchFields: 10,
-      backups: 5,
     });
     expect(limitsOf(effectivePlan(TEST_PLANS, "pro")).rows).toBe(Infinity);
   });
@@ -46,24 +46,6 @@ describe("plans", () => {
     expect(none.key).toBe("none");
     expect(limitsOf(none)).toMatchObject({ rows: 0, products: 0 });
     expect(Object.values(none.toggles).some(Boolean)).toBe(false);
-  });
-
-  it("caps search fields and import backups at 10 on every plan", () => {
-    expect(
-      limitOf(
-        { limits: { ...growth.limits, searchFields: 50 } },
-        "searchFields",
-      ),
-    ).toBe(10);
-    expect(
-      limitOf({ limits: { ...growth.limits, backups: null } }, "backups"),
-    ).toBe(10);
-    expect(
-      limitOf(
-        { limits: { ...growth.limits, searchFields: 4 } },
-        "searchFields",
-      ),
-    ).toBe(4);
   });
 
   it("lists visible plans in order, keeping the shop's hidden plan", () => {
@@ -107,12 +89,12 @@ describe("plans", () => {
     expect(planLines(TEST_PLANS[0])).toEqual([
       "50 linked products",
       "5,000 filter rows",
-      "10 search fields",
-      "5 import backups",
+      "Up to 10 search fields",
       "Fits badge",
+      "Backups of your last 5 imports",
     ]);
     expect(planLines(TEST_PLANS[2])).toContain("Unlimited filter rows");
-    // Import backups off: no backups line, and the feature isn't listed on its own.
+    // Import backups off: no backups line.
     const noBackups = planLines({
       ...TEST_PLANS[0],
       toggles: { ...TEST_PLANS[0].toggles, importBackups: false },
@@ -150,17 +132,10 @@ describe("plans", () => {
   });
 
   it("reads stored limits and toggles defensively", () => {
-    expect(readLimits({ rows: 10, products: -1, searchFields: 2.5 })).toEqual({
-      rows: 10,
-      products: null,
-      searchFields: 10,
-      backups: 10,
-    });
-    // Stored before the caps: unlimited or above 10 reads as 10.
-    expect(readLimits({ searchFields: 20, backups: 0 })).toMatchObject({
-      searchFields: 10,
-      backups: 1,
-    });
+    // Old keys (searchFields, backups: plan settings before 2026-10-19) are ignored.
+    expect(
+      readLimits({ rows: 10, products: -1, searchFields: 4, backups: 7 }),
+    ).toEqual({ rows: 10, products: null });
     expect(readToggles({ fitsBadge: true, mySelection: "yes" })).toMatchObject({
       fitsBadge: true,
       mySelection: false,
@@ -168,23 +143,66 @@ describe("plans", () => {
       importBackups: true,
     });
     expect(readToggles({ importBackups: false }).importBackups).toBe(false);
-    expect(readLimits({ backups: 0 }).backups).toBe(1);
+  });
+
+  it("keeps the last 5 imports with Import backups, none without", () => {
+    expect(backupsOf(growth)).toBe(5);
     expect(
-      backupsOf({
-        limits: { ...growth.limits, backups: 7 },
-        toggles: { ...growth.toggles, importBackups: false },
-      }),
+      backupsOf({ toggles: { ...growth.toggles, importBackups: false } }),
     ).toBe(0);
+    expect(limitOf({ limits: { rows: null, products: 3 } }, "rows")).toBe(
+      Infinity,
+    );
+  });
+});
+
+describe("card lines", () => {
+  it("puts own lines between the generated ones", () => {
+    const gen = ["A", "B", "C"];
+    const merged = (extras: { text: string; at: number }[]) =>
+      mergeCardLines(gen, extras).map((l) => l.text);
+    expect(merged([])).toEqual(["A", "B", "C"]);
     expect(
-      backupsOf({ ...growth, limits: { ...growth.limits, backups: 7 } }),
-    ).toBe(7);
+      merged([
+        { text: "top", at: 0 },
+        { text: "after B", at: 2 },
+        { text: "end", at: 3 },
+        { text: "far", at: 99 },
+      ]),
+    ).toEqual(["top", "A", "B", "after B", "C", "end", "far"]);
+    // Same place: saved order.
+    expect(
+      merged([
+        { text: "x", at: 1 },
+        { text: "y", at: 1 },
+      ]),
+    ).toEqual(["A", "x", "y", "B", "C"]);
+    expect(mergeCardLines(gen, [{ text: "x", at: 1 }])[1]).toEqual({
+      text: "x",
+      extra: 0,
+    });
+  });
+
+  it("shows a plan's lines as merchants see them; older lines at the bottom", () => {
+    const starter = TEST_PLANS[0];
+    expect(cardLines(starter).slice(-2)).toEqual([
+      "Search section",
+      "CSV import with column mapping",
+    ]);
+    expect(cardLines({ ...starter, bulletsAt: [0, 1] }).slice(0, 3)).toEqual([
+      "Search section",
+      "50 linked products",
+      "CSV import with column mapping",
+    ]);
   });
 });
 
 describe("backoffice plan form", () => {
-  const form = (fields: Record<string, string>) => {
+  const form = (fields: Record<string, string | string[]>) => {
     const f = new FormData();
-    for (const [k, v] of Object.entries(fields)) f.set(k, v);
+    for (const [k, v] of Object.entries(fields)) {
+      for (const one of Array.isArray(v) ? v : [v]) f.append(k, one);
+    }
     return f;
   };
   const base = {
@@ -196,11 +214,11 @@ describe("backoffice plan form", () => {
     trialDays: "7",
     "limit.rows": "1000",
     "unlimited.products": "on",
-    "limit.searchFields": "8",
-    "limit.backups": "5",
     "toggle.fitsBadge": "on",
     "toggle.mySelection": "on",
-    bullets: "Everything in Starter\n\n  Fast setup \n",
+    // Own card lines with their places; the empty one is dropped.
+    "line.text": ["Everything in Starter", "  ", "  Fast setup "],
+    "line.at": ["0", "1", "2"],
   };
 
   it("reads a paid plan", () => {
@@ -212,8 +230,9 @@ describe("backoffice plan form", () => {
       priceMonthly: 39,
       priceYearly: null,
       trialDays: 7,
-      limits: { rows: 1000, products: null, searchFields: 8, backups: 5 },
+      limits: { rows: 1000, products: null },
       bullets: ["Everything in Starter", "Fast setup"],
+      bulletsAt: [0, 2],
     });
     expect(parsed.toggles).toMatchObject({
       fitsBadge: true,
@@ -248,9 +267,7 @@ describe("backoffice plan form", () => {
     expect(bad({ "limit.rows": "-1" })).toBe(false);
     expect(bad({ "limit.rows": "abc" })).toBe(false);
     expect(bad({ trialDays: "0" })).toBe(true); // no trial is allowed
-    // Search fields and backups: 0 to 10, never unlimited.
-    expect(bad({ "limit.searchFields": "11" })).toBe(false);
-    expect(bad({ "limit.backups": "11" })).toBe(false);
+    // Import backups is a plain switch: no number.
     expect(
       planInputSchema.parse(formToPlanInput(form(base))).toggles.importBackups,
     ).toBe(false);
@@ -259,12 +276,5 @@ describe("backoffice plan form", () => {
         formToPlanInput(form({ ...base, "toggle.importBackups": "on" })),
       ).toggles.importBackups,
     ).toBe(true);
-    expect(bad({ "limit.backups": "" })).toBe(false);
-    expect(bad({ "limit.backups": "", "unlimited.backups": "on" })).toBe(false);
-    expect(bad({ "limit.backups": "0" })).toBe(false); // switched off instead
-    expect(bad({ "limit.searchFields": "0", "limit.backups": "1" })).toBe(true);
-    expect(bad({ "limit.searchFields": "10", "limit.backups": "10" })).toBe(
-      true,
-    );
   });
 });

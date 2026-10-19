@@ -27,7 +27,7 @@ import {
   formatLimit,
   formatPrice,
   limitsOf,
-  planLines,
+  cardLines,
   trialDaysFor,
   trialDaysLeft,
   visiblePlans,
@@ -333,8 +333,8 @@ export default function PlansPage() {
                       <s-text color="subdued">{`${trial}-day free trial`}</s-text>
                     )}
                     <s-unordered-list>
-                      {[...planLines(p), ...p.bullets].map((x) => (
-                        <s-list-item key={x}>{x}</s-list-item>
+                      {cardLines(p).map((x, i) => (
+                        <s-list-item key={i}>{x}</s-list-item>
                       ))}
                     </s-unordered-list>
                   </s-stack>

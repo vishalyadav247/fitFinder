@@ -3,8 +3,9 @@
 // list. Billing runs on the Billing API (billing.server.ts, subscription.server.ts): the app creates
 // the charge with the plan's price and trial. Pure.
 import {
+  BACKUPS_KEPT,
   LIMITS,
-  backupsOf,
+  MAX_SEARCH_FIELDS,
   limitOf,
   TOGGLES,
   type LimitKey,
@@ -37,7 +38,7 @@ export const NO_PLAN: PlanView = {
   priceYearly: null,
   trialDays: 0,
   visible: false,
-  limits: { rows: 0, products: 0, searchFields: 0, backups: 1 },
+  limits: { rows: 0, products: 0 },
   toggles: {
     fitsBadge: false,
     fitmentTable: false,
@@ -47,6 +48,7 @@ export const NO_PLAN: PlanView = {
     customCss: false,
   },
   bullets: [],
+  bulletsAt: [],
 };
 
 /**
@@ -65,8 +67,6 @@ export const effectivePlan = (plans: PlanView[], plan: string): PlanView =>
 export const limitsOf = (plan: PlanView): Limits => ({
   rows: limitOf(plan, "rows"),
   products: limitOf(plan, "products"),
-  searchFields: limitOf(plan, "searchFields"),
-  backups: backupsOf(plan),
 });
 
 /** Plans shown to merchants, in order. The shop's own plan stays listed even when hidden. */
@@ -92,8 +92,6 @@ export const trialDaysFor = (plan: PlanView, usedDays: number) =>
 export interface Usage {
   rows: number;
   products: number;
-  /** Optional: only the dashboard counts fields. */
-  searchFields?: number;
 }
 
 /** Which of the usage's limits it is over (strictly more than allowed). */
@@ -136,13 +134,51 @@ export function planLines(plan: PlanView): string[] {
   return [
     n("products"),
     n("rows"),
-    n("searchFields"),
-    // Import backups is a feature with a count: one line, "5 import backups", when it's on.
-    ...(plan.toggles.importBackups ? [n("backups")] : []),
+    // The same on every plan (plan-features.ts): said on each card so merchants know.
+    `Up to ${MAX_SEARCH_FIELDS} search fields`,
     ...(Object.keys(TOGGLES) as ToggleKey[])
-      .filter((k) => plan.toggles[k] && k !== "importBackups")
-      .map((k) => TOGGLES[k].label),
+      .filter((k) => plan.toggles[k])
+      .map((k) =>
+        k === "importBackups"
+          ? `Backups of your last ${BACKUPS_KEPT} imports`
+          : TOGGLES[k].label,
+      ),
   ];
+}
+
+/** A card line: generated from limits and features, or one of the plan's extra lines (its index). */
+export interface CardItem {
+  text: string;
+  extra: number | null;
+}
+
+/**
+ * Generated lines and extra lines in card order: each extra line goes after `at` generated lines
+ * (past the end: at the bottom), extra lines with the same place keep their order.
+ */
+export function mergeCardLines(
+  generated: string[],
+  extras: { text: string; at: number }[],
+): CardItem[] {
+  const out: CardItem[] = [];
+  const place = (at: number) => Math.min(Math.max(0, at), generated.length);
+  for (let g = 0; g <= generated.length; g++) {
+    extras.forEach((e, i) => {
+      if (place(e.at) === g) out.push({ text: e.text, extra: i });
+    });
+    if (g < generated.length) out.push({ text: generated[g], extra: null });
+  }
+  return out;
+}
+
+/** Every line of a plan card, as merchants see it (Plans page and the backoffice list). */
+export function cardLines(plan: PlanView): string[] {
+  const extras = plan.bullets.map((text, i) => ({
+    text,
+    // Lines saved before positions existed go to the bottom.
+    at: plan.bulletsAt?.[i] ?? Infinity,
+  }));
+  return mergeCardLines(planLines(plan), extras).map((l) => l.text);
 }
 
 /** "$29" / "$29.50" */

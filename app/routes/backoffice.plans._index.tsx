@@ -11,14 +11,7 @@ import {
 } from "react-router";
 import { requireAdmin } from "../services/backoffice-auth.server";
 import { getPlans, subscriberCounts } from "../models/plan.server";
-import { fallbackPlan, formatLimit, formatPrice } from "../services/billing";
-import {
-  LIMIT_KEYS,
-  LIMITS,
-  limitOf,
-  TOGGLE_KEYS,
-  TOGGLES,
-} from "../services/plan-features";
+import { cardLines, fallbackPlan, formatPrice } from "../services/billing";
 import { Icon, Spinner, Toast, toast } from "../components/backoffice/ui";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -73,7 +66,6 @@ export default function BackofficePlans() {
       <div className="bo-plans">
         {plans.map((p) => {
           const href = `/backoffice/plans/${p.key}`;
-          const features = TOGGLE_KEYS.filter((k) => p.toggles[k]);
           return (
             <article
               key={p.key}
@@ -81,7 +73,16 @@ export default function BackofficePlans() {
             >
               <div className="bo-plan-top">
                 <div>
-                  <h3>{p.name}</h3>
+                  <h3>
+                    {/* The whole card opens the plan: this link covers it (CSS). */}
+                    <Link
+                      to={href}
+                      className="bo-plan-link"
+                      aria-label={`Edit ${p.name}`}
+                    >
+                      {p.name}
+                    </Link>
+                  </h3>
                   <p className="bo-plan-desc">{p.description}</p>
                 </div>
                 <div className="bo-badges">
@@ -119,44 +120,25 @@ export default function BackofficePlans() {
                 </div>
               )}
 
-              <ul className="bo-facts">
-                {LIMIT_KEYS.map((k) => (
-                  <li key={k}>
-                    {LIMITS[k].label}
-                    <b>{formatLimit(limitOf(p, k))}</b>
-                  </li>
+              {/* The same lines merchants see on the Plans page, in the same order. */}
+              <ul className="bo-lines">
+                {cardLines(p).map((line, i) => (
+                  <li key={i}>{line}</li>
                 ))}
               </ul>
-
-              <div className="bo-features">
-                {features.length ? (
-                  features.map((k) => (
-                    <span key={k} className="bo-badge bo-badge--info">
-                      {TOGGLES[k].label}
-                    </span>
-                  ))
-                ) : (
-                  <span className="bo-help">No extra features</span>
-                )}
-              </div>
 
               <div className="bo-plan-foot">
                 <span className="bo-help">
                   <Icon name="store" size={14} />{" "}
                   {plural(counts[p.key] ?? 0, "store", "stores")}
                 </span>
-                <Link
-                  to={href}
-                  className="bo-btn bo-btn--sm"
-                  aria-label={`Edit ${p.name}`}
-                >
-                  {opening === href ? (
-                    <Spinner />
-                  ) : (
+                {opening === href ? (
+                  <Spinner />
+                ) : (
+                  <span className="bo-plan-open" aria-hidden="true">
                     <Icon name="edit" size={15} />
-                  )}
-                  Edit
-                </Link>
+                  </span>
+                )}
               </div>
             </article>
           );

@@ -10,7 +10,7 @@
      - name, plus a success badge "Current plan"
      - price: "Free", "$29 / month" or "$290 / year"
      - description
-     - generated lines, then the backoffice's extra card lines:
+     - one bulleted list (`cardLines`): the generated lines, with the backoffice's own card lines placed among them where the backoffice puts them (2026-10-19; lines saved earlier sit at the bottom):
        - the limits: "5,000 filter rows", "Unlimited linked products"…
        - the included features: "Fitment table", "My Selection floating button", "Custom CSS"…
    - Button:
@@ -41,8 +41,8 @@
 - **Enforced on the server:**
   - **Filter rows:** Add row and imports. Over the limit nothing is imported: "Nothing was imported. The {Plan} plan allows up to {n} filter rows. Upgrade on the Plans page to add more."
   - **Linked products:** manual links and universal products.
-  - **Search fields:** Add field, never above the plan's limit (0 to 10, no unlimited). Stores that already had more fields keep them.
-  - **Import backups:** a feature with a count (1 to 10). On: the history lists that many imports with Download, and the card shows "{n} import backups". Off: no card line; the history lists only the current import, without Download ("Import backups aren't in your plan. Upgrade to download your files."), and the file download is refused. Files are kept up to 10 per shop whatever the plan, so a downgrade never deletes a backup.
+  - **Search fields:** up to 10 on every plan (not a plan setting since 2026-10-19). Each plan card says "Up to 10 search fields".
+  - **Import backups:** a plain on/off feature (no count since 2026-10-19). On: the history lists the last 5 imports with Download, and the card shows "Backups of your last 5 imports". Off: no card line; the history shows "Download the files you imported any time." and the newest 3 imports under the locked layer (search-setup.md › Import history), and the file download is refused. The files of the last 5 imports are kept per shop whatever the plan, so a downgrade and upgrade brings them back.
   - **Universal products** (feature): new ones are refused when the plan doesn't include it; existing ones stay (nothing is deleted).
   - **Fits badge, Fitment table, My Selection** (features): the storefront config marks them off and the theme blocks render nothing. The config is published again on the billing webhook and on admin visits. The Storefront page's Theme integration table shows "Needs {plan} plan" with an **Upgrade →** link. {plan} is the cheapest visible plan that has the feature; "Needs a higher plan" shows when none has it.
   - **Custom CSS** (feature, added 2026-10-16): the Settings action refuses a save ("Your plan doesn't include custom CSS.") and the storefront config publishes `css` only when the plan includes it, so a downgrade removes the CSS from the store (the stored CSS is kept). Settings shows "Custom CSS needs the {plan} plan" (or "…a higher plan") with **Compare plans**. Off on every seeded plan until the super admin switches it on.
@@ -58,7 +58,9 @@
 ## Seeded plans (migration `20261013120000_plans_backoffice`; editable)
 | Plan | Monthly | Yearly | Trial | Limits | Features | Shown |
 |---|---|---|---|---|---|---|
-| Starter | Free | — | — | 50 products · 5,000 rows · 10 fields · 5 backups | Fits badge | yes |
-| Growth | $29 | $290 | 14 days | 5,000 products · 500,000 rows · 10 fields · 5 backups | + Fitment table, My Selection, universal products | yes |
-| Pro | $99 | $990 | 14 days | Unlimited products and rows · 10 fields · 5 backups | as Growth | yes |
-| Business | $199 | $1,990 | 14 days | Unlimited products and rows · 10 fields · 10 backups | as Pro | no |
+| Starter | Free | — | — | 50 products · 5,000 rows | Fits badge, Import backups | yes |
+| Growth | $29 | $290 | 14 days | 5,000 products · 500,000 rows | + Fitment table, My Selection, universal products | yes |
+| Pro | $99 | $990 | 14 days | Unlimited products and rows | as Growth | yes |
+| Business | $199 | $1,990 | 14 days | Unlimited products and rows | as Pro | no |
+
+Every plan: up to 10 search fields; Import backups (when on) keeps the last 5 imports. Old `searchFields` / `backups` keys in the seeded limits are ignored.

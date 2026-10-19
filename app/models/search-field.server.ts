@@ -19,9 +19,7 @@ import {
   rewriteRows,
   type RowContent,
 } from "../services/fitment/row-hash.server";
-import { shopPlanView } from "./plan.server";
-import { HARD_LIMITS, limitOf } from "../services/plan-features";
-import { limitMessage } from "../services/billing";
+import { MAX_SEARCH_FIELDS } from "../services/plan-features";
 
 type Db = Pick<PrismaClient, "$transaction" | "searchField">;
 type Tx = Prisma.TransactionClient;
@@ -41,8 +39,8 @@ export class FieldRuleError extends Error {
 const TX_OPTIONS = { timeout: 120_000, maxWait: 10_000 };
 const STATEMENT_TIMEOUT = "110s";
 
-/** Technical cap on every plan; plans may allow fewer (plan-features.ts searchFields). */
-export const MAX_FIELDS = HARD_LIMITS.searchFields!;
+/** The same for every plan (agreed 2026-10-19; plan-features.ts). */
+export const MAX_FIELDS = MAX_SEARCH_FIELDS;
 /** Most fields a store can hold: the cap was 20 before 2026-10-16, and fields are never deleted. */
 export const STORED_FIELDS_MAX = 20;
 
@@ -262,10 +260,6 @@ async function addField(tx: Tx, shopId: string): Promise<string> {
   const position = await tx.searchField.count({ where: { shopId } });
   if (position >= MAX_FIELDS) {
     throw new FieldRuleError(`You can have up to ${MAX_FIELDS} fields.`);
-  }
-  const plan = await shopPlanView(shopId, tx);
-  if (position >= limitOf(plan, "searchFields")) {
-    throw new FieldRuleError(limitMessage(plan, "searchFields"));
   }
   const field = await tx.searchField.create({
     data: {

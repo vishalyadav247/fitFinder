@@ -1407,14 +1407,13 @@ describe("SpareFit end to end", () => {
         trialDays: "7",
         "limit.rows": "500000",
         "limit.products": "5000",
-        "limit.searchFields": "10",
-        "limit.backups": "5",
         "toggle.fitsBadge": "on",
         "toggle.fitmentTable": "on",
         "toggle.mySelection": "on",
         "toggle.universalProducts": "on",
         "toggle.importBackups": "on",
-        bullets: "Everything in Starter",
+        "line.text": "Everything in Starter",
+        "line.at": "0",
       };
       const bad = await run(
         routes.boPlan.action,
@@ -1423,6 +1422,23 @@ describe("SpareFit end to end", () => {
       );
       expect(bad.status).toBe(400);
       expect(bad.body.errors.priceMonthly).toContain("monthly price");
+      // Import backups is a plain switch (no number): saving it off works.
+      const withoutBackups = { ...form };
+      delete withoutBackups["toggle.importBackups"];
+      const savedOff = await run(
+        routes.boPlan.action,
+        bo("/backoffice/plans/growth", withoutBackups, cookie),
+        { key: "growth" },
+      );
+      expect(savedOff.location).toBe("/backoffice/plans?saved=growth");
+      const offPlan = (
+        await run(
+          routes.boPlans.loader,
+          bo("/backoffice/plans", undefined, cookie),
+        )
+      ).body.plans.find((p: { key: string }) => p.key === "growth");
+      expect(offPlan.toggles.importBackups).toBe(false);
+      expect(offPlan.limits).toEqual({ rows: 500000, products: 5000 });
       const saved = await run(
         routes.boPlan.action,
         bo("/backoffice/plans/growth", form, cookie),
@@ -1509,7 +1525,13 @@ describe("SpareFit end to end", () => {
       ).toBe("/backoffice/login");
       expect(
         list.plans.find((p: { key: string }) => p.key === "growth"),
-      ).toMatchObject({ priceMonthly: 39, trialDays: 7 });
+      ).toMatchObject({
+        priceMonthly: 39,
+        trialDays: 7,
+        // The own line saved at the top of the card.
+        bullets: ["Everything in Starter"],
+        bulletsAt: [0],
+      });
 
       // The merchant sees the new price and trial, and the new charge uses them.
       page = await plans();

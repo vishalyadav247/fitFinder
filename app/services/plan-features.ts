@@ -7,12 +7,8 @@ import { z } from "zod";
 export const PLAN_KEYS = ["starter", "growth", "pro", "business"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
 
-export const LIMIT_KEYS = [
-  "rows",
-  "products",
-  "searchFields",
-  "backups",
-] as const;
+/** Limits a plan sets as a number (or unlimited). */
+export const LIMIT_KEYS = ["rows", "products"] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
 
 export const TOGGLE_KEYS = [
@@ -26,15 +22,11 @@ export const TOGGLE_KEYS = [
 export type ToggleKey = (typeof TOGGLE_KEYS)[number];
 
 /**
- * Limits that are always a number from 0 to their cap (agreed 2026-10-16): no "Unlimited", and no
- * plan can set more. The cap is also the most import files kept in storage.
+ * Fixed for every plan (agreed 2026-10-19), not plan settings: search fields per store, and the
+ * imported files kept for download when the plan includes Import backups (a plain on/off feature).
  */
-export const HARD_LIMITS: Partial<Record<LimitKey, number>> = {
-  searchFields: 10,
-  backups: 10,
-};
-/** The lowest value of a capped limit (0 when not listed). Backups are switched off as a feature. */
-const MIN_LIMITS: Partial<Record<LimitKey, number>> = { backups: 1 };
+export const MAX_SEARCH_FIELDS = 10;
+export const BACKUPS_KEPT = 5;
 
 /**
  * A feature missing from a stored plan: off, except import backups, which every plan had before it
@@ -58,16 +50,6 @@ export const LIMITS: Record<
     unit: "linked products",
     help: "Products linked to filter rows, plus universal products.",
   },
-  searchFields: {
-    label: "Search fields",
-    unit: "search fields",
-    help: "Dropdowns in the search. 0 to 10.",
-  },
-  backups: {
-    label: "Import backups",
-    unit: "import backups",
-    help: "Downloadable import files, 1 to 10.",
-  },
 };
 
 export const TOGGLES: Record<ToggleKey, { label: string; help: string }> = {
@@ -89,7 +71,7 @@ export const TOGGLES: Record<ToggleKey, { label: string; help: string }> = {
   },
   importBackups: {
     label: "Import backups",
-    help: "Set in Limits.",
+    help: `Keeps the last ${BACKUPS_KEPT} imported files to download.`,
   },
   customCss: {
     label: "Custom CSS",
@@ -116,7 +98,10 @@ export interface PlanView {
   visible: boolean;
   limits: PlanLimits;
   toggles: PlanToggles;
+  /** Extra card lines, in order. */
   bullets: string[];
+  /** Per extra line: how many generated lines come before it (billing.ts cardLines). */
+  bulletsAt: number[];
 }
 
 export const MAX_TRIAL_DAYS = 365;
@@ -138,16 +123,6 @@ const limit = z.union([
     .max(1_000_000_000, "The limit is too high."),
 ]);
 
-/** A capped limit: a whole number from its minimum to the cap, never unlimited. */
-const capped = (min: number, cap: number) => {
-  const message = `Enter a number from ${min} to ${cap}.`;
-  return z.coerce
-    .number({ message })
-    .int(message)
-    .min(min, message)
-    .max(cap, message);
-};
-
 /** What the backoffice saves for one plan. Free plans get no price and no trial. */
 export const planInputSchema = z
   .object({
@@ -167,15 +142,10 @@ export const planInputSchema = z
       .min(0, "Trial days can't be negative.")
       .max(MAX_TRIAL_DAYS, `Use ${MAX_TRIAL_DAYS} days or fewer.`),
     limits: z.object(
-      Object.fromEntries(
-        LIMIT_KEYS.map((k) => {
-          const cap = HARD_LIMITS[k];
-          return [
-            k,
-            cap === undefined ? limit : capped(MIN_LIMITS[k] ?? 0, cap),
-          ];
-        }),
-      ) as Record<LimitKey, typeof limit>,
+      Object.fromEntries(LIMIT_KEYS.map((k) => [k, limit])) as Record<
+        LimitKey,
+        typeof limit
+      >,
     ),
     toggles: z.object(
       Object.fromEntries(TOGGLE_KEYS.map((k) => [k, z.boolean()])) as Record<
@@ -183,12 +153,18 @@ export const planInputSchema = z
         z.ZodBoolean
       >,
     ),
+    // Extra card lines with their place among the generated lines; empty lines are dropped.
     bullets: z
-      .array(z.string().trim().max(120, "Keep each line to 120 characters."))
-      .transform((list) => list.filter(Boolean))
+      .array(
+        z.object({
+          text: z.string().trim().max(120, "Keep each line to 120 characters."),
+          at: z.coerce.number().int().min(0).max(100).catch(100),
+        }),
+      )
+      .transform((list) => list.filter((l) => l.text))
       .pipe(
         z
-          .array(z.string())
+          .array(z.object({ text: z.string(), at: z.number() }))
           .max(MAX_BULLETS, `Use ${MAX_BULLETS} lines or fewer.`),
       ),
   })
@@ -210,15 +186,19 @@ export const planInputSchema = z
       });
     }
   })
-  .transform((p) =>
-    p.isFree ? { ...p, priceMonthly: 0, priceYearly: null, trialDays: 0 } : p,
-  );
+  .transform(({ bullets, ...p }) => ({
+    ...(p.isFree
+      ? { ...p, priceMonthly: 0, priceYearly: null, trialDays: 0 }
+      : p),
+    bullets: bullets.map((l) => l.text),
+    bulletsAt: bullets.map((l) => l.at),
+  }));
 
 export type PlanInput = z.output<typeof planInputSchema>;
 
 /**
- * A stored limits/toggles JSON value read defensively (missing keys: unlimited / off). A capped
- * limit is never above its cap; stored as unlimited (before the caps) it reads as the cap.
+ * A stored limits/toggles JSON value read defensively (missing keys: unlimited / off). Keys of
+ * limits that are no longer plan settings (searchFields, backups before 2026-10-19) are ignored.
  */
 export function readLimits(value: unknown): PlanLimits {
   const v = (value && typeof value === "object" ? value : {}) as Record<
@@ -229,11 +209,6 @@ export function readLimits(value: unknown): PlanLimits {
     LIMIT_KEYS.map((k) => {
       const n = v[k];
       const ok = typeof n === "number" && Number.isInteger(n) && n >= 0;
-      const cap = HARD_LIMITS[k];
-      if (cap !== undefined) {
-        const min = MIN_LIMITS[k] ?? 0;
-        return [k, ok ? Math.max(min, Math.min(n, cap)) : cap];
-      }
       return [k, ok ? n : null];
     }),
   ) as PlanLimits;
@@ -252,14 +227,13 @@ export function readToggles(value: unknown): PlanToggles {
   ) as PlanToggles;
 }
 
-/** The limit that applies: the plan's, never above the technical cap; Infinity when unlimited. */
+/** The limit that applies; Infinity when unlimited. */
 export function limitOf(plan: Pick<PlanView, "limits">, key: LimitKey): number {
   const n = plan.limits[key];
-  const hard = HARD_LIMITS[key] ?? Infinity;
-  return n === null ? hard : Math.min(n, hard);
+  return n === null ? Infinity : n;
 }
 
-/** Imported files a plan lets the merchant download: 0 without the Import backups feature. */
-export function backupsOf(plan: Pick<PlanView, "limits" | "toggles">): number {
-  return plan.toggles.importBackups ? limitOf(plan, "backups") : 0;
+/** Imported files a plan lets the merchant download: the last 5 with Import backups, else 0. */
+export function backupsOf(plan: Pick<PlanView, "toggles">): number {
+  return plan.toggles.importBackups ? BACKUPS_KEPT : 0;
 }

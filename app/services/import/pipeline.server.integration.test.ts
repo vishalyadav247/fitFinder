@@ -290,7 +290,7 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
     ).toBe("cancelled");
   });
 
-  it(`lists the plan's ${KEEP_FILES} newest imports and keeps older files (no delete on a lower limit)`, async () => {
+  it(`lists the ${KEEP_FILES} newest imports and deletes older files`, async () => {
     const keys: string[] = [];
     for (let i = 0; i < KEEP_FILES + 2; i++) {
       const { job } = await importFile(
@@ -311,9 +311,10 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
       "f3.csv",
       "f2.csv",
     ]);
-    // Files are only deleted past the backups cap (10), never by the plan's limit.
-    expect(await storage().size(keys[0])).not.toBeNull();
-    expect(await storage().size(keys[1])).not.toBeNull();
+    // Only the last 5 files are kept (the same on every plan with Import backups).
+    expect(await storage().size(keys[0])).toBeNull();
+    expect(await storage().size(keys[1])).toBeNull();
+    expect(await storage().size(keys[2])).not.toBeNull();
     expect(await storage().size(keys[6])).not.toBeNull();
   });
 });

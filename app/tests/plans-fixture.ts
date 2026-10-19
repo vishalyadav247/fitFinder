@@ -21,7 +21,7 @@ export const TEST_PLANS: PlanView[] = [
     priceYearly: null,
     trialDays: 0,
     visible: true,
-    limits: { rows: 5000, products: 50, searchFields: null, backups: 5 },
+    limits: { rows: 5000, products: 50 },
     toggles: {
       fitsBadge: true,
       fitmentTable: false,
@@ -31,6 +31,7 @@ export const TEST_PLANS: PlanView[] = [
       customCss: false,
     },
     bullets: ["Search section", "CSV import with column mapping"],
+    bulletsAt: [],
   },
   {
     key: "growth",
@@ -42,9 +43,10 @@ export const TEST_PLANS: PlanView[] = [
     priceYearly: 290,
     trialDays: 14,
     visible: true,
-    limits: { rows: 500_000, products: 5000, searchFields: null, backups: 5 },
+    limits: { rows: 500_000, products: 5000 },
     toggles: all,
     bullets: ["Everything in Starter"],
+    bulletsAt: [],
   },
   {
     key: "pro",
@@ -56,9 +58,10 @@ export const TEST_PLANS: PlanView[] = [
     priceYearly: 990,
     trialDays: 14,
     visible: true,
-    limits: { rows: null, products: null, searchFields: null, backups: 5 },
+    limits: { rows: null, products: null },
     toggles: all,
     bullets: ["Everything in Growth"],
+    bulletsAt: [],
   },
   {
     key: "business",
@@ -70,9 +73,10 @@ export const TEST_PLANS: PlanView[] = [
     priceYearly: 1990,
     trialDays: 14,
     visible: false,
-    limits: { rows: null, products: null, searchFields: null, backups: 20 },
+    limits: { rows: null, products: null },
     toggles: all,
     bullets: ["Everything in Pro"],
+    bulletsAt: [],
   },
 ];
 

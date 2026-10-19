@@ -248,6 +248,30 @@ body {
 .bo-eyebrow:hover {
   color: var(--bo-text);
 }
+/* A parent page link inside a page title (Edit plan: "Plans › Edit Starter"). */
+.bo-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--bo-accent-2);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-decoration-color: rgba(155, 232, 251, 0.45);
+  text-underline-offset: 6px;
+  transition:
+    color 0.15s,
+    text-decoration-color 0.15s;
+}
+.bo-crumb:hover,
+.bo-crumb:focus-visible {
+  color: #fff;
+  text-decoration-color: currentColor;
+}
+.bo-crumb-sep {
+  margin: 0 10px;
+  color: var(--bo-faint);
+  font-weight: 400;
+}
 .bo-title {
   margin: 4px 0 0;
   font-size: 30px;
@@ -338,6 +362,41 @@ body {
   transform: translateY(-3px);
   border-color: var(--bo-line-strong);
 }
+/* The plan name's link stretches over the card, so the whole card opens the plan. */
+.bo-plan {
+  cursor: pointer;
+}
+.bo-plan-link {
+  color: inherit;
+  text-decoration: none;
+}
+.bo-plan-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+.bo-plan-link:focus-visible {
+  outline: none;
+}
+.bo-plan:has(.bo-plan-link:focus-visible) {
+  outline: 2px solid var(--bo-accent);
+  outline-offset: 2px;
+}
+/* Badges stay above the link, so the "Default" tooltip still shows. */
+.bo-plan .bo-badges {
+  position: relative;
+  z-index: 2;
+}
+.bo-plan-open {
+  display: inline-flex;
+  color: var(--bo-faint);
+  transition: color 0.2s;
+}
+.bo-plan:hover .bo-plan-open {
+  color: var(--bo-text);
+}
 .bo-plan-top {
   display: flex;
   align-items: flex-start;
@@ -372,29 +431,19 @@ body {
   color: var(--bo-faint);
   font-size: 12px;
 }
-.bo-facts {
+.bo-lines {
   display: grid;
   gap: 6px;
   margin: 0;
-  padding: 12px 0 0;
+  padding: 12px 0 0 18px;
   border-top: 1px solid var(--bo-line);
-  list-style: none;
-  font-size: 13px;
-}
-.bo-facts li {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
   color: var(--bo-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  list-style: disc;
 }
-.bo-facts b {
-  color: var(--bo-text);
-  font-weight: 600;
-}
-.bo-features {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.bo-lines li::marker {
+  color: var(--bo-faint);
 }
 .bo-plan-foot {
   display: flex;
@@ -554,6 +603,10 @@ body {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 14px;
+}
+/* One item per row (Edit plan › Limits). */
+.bo-fields--stack {
+  grid-template-columns: minmax(0, 1fr);
 }
 .bo-fields .bo-field {
   margin-bottom: 0;
@@ -1488,4 +1541,47 @@ select.bo-input option {
     align-items: flex-start;
     gap: 12px;
   }
+}
+
+/* Edit plan › Card lines: the card's lines in order; generated ones fixed, own ones editable. */
+.bo-cardlines {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.bo-cardline {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 4px;
+}
+.bo-cardline.is-auto {
+  grid-template-columns: 1fr auto;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px dashed var(--bo-line);
+  border-radius: 12px;
+  color: var(--bo-muted);
+}
+.bo-cardline-text::before {
+  content: "•";
+  margin-right: 8px;
+  color: var(--bo-faint);
+}
+.bo-btn--icon {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+.bo-btn--icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.bo-cardlines-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }

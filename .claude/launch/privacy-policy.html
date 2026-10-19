@@ -18,7 +18,7 @@
   <li><strong>Files</strong> (<code>write_files</code>): only the My Selection icon you upload yourself is stored in your store's Files.</li>
   <li><strong>Storefront proxy</strong> (<code>write_app_proxy</code>): lets your storefront search reach the App through Shopify's signed app proxy.</li>
   <li><strong>App configuration:</strong> your store type, search fields, fitment (filter) rows, product links, universal products, storefront texts, colours and settings. Your search fields and storefront texts are also saved as an app setting (an app-owned metafield) on your store so your theme can show them.</li>
-  <li><strong>Imported files:</strong> the CSV files you import, with your column mapping. We keep your most recent imports as backups you can download (how many depends on your plan; 5 on the standard plans), together with the error reports we create from them.</li>
+  <li><strong>Imported files:</strong> the CSV files you import, with your column mapping. We keep the files of your last 5 imports as backups you can download (when your plan includes import backups), together with the error reports we create from them.</li>
   <li><strong>Billing status:</strong> your plan, subscription state and trial dates. All charges are handled by the Shopify Billing API; we never see or store payment details.</li>
   <li><strong>Search statistics:</strong> daily counts for the Analytics page (see section 3). These are aggregate numbers, not personal data.</li>
   <li><strong>Support chat:</strong> when you use the support chat inside the App, the messages you send and any contact details you choose to give are handled by our own support chat service (chat.progryss.com), so we can answer you. We use them only to give you support.</li>
@@ -66,7 +66,7 @@
 <h2>9. Retention and deletion</h2>
 <ul>
   <li><strong>Store configuration, fitment data, product links and catalog copy</strong> — kept for as long as the App is installed.</li>
-  <li><strong>Imported files</strong> — the most recent imports your plan includes (5 on the standard plans) are kept as backups; older ones are deleted when a new import replaces them.</li>
+  <li><strong>Imported files</strong> — the files of the last 5 imports per store are kept; older ones are deleted when a new import replaces them.</li>
   <li><strong>Search statistics</strong> — deleted after 180 days by a daily job.</li>
   <li><strong>Operational logs</strong> — the errors, warnings and slow requests the App records are kept for up to 30 days (14 days by default), then deleted by a daily job; a store's entries are also deleted with the rest of its data after uninstall. Our hosting provider's own server logs are kept for [30] days, then deleted.</li>
   <li><strong>After uninstall</strong> — the search disappears from your store straight away and billing stops. Your data is kept for 30 days so an accidental uninstall or a quick reinstall does not lose your setup. After 30 days, every record belonging to your store is permanently deleted: search setup, fitment data, product links, imports, backups, reports, statistics, settings and access tokens. This meets the 30-day deadline Shopify sets for its shop/redact request.</li>

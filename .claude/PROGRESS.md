@@ -86,6 +86,10 @@ Updated after each larger change or decision. The SessionStart hook loads this f
 - 2026-10-16 (user): **"Show results on" is always followed.** Default search page = the theme's search page every time (no switch to SpareFit's page for none / SKU-less / over 100): the link holds as many SKUs as fit in 6,000 characters (`MAX_SEARCH_SKUS` read = 500), none → `variants.sku:"sparefit-no-match"` (theme's own no-results page). The select has no details text. Only an unreachable app proxy still opens SpareFit's page.
 - 2026-10-16 (user): **Search button sized to its text** in the one-row widget (flex row: dropdowns `flex: 1 1 140px`, button `flex: 0 0 auto; min-width: 120px`); phones still stack (grid). Checked on Horizon: dropdowns 420px, button 125px.
 
+- 2026-10-19 (product owner): **search fields and import backups are no longer plan numbers.** Every store can have up to **10 search fields** (`MAX_SEARCH_FIELDS`); **Import backups** is a plain on/off feature under Backoffice › Features that keeps the **last 5** imports (`BACKUPS_KEPT`), and storage keeps only those 5 files per shop. Plan limits are now just filter rows and linked products. Plan cards say "Up to 10 search fields" and "Backups of your last 5 imports"; Search setup says "You can add up to 10 search fields." Stored `searchFields` / `backups` limit keys are ignored (no migration). Also 2026-10-19: Filter data's Product column shows only a Linked / Not linked badge; the fits badge, My Selection tab and results heading show every pick in dropdown order.
+
+- 2026-10-19 (product owner): backoffice plan cards show one bulleted list, the same lines as the merchant Plans page (`cardLines`). Edit plan › **Card lines** replaces the extra-lines textarea: own lines with Add line, move up/down among the generated lines and remove; the place is stored in the new column `plans.bullets_at` (migration `20261019120000_plan_bullet_positions`, run `npm run setup` / the deploy script on the server).
+
 ## Verified (Shopify docs)
 
 Facts checked against shopify.dev, so they aren't re-researched. Format: `date · API version · topic: answer (URL)`.

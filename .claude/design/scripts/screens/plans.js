@@ -4,13 +4,13 @@
 const PLANS = [
   { key: 'starter', name: 'Starter', month: 0, year: null, trial: 0, limits: { rows: 5000, products: 50 },
     description: 'For trying SpareFit on a small catalog.',
-    items: ['50 linked products', '5,000 filter rows', '10 search fields', '5 import backups', 'Fits badge', 'Search section', 'CSV import with column mapping'] },
+    items: ['50 linked products', '5,000 filter rows', 'Up to 10 search fields', 'Fits badge', 'Backups of your last 5 imports', 'Search section', 'CSV import with column mapping'] },
   { key: 'growth', name: 'Growth', month: 29, year: 290, trial: 14, limits: { rows: 500000, products: 5000 },
     description: 'For growing catalogs.',
-    items: ['5,000 linked products', '500,000 filter rows', '10 search fields', '5 import backups', 'Fits badge', 'Fitment table', 'My Selection floating button', 'Universal products', 'Everything in Starter'] },
+    items: ['5,000 linked products', '500,000 filter rows', 'Up to 10 search fields', 'Fits badge', 'Fitment table', 'My Selection floating button', 'Universal products', 'Backups of your last 5 imports', 'Everything in Starter'] },
   { key: 'pro', name: 'Pro', month: 99, year: 990, trial: 14, limits: { rows: Infinity, products: Infinity },
     description: 'For large catalogs.',
-    items: ['Unlimited linked products', 'Unlimited filter rows', '10 search fields', '5 import backups', 'Fits badge', 'Fitment table', 'My Selection floating button', 'Universal products', 'Everything in Growth'] }
+    items: ['Unlimited linked products', 'Unlimited filter rows', 'Up to 10 search fields', 'Fits badge', 'Fitment table', 'My Selection floating button', 'Universal products', 'Backups of your last 5 imports', 'Everything in Growth'] }
 ];
 
 S.plans = () => {

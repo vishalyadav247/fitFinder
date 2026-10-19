@@ -57,9 +57,8 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
      - Name and description.
      - Badges: "Default" on the plan used by stores without a plan, and "Shown" or "Hidden". A hidden plan's card is dimmed.
      - Price: "Free", or "$29 / month" with "$290 / year · 14 days free trial" under it ("Monthly only" / "No trial" when not set).
-     - The four limits.
-     - The included features as chips, or "No extra features".
-     - "{n} stores", and an **Edit** button that shows a spinner while opening.
+     - The card's lines as one bulleted list, exactly as merchants see them on the Plans page (`cardLines`: limits, "Up to 10 search fields", features and the plan's own lines in their places; changed 2026-10-19 from limit rows and feature chips).
+     - "{n} stores" and a small pencil icon. The whole card opens Edit plan (2026-10-19; the plan name is the link and stretches over the card, keyboard focus outlines the card); a spinner replaces the pencil while it opens.
 4. **Stores** (`/backoffice/stores`, after Plans in the nav; added 2026-10-15, product owner): every store, from `storeList` in `app/models/backoffice-stats.server.ts`. Read-only. After the store type ("Automotive · Logs"), a **Logs** link (labelled "Logs for {domain}") opens Logs filtered to that store (last 7 days). The domain link says "(opens in a new tab)" to screen readers.
    - Header: "Stores" and "Every store with SpareFit: its plan, search fields and how much it uses them."
    - One glass card with the filters, the table and the footer:
@@ -87,8 +86,8 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
    - Footer: the paged-table standard (shared `TableFooter`).
    - Empty: "Nothing logged in the last 24 hours. All quiet." (the chosen time), "No errors, warnings or slow requests. All quiet." (everything kept), or "No log entries match these filters."
    - **Deleting:** every night in the daily purge job (03:15 UTC), entries last seen before the retention, in batches of 5,000; a purged store's entries are deleted with the store (`purge.server.ts`). The store filter lists stores with entries in the chosen time.
-6. **Edit plan** (`/backoffice/plans/{key}`; "← Plans" goes to `/backoffice/plans`):
-   - Header: "← Plans", the title "Edit {plan}" and "Changes to limits and features apply right away. Price and trial changes apply to new subscriptions."
+6. **Edit plan** (`/backoffice/plans/{key}`; "Plans" in the title goes to `/backoffice/plans`):
+   - Header: the title "Plans › Edit {plan}" ("← Plans" is a link in the title's font, accent colour with an underline; 2026-10-19, replaced the small "← Plans" link above the title) and "Changes to limits and features apply right away. Price and trial changes apply to new subscriptions."
    - Sections in glass cards, with toggle switches instead of checkboxes:
      - **General:** Name (max 40), Description (max 160; one line on the card), and "Show this plan to merchants". Hidden plans can't be picked; stores already on them keep them. At least one plan must stay shown.
      - **Pricing and trial:**
@@ -97,19 +96,18 @@ It manages the plan catalogue (four plan slots, each with price, free or paid, t
          - Monthly price in USD, above 0.
          - Yearly price, optional (empty means monthly only; above 0 when set).
          - Free trial in days, 0–365, default 14. The days a store has already used are taken off.
-     - **Limits:** one box per limit, with a number (an empty box is refused). Filter rows and linked products also have an "Unlimited" switch; search fields (0 to 10) and import backups (1 to 10) have none. Import backups has an "Included in this plan" switch instead (the `importBackups` feature); switched off, its number is dimmed and kept.
+     - **Limits** (left) and **Features** (right) side by side (2026-10-19; stacked on narrow screens). **Limits:** one box per limit, one per row, with a number (an empty box is refused) and an "Unlimited" switch. Search fields and import backups are not limits (simplified 2026-10-19): every store can have up to 10 search fields, and Import backups is a switch under Features that keeps the last 5 imports.
        - Filter rows
        - Linked products
-       - Search fields (0 to 10)
-       - Import backups (1 to 10, "Downloadable import files, 1 to 10."; switch "Included in this plan")
        - Lowering a limit never deletes data.
      - **Features:** one switch per feature, each with its help text.
        - Fits badge
        - Fitment table
        - My Selection floating button
        - Universal products
+       - Import backups ("Keeps the last 5 imported files to download.")
        - Custom CSS (Settings › Custom CSS; added 2026-10-16, off on every plan until switched on)
-     - **Extra card lines:** one line per row (max 12, 120 characters each), shown after the generated lines.
+     - **Card lines** (2026-10-19): the plan card as merchants see it. Generated lines (limits and features, following the form as it is edited) show as dashed rows marked "Automatic". The plan's own lines are text boxes with **Move up**, **Move down** and **Remove line** icon buttons; moving past a generated line changes its place, moving past another own line swaps them. **Add line** adds an empty line at the bottom and focuses it (max 12 lines, 120 characters each; at 12 the button is off: "12 lines is the most a card can have."). Empty lines are dropped on save. Each own line is stored with its place (`plans.bullets_at`: generated lines before it).
    - **Validation:** zod `planInputSchema` (`app/services/plan-features.ts`). Errors appear under each field, plus the error toast.
    - **Saving:** a save returns to Plans (`/backoffice/plans?saved={key}`) with the toast "{Plan} saved".
 7. **Profile** (`/backoffice/profile`):

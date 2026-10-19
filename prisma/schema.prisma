@@ -389,6 +389,8 @@ model Plan {
   limits       Json     @default("{}")
   toggles      Json     @default("{}")
   bullets      String[] @default([])
+  /// Generated lines before each extra line (same order as bullets); missing = at the end.
+  bulletsAt    Int[]    @default([]) @map("bullets_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
   updatedBy    String?  @map("updated_by")
 

@@ -46,6 +46,8 @@ export function toPlanView(p: Plan): PlanView {
     limits: readLimits(p.limits),
     toggles: readToggles(p.toggles),
     bullets: p.bullets,
+    // Missing until the bullets_at migration and a fresh Prisma client: lines at the bottom.
+    bulletsAt: p.bulletsAt ?? [],
   };
 }
 
@@ -115,6 +117,7 @@ export async function updatePlan(key: string, input: PlanInput, by: string) {
         limits: input.limits,
         toggles: input.toggles,
         bullets: input.bullets,
+        bulletsAt: input.bulletsAt,
         updatedBy: by,
       },
     });

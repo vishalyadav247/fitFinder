@@ -146,7 +146,7 @@ export function ImportHistory({
         <LockedSection
           plan={lockedPlan ?? ""}
           feature="Import backups"
-          text="Keep your recent imported files and download them any time."
+          text="Keep your last 5 imported files and download them any time."
         >
           {table}
         </LockedSection>

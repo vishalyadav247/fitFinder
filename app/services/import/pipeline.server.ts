@@ -32,10 +32,11 @@ import {
 import { buildRow } from "./transform";
 import { overLimitMessage } from "../billing.server";
 import { limitMessage } from "../billing";
-import { HARD_LIMITS, backupsOf, limitOf } from "../plan-features";
+import { BACKUPS_KEPT, backupsOf, limitOf } from "../plan-features";
 import { shopPlanView } from "../../models/plan.server";
 
-export const KEEP_FILES = 5;
+/** Imported files kept for download (plan-features.ts BACKUPS_KEPT). */
+export const KEEP_FILES = BACKUPS_KEPT;
 const STAGE_BATCH = 10000;
 const SAMPLE_ROWS = 3;
 const RUN_TIMEOUT_MS = 30 * 60 * 1000;
@@ -168,13 +169,14 @@ export async function currentJob(shopId: string) {
 }
 
 /**
- * Import history: the newest finished imports, as many as the plan's backups. Without the Import
- * backups feature, the newest 3 (shown locked, without downloads).
+ * Import history: the newest finished imports, the last 5 with the Import backups feature.
+ * Without it, the newest 3 (shown locked, without downloads).
  */
 export async function importHistory(shopId: string, kept?: number) {
   return prisma.importJob.findMany({
     where: { shopId, status: "completed" },
-    orderBy: { finishedAt: "desc" },
+    // Same order as keepNewestFiles (id breaks ties), so every listed backup still has its file.
+    orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
     // Without backups, the newest few show blurred behind the upgrade layer.
     take: (kept ?? (await keptFiles(shopId))) || 3,
     // What the history list shows; not the stored columns/mapping documents.
@@ -869,15 +871,14 @@ async function saveJobMapping(job: ImportJob) {
   ]);
 }
 
-/** Imported files the merchant can download: the plan's import backups (0 without the feature). */
+/** Imported files the merchant can download: the last 5 with Import backups, 0 without it. */
 export async function keptFiles(shopId: string) {
   return backupsOf(await shopPlanView(shopId));
 }
 
 /**
- * Deletes the files of finished imports past the backups cap (10). The plan's backups limit only
- * decides how many the history shows (keptFiles), so a downgrade or a lower limit never deletes a
- * backup the shop could need after an upgrade.
+ * Deletes the files of finished imports past the last 5. They are kept also on plans without
+ * Import backups (the history just doesn't offer them), so an upgrade brings them back.
  */
 export async function keepNewestFiles(shopId: string) {
   const old = await prisma.importJob.findMany({
@@ -886,8 +887,8 @@ export async function keepNewestFiles(shopId: string) {
       status: "completed",
       OR: [{ fileKey: { not: null } }, { reportKey: { not: null } }],
     },
-    orderBy: { finishedAt: "desc" },
-    skip: HARD_LIMITS.backups!,
+    orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
+    skip: BACKUPS_KEPT,
   });
   for (const j of old) {
     if (j.fileKey) await deleteQuietly(j.fileKey);

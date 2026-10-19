@@ -18,8 +18,7 @@ try {
 const { default: prisma } = await import("../db.server");
 const { upsertShopOnInstall } = await import("../models/shop.server");
 const { applyStoreType } = await import("../models/search-config.server");
-const { applyFieldIntent, FieldRuleError } =
-  await import("../models/search-field.server");
+const { applyFieldIntent } = await import("../models/search-field.server");
 const { saveRow, FitmentRuleError } =
   await import("../models/fitment-row.server");
 const { linkChosenProduct, addUniversal, LinkRuleError } =
@@ -412,37 +411,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
     });
 
     describe("limits", () => {
-      it("limits search fields by plan", async () => {
-        plansMod.setPlansForTests(
-          withPlan("starter", {
-            limits: { ...TEST_PLANS[0].limits, searchFields: 4 },
-          }),
-        );
-        await applyFieldIntent(shopId, { intent: "add" });
-        await expect(
-          applyFieldIntent(shopId, { intent: "add" }),
-        ).rejects.toThrow("The Starter plan allows up to 4 search fields.");
-        // Another shop on Pro isn't affected.
-        await setPlan(otherId, "pro");
-        await applyFieldIntent(otherId, { intent: "add" });
-        await applyFieldIntent(otherId, { intent: "add" });
-        expect(
-          await prisma.searchField.count({ where: { shopId: otherId } }),
-        ).toBe(5);
-      });
-
-      it("allows up to the 10-field cap when the plan allows more", async () => {
+      it("allows 10 search fields on every plan", async () => {
         await setPlan(shopId, "none");
-        // Phones preset: Brand, Series, Model (3 fields); Starter can go to 5 and on.
-        await applyFieldIntent(shopId, { intent: "add" });
-        await applyFieldIntent(shopId, { intent: "add" });
-        expect(await prisma.searchField.count({ where: { shopId } })).toBe(5);
-        for (let i = 5; i < 10; i++) {
+        // Phones preset: Brand, Series, Model (3 fields).
+        for (let i = 3; i < 10; i++) {
           await applyFieldIntent(shopId, { intent: "add" });
         }
+        expect(await prisma.searchField.count({ where: { shopId } })).toBe(10);
         await expect(
           applyFieldIntent(shopId, { intent: "add" }),
-        ).rejects.toThrow(FieldRuleError);
+        ).rejects.toThrow("You can have up to 10 fields.");
       });
 
       it("refuses a row past the row limit", async () => {

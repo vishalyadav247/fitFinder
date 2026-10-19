@@ -6,12 +6,12 @@ export const NEW_FIELD_LABEL = "New field";
 export const LABEL_MAX = 60;
 export const PLACEHOLDER_MAX = 80;
 
-/** Hint under Add field, per store type (prototype search-setup.js). */
-export const ADD_FIELD_HINT: Record<string, string> = {
-  automotive: "For example Engine, Trim or Body type",
-  phones: "For example Storage size or Colour",
-  beauty: "For example Concern, Skin type or Age group",
-  custom: "For example Type, Series or Model number",
+/** Examples of extra fields, per store type, in the fields card's description (prototype search-setup.js). */
+export const FIELD_EXAMPLES: Record<string, string> = {
+  automotive: "Engine, Trim or Body type",
+  phones: "Storage size or Colour",
+  beauty: "Concern, Skin type or Age group",
+  custom: "Type, Series or Model number",
 };
 
 /** Shown placeholder: the saved one, or "Select {field name}". */

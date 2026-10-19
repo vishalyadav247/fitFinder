@@ -13,15 +13,19 @@ import {
 import { checkOrigin, requireAdmin } from "../services/backoffice-auth.server";
 import { getPlan, PlanRuleError, updatePlan } from "../models/plan.server";
 import {
-  HARD_LIMITS,
   LIMIT_KEYS,
   LIMITS,
+  MAX_BULLETS,
   MAX_TRIAL_DAYS,
   planInputSchema,
   TOGGLE_KEYS,
   TOGGLES,
+  type PlanLimits,
+  type PlanToggles,
+  type PlanView,
 } from "../services/plan-features";
 import { formToPlanInput } from "../services/backoffice-form";
+import { mergeCardLines, planLines } from "../services/billing";
 import {
   Icon,
   SaveBar,
@@ -132,6 +136,195 @@ function SectionTitle({
   );
 }
 
+/** The generated card lines for what the form says now (limits and features not saved yet). */
+function draftLines(form: HTMLFormElement | null, plan: PlanView): string[] {
+  if (!form) return planLines(plan);
+  const raw = formToPlanInput(new FormData(form));
+  const limits = Object.fromEntries(
+    LIMIT_KEYS.map((k) => {
+      const v = raw.limits[k];
+      const n = Number(v);
+      return [k, v === null ? null : Number.isFinite(n) ? n : 0];
+    }),
+  ) as PlanLimits;
+  return planLines({ ...plan, limits, toggles: raw.toggles as PlanToggles });
+}
+
+interface ExtraLine {
+  id: number;
+  text: string;
+  at: number;
+}
+
+/**
+ * Card lines: the card as merchants see it. Generated lines (limits and features) are fixed; the
+ * plan's own lines can be added, edited, moved between them and removed. Each own line is sent as
+ * "line.text" + "line.at" (generated lines before it), in card order.
+ */
+function CardLines({
+  plan,
+  formRef,
+  onChange,
+  error,
+}: {
+  plan: PlanView;
+  formRef: React.RefObject<HTMLFormElement | null>;
+  onChange: () => void;
+  error?: string;
+}) {
+  const [generated, setGenerated] = useState(() => planLines(plan));
+  const [extras, setExtras] = useState<ExtraLine[]>(() =>
+    plan.bullets.map((text, i) => ({
+      id: i,
+      text,
+      at: plan.bulletsAt?.[i] ?? Infinity,
+    })),
+  );
+  const nextId = useRef(plan.bullets.length);
+  const focusId = useRef<number | null>(null);
+
+  // Generated lines follow the limits and features as they are edited.
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const update = () => setGenerated(draftLines(form, plan));
+    update();
+    form.addEventListener("input", update);
+    form.addEventListener("change", update);
+    return () => {
+      form.removeEventListener("input", update);
+      form.removeEventListener("change", update);
+    };
+  }, [formRef, plan]);
+
+  useEffect(() => {
+    if (focusId.current === null) return;
+    document.getElementById(`line-${focusId.current}`)?.focus();
+    focusId.current = null;
+  });
+
+  const items = mergeCardLines(generated, extras);
+  const edit = (next: ExtraLine[]) => {
+    setExtras(next);
+    onChange();
+  };
+  const move = (index: number, dir: -1 | 1) => {
+    const item = items[index];
+    const other = items[index + dir];
+    if (item.extra === null || !other) return;
+    const next = extras.map((e) => ({
+      ...e,
+      at: Math.min(e.at, generated.length),
+    }));
+    if (other.extra === null) {
+      // Past a generated line: one place up or down.
+      next[item.extra] = { ...next[item.extra], at: next[item.extra].at + dir };
+    } else {
+      // Past another own line in the same place: swap them.
+      [next[item.extra], next[other.extra]] = [
+        next[other.extra],
+        next[item.extra],
+      ];
+    }
+    edit(next);
+  };
+  const add = () => {
+    const id = nextId.current++;
+    focusId.current = id;
+    edit([...extras, { id, text: "", at: generated.length }]);
+  };
+
+  let before = 0;
+  return (
+    <>
+      <p className="bo-help" style={{ marginTop: 0 }}>
+        The plan card as merchants see it. Grey lines come from the limits and
+        features above; add your own lines and move them with the arrows.
+      </p>
+      <ul className="bo-cardlines">
+        {items.map((item, i) => {
+          if (item.extra === null) {
+            before++;
+            return (
+              <li key={`g${i}`} className="bo-cardline is-auto">
+                <span className="bo-cardline-text">{item.text}</span>
+                <span className="bo-help">Automatic</span>
+              </li>
+            );
+          }
+          const line = extras[item.extra];
+          return (
+            <li key={line.id} className="bo-cardline">
+              <input
+                id={`line-${line.id}`}
+                className="bo-input"
+                name="line.text"
+                value={line.text}
+                maxLength={120}
+                placeholder="Your line, e.g. Priority email support"
+                aria-label="Card line"
+                onChange={(e) =>
+                  edit(
+                    extras.map((x) =>
+                      x.id === line.id
+                        ? { ...x, text: e.currentTarget.value }
+                        : x,
+                    ),
+                  )
+                }
+              />
+              <input type="hidden" name="line.at" value={before} />
+              <button
+                type="button"
+                className="bo-btn bo-btn--ghost bo-btn--sm bo-btn--icon"
+                aria-label="Move up"
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+              >
+                <Icon name="up" size={16} />
+              </button>
+              <button
+                type="button"
+                className="bo-btn bo-btn--ghost bo-btn--sm bo-btn--icon"
+                aria-label="Move down"
+                disabled={i === items.length - 1}
+                onClick={() => move(i, 1)}
+              >
+                <Icon name="down" size={16} />
+              </button>
+              <button
+                type="button"
+                className="bo-btn bo-btn--ghost bo-btn--sm bo-btn--icon"
+                aria-label="Remove line"
+                onClick={() => edit(extras.filter((x) => x.id !== line.id))}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="bo-cardlines-foot">
+        <button
+          type="button"
+          className="bo-btn bo-btn--sm"
+          onClick={add}
+          disabled={extras.length >= MAX_BULLETS}
+        >
+          <Icon name="plus" size={15} />
+          Add line
+        </button>
+        <span className="bo-help">
+          {extras.length >= MAX_BULLETS
+            ? `${MAX_BULLETS} lines is the most a card can have.`
+            : `Up to ${MAX_BULLETS} lines of 120 characters.`}
+        </span>
+      </div>
+      <FieldError message={error} />
+    </>
+  );
+}
+
 export default function EditPlan() {
   const { plan } = useLoaderData<typeof loader>();
   const result = useActionData<typeof action>();
@@ -139,13 +332,19 @@ export default function EditPlan() {
   const initialUnlimited = () =>
     Object.fromEntries(LIMIT_KEYS.map((k) => [k, plan.limits[k] === null]));
   const [isFree, setIsFree] = useState(plan.isFree);
-  // Import backups is a feature switched on and off in its limit box (Limits card).
-  const [backupsOn, setBackupsOn] = useState(plan.toggles.importBackups);
   const [unlimited, setUnlimited] =
     useState<Record<string, boolean>>(initialUnlimited);
   const formRef = useRef<HTMLFormElement>(null);
   // Saving lasts from the post until the plans page has loaded after the redirect.
-  const { dirty, discard, shake, submitting: saving } = useDirtyForm(formRef);
+  const {
+    dirty,
+    setDirty,
+    discard,
+    shake,
+    submitting: saving,
+  } = useDirtyForm(formRef);
+  // Discard rebuilds the card lines editor from the saved plan.
+  const [linesKey, setLinesKey] = useState(0);
   const [notice, setNotice] = useState<ToastMessage | null>(null);
   useEffect(() => {
     if (result?.error) setNotice(toast(result.error, true));
@@ -161,18 +360,25 @@ export default function EditPlan() {
         shake={shake}
         onDiscard={() => {
           discard();
+          setLinesKey((n) => n + 1);
           setIsFree(plan.isFree);
           setUnlimited(initialUnlimited());
-          setBackupsOn(plan.toggles.importBackups);
         }}
       />
       <Toast message={notice} />
       <div className="bo-head">
         <div>
-          <Link to="/backoffice/plans" className="bo-eyebrow">
-            <Icon name="back" size={16} /> Plans
-          </Link>
-          <h1 className="bo-title">Edit {plan.name}</h1>
+          {/* Back to Plans sits in the title, in the title's font: "Plans › Edit Starter". */}
+          <h1 className="bo-title">
+            <Link to="/backoffice/plans" className="bo-crumb">
+              <Icon name="back" size={22} />
+              Plans
+            </Link>
+            <span className="bo-crumb-sep" aria-hidden="true">
+              ›
+            </span>
+            Edit {plan.name}
+          </h1>
           <p className="bo-sub">
             Changes to limits and features apply right away. Price and trial
             changes apply to new subscriptions.
@@ -281,56 +487,39 @@ export default function EditPlan() {
           )}
         </section>
 
-        <section className="bo-glass bo-card bo-card--wide">
+        {/* Limits left, Features right (one column on narrow screens). */}
+        <section className="bo-glass bo-card">
           <SectionTitle icon="gauge">Limits</SectionTitle>
-          <div className="bo-fields">
-            {LIMIT_KEYS.map((k) => {
-              const off = k === "backups" && !backupsOn;
-              return (
-                <div className="bo-limit" key={k}>
-                  <label className="bo-field" htmlFor={`limit-${k}`}>
-                    <span className="bo-label">{LIMITS[k].label}</span>
-                  </label>
-                  <input
-                    id={`limit-${k}`}
-                    className={cls(`limits.${k}`)}
-                    name={`limit.${k}`}
-                    type="number"
-                    min={k === "backups" ? "1" : "0"}
-                    step="1"
-                    max={HARD_LIMITS[k]}
-                    placeholder={unlimited[k] ? "Unlimited" : undefined}
-                    defaultValue={plan.limits[k] ?? ""}
-                    disabled={unlimited[k]}
-                    // Switched off, the count is kept (and sent) for when it's switched on again.
-                    readOnly={off}
-                    aria-disabled={off || undefined}
-                    required={!unlimited[k]}
-                  />
-                  {k === "backups" && (
-                    <Toggle
-                      name="toggle.importBackups"
-                      label="Included in this plan"
-                      checked={backupsOn}
-                      onChange={setBackupsOn}
-                    />
-                  )}
-                  {/* Capped limits (search fields, backups) are always 0 to the cap. */}
-                  {HARD_LIMITS[k] === undefined && (
-                    <Toggle
-                      name={`unlimited.${k}`}
-                      label="Unlimited"
-                      checked={unlimited[k]}
-                      onChange={(checked) =>
-                        setUnlimited((u) => ({ ...u, [k]: checked }))
-                      }
-                    />
-                  )}
-                  <span className="bo-help">{LIMITS[k].help}</span>
-                  <FieldError message={errors[`limits.${k}`]} />
-                </div>
-              );
-            })}
+          <div className="bo-fields bo-fields--stack">
+            {LIMIT_KEYS.map((k) => (
+              <div className="bo-limit" key={k}>
+                <label className="bo-field" htmlFor={`limit-${k}`}>
+                  <span className="bo-label">{LIMITS[k].label}</span>
+                </label>
+                <input
+                  id={`limit-${k}`}
+                  className={cls(`limits.${k}`)}
+                  name={`limit.${k}`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder={unlimited[k] ? "Unlimited" : undefined}
+                  defaultValue={plan.limits[k] ?? ""}
+                  disabled={unlimited[k]}
+                  required={!unlimited[k]}
+                />
+                <Toggle
+                  name={`unlimited.${k}`}
+                  label="Unlimited"
+                  checked={unlimited[k]}
+                  onChange={(checked) =>
+                    setUnlimited((u) => ({ ...u, [k]: checked }))
+                  }
+                />
+                <span className="bo-help">{LIMITS[k].help}</span>
+                <FieldError message={errors[`limits.${k}`]} />
+              </div>
+            ))}
           </div>
           <p className="bo-help" style={{ marginTop: 12 }}>
             Lowering a limit never deletes data: stores over it see a warning
@@ -341,7 +530,7 @@ export default function EditPlan() {
         <section className="bo-glass bo-card">
           <SectionTitle icon="spark">Features</SectionTitle>
           <div className="bo-toggles" style={{ gridTemplateColumns: "1fr" }}>
-            {TOGGLE_KEYS.filter((k) => k !== "importBackups").map((k) => (
+            {TOGGLE_KEYS.map((k) => (
               <Toggle
                 key={k}
                 name={`toggle.${k}`}
@@ -354,23 +543,15 @@ export default function EditPlan() {
           <FieldError message={errors.toggles} />
         </section>
 
-        <section className="bo-glass bo-card">
-          <SectionTitle icon="list">Extra card lines</SectionTitle>
-          <label className="bo-field">
-            <span className="bo-label">One line per row</span>
-            <textarea
-              className={cls("bullets")}
-              name="bullets"
-              rows={6}
-              defaultValue={plan.bullets.join("\n")}
-              placeholder="Unlimited filter rows"
-            />
-            <span className="bo-help">
-              Shown on the plan card after the limits and features (up to 12
-              lines).
-            </span>
-            <FieldError message={errors.bullets} />
-          </label>
+        <section className="bo-glass bo-card bo-card--wide">
+          <SectionTitle icon="list">Card lines</SectionTitle>
+          <CardLines
+            key={linesKey}
+            plan={plan}
+            formRef={formRef}
+            onChange={() => setDirty(true)}
+            error={errors.bullets}
+          />
         </section>
       </div>
     </Form>

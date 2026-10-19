@@ -42,6 +42,10 @@ const PATHS = {
   list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
   info: "M12 8h.01M11 12h1v5h1M12 21a9 9 0 110-18 9 9 0 010 18z",
   store: "M4 9l1.5-5h13L20 9M4 9h16v11H4zM9 20v-6h6v6",
+  up: "M6 15l6-6 6 6",
+  down: "M6 9l6 6 6-6",
+  trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  plus: "M12 5v14M5 12h14",
 } as const;
 
 export type IconName = keyof typeof PATHS;

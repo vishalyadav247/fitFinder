@@ -55,7 +55,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const used = {
       rows: facts.rowCount,
       products,
-      searchFields: fields.length,
     };
     const limits = limitsOf(await shopPlanView(shop.id));
     return {
@@ -255,8 +254,8 @@ function DashboardDetails({
       {data.over.length > 0 && (
         <s-box paddingBlockEnd="base">
           <s-banner tone="warning" heading="You're over your plan's limits">
-            The {data.planName} plan allows {listText(data.over)}. New rows,
-            links or fields are refused until you upgrade or remove some.
+            The {data.planName} plan allows {listText(data.over)}. New rows or
+            links are refused until you upgrade or remove some.
             <s-button
               slot="secondary-actions"
               onClick={() => navigate("/app/plans")}
