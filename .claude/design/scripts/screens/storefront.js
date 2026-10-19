@@ -65,10 +65,9 @@ function themeSetup(c) {
   return { live, embed: live ? !!c.embed : !!own.embed, blocks: live ? { search: true } : own.blocks || {} };
 }
 
-// Short name for a shopper's selection: first and last dropdown values, e.g. "AUDI A6 C6 Avant (4F5)" or "Apple iPhone 15 Pro".
+// Name of a shopper's selection: every picked value in dropdown order, e.g. "AUDI 2008 A6 C6 Avant (4F5)" (a year range shows its first year).
 function selectionName(sp, row) {
-  const lists = sp.fields.filter((f) => f.type !== 'years').map((f) => row.v[f.id]).filter(Boolean);
-  return lists.length > 1 ? lists[0] + ' ' + lists[lists.length - 1] : lists.join(' ');
+  return sp.fields.map((f) => (f.type === 'years' && row.v[f.id] ? Math.min(...years(row.v[f.id])) : row.v[f.id])).filter(Boolean).join(' ');
 }
 
 S.store = () => {

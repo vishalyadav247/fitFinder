@@ -70,7 +70,7 @@ function rowsTab(sp) {
         <s-table-cell><s-checkbox accessibilityLabel="Select ${esc(r.part)}" data-act="sel" data-id="${r.id}"${sel.includes(r.id) ? ' checked' : ''}></s-checkbox></s-table-cell>
         ${sp.fields.map((f, i) => `<s-table-cell>${i === 0 ? `<s-text type="strong">${esc(showValue(f, r.v[f.id]))}</s-text>` : esc(showValue(f, r.v[f.id]))}</s-table-cell>`).join('')}
         <s-table-cell>${esc(r.part)}</s-table-cell>
-        <s-table-cell>${r.mapped ? esc(r.product || 'Linked') : '<s-badge tone="warning">Unmatched</s-badge>'}</s-table-cell>
+        <s-table-cell>${r.mapped ? '<s-badge tone="success">Linked</s-badge>' : '<s-badge tone="warning">Not linked</s-badge>'}</s-table-cell>
         <s-table-cell><s-stack direction="inline" gap="small-300"><s-button variant="tertiary" icon="edit" accessibilityLabel="Edit ${esc(r.part)}" data-act="row-edit" data-id="${r.id}"></s-button><s-button variant="tertiary" icon="delete" tone="critical" accessibilityLabel="Delete ${esc(r.part)}" data-act="ask" data-confirm="row-del" data-id="${r.id}"></s-button></s-stack></s-table-cell>
       </s-table-row>`).join('')}</s-table-body>
     </s-table>

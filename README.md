@@ -24,10 +24,12 @@ npm run config:dev                         # make the dev app the CLI default
 
 ## Apps and config files
 
-| File                   | App         |
-| ---------------------- | ----------- |
-| `shopify.app.toml`     | Production  |
-| `shopify.app.dev.toml` | Development |
+| File                   | App         | Handle         |
+| ---------------------- | ----------- | -------------- |
+| `shopify.app.toml`     | Production  | `sparefit`     |
+| `shopify.app.dev.toml` | Development | `sparefit-dev` |
+
+Each app needs its own handle; `SHOPIFY_APP_HANDLE` in that environment's `.env` must match it. The production server is set up as described in `.claude/launch/deploy-server.md`.
 
 ```bash
 npm run config:which                       # show the active config

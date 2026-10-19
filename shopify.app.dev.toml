@@ -7,7 +7,7 @@ client_id = "7b77c7efd0009a88cfc875d912e97bf9"
 application_url = "https://example.com"
 embedded = true
 name = "SpareFit – Parts Finder"
-handle = "sparefit"
+handle = "sparefit-dev"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

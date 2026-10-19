@@ -120,24 +120,19 @@ export function sortOptions(type: FieldType, values: string[]): string[] {
 }
 
 /**
- * Short name of a selection, as My Selection and the fits badge show it: the year, the first
- * dropdown and the last dropdown, e.g. "2008 AUDI A6 C6 Avant (4F5)" (prototype storefront.js).
- * The same rule is in the theme extension's sparefit.js (label()).
+ * Name of a selection, as the fits badge, My Selection's tab and the results page show it: every
+ * picked value in dropdown order, e.g. "AUDI 2008 A6 C6 Avant (4F5) 2.0 TDI" (changed 2026-10-19;
+ * it used to skip the middle dropdowns). The same rule is in storefront-src/core.js (label()).
  */
 export function selectionLabel(
   fields: { id: string; type: FieldType }[],
   picks: Picks,
 ): string {
-  const year = fields.find((f) => f.type === "year_range");
-  const lists = fields
-    .filter((f) => f.type !== "year_range" && picks.has(f.id))
-    .map((f) => String(picks.get(f.id)));
-  const parts = [
-    year && picks.has(year.id) ? String(picks.get(year.id)) : "",
-    lists[0] ?? "",
-    lists.length > 1 ? lists[lists.length - 1] : "",
-  ];
-  return parts.filter(Boolean).join(" ");
+  return fields
+    .filter((f) => picks.has(f.id))
+    .map((f) => String(picks.get(f.id)))
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** Query string of the picks (field order), for links back to the results. */

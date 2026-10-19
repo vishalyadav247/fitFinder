@@ -81,10 +81,15 @@ export function parts(picks) {
   };
 }
 
-/** Same rule as selectionLabel() in the app (app/services/storefront/picks.ts). */
+/**
+ * Every picked value in dropdown order: "AUDI 2008 A6 C6 Avant (4F5) 2.0 TDI".
+ * Same rule as selectionLabel() in the app (app/services/storefront/picks.ts).
+ */
 export function label(picks) {
-  const p = parts(picks);
-  return [p.top, p.sub].filter(Boolean).join(" ");
+  return cfg.fields
+    .map((f) => picks[f.id])
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function query(picks, extra) {

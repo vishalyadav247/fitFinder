@@ -110,13 +110,13 @@ describe("theme search page after a SpareFit search", () => {
 });
 
 describe("selections", () => {
-  it("labels like the app (year + first dropdown, last dropdown)", () => {
+  it("labels like the app: every pick in dropdown order; My Selection cards split it in two lines", () => {
     const p = sel("AUDI", "2008", "A6 C6 Avant (4F5)");
     expect(core.parts(p)).toEqual({
       top: "2008 AUDI",
       sub: "A6 C6 Avant (4F5)",
     });
-    expect(core.label(p)).toBe("2008 AUDI A6 C6 Avant (4F5)");
+    expect(core.label(p)).toBe("AUDI 2008 A6 C6 Avant (4F5)");
   });
 
   it("is complete when every required field is picked", () => {

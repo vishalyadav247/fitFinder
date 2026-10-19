@@ -188,7 +188,7 @@ describe("GET results", () => {
     expect(res.headers.get("Content-Type")).toBe("application/liquid");
     const body = await res.text();
     expect(body).toContain("all_products['shock']");
-    expect(body).toContain("2008 AUDI A6");
+    expect(body).toContain("AUDI 2008 A6");
     expect(searchResults.mock.calls[0][2]).toBe(1);
   });
 

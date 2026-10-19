@@ -337,14 +337,14 @@ describe("picks", () => {
     expect(picksQuery(real, p).get("cmv1")).toBe("Tata");
   });
 
-  it("labels a selection like My Selection (year, first and last dropdown)", () => {
+  it("labels a selection with every pick in dropdown order", () => {
     const p = parsePicks(
       new URLSearchParams("make=AUDI&year=2008&model=A6 C6 Avant (4F5)"),
       fields,
     )!;
-    expect(selectionLabel(fields, p)).toBe("2008 AUDI A6 C6 Avant (4F5)");
+    expect(selectionLabel(fields, p)).toBe("AUDI 2008 A6 C6 Avant (4F5)");
     p.set("engine", "2.0 TDI");
-    expect(selectionLabel(fields, p)).toBe("2008 AUDI 2.0 TDI");
+    expect(selectionLabel(fields, p)).toBe("AUDI 2008 A6 C6 Avant (4F5) 2.0 TDI");
     expect(selectionLabel(fields, new Map([["make", "BMW"]]))).toBe("BMW");
   });
 
@@ -371,7 +371,7 @@ describe("results page (Liquid)", () => {
   const view = (over: Partial<ResultsView> = {}): ResultsView => ({
     config,
     picks: { make: "AUDI" },
-    label: "2008 AUDI A6",
+    label: "AUDI 2008 A6",
     complete: true,
     results: {
       products: [

@@ -593,9 +593,9 @@ export default function FilterDataPage() {
                       <s-table-cell>{r.attachment}</s-table-cell>
                       <s-table-cell>
                         {r.linked ? (
-                          <s-text>{r.product || "Linked"}</s-text>
+                          <s-badge tone="success">Linked</s-badge>
                         ) : (
-                          <s-badge tone="warning">Unmatched</s-badge>
+                          <s-badge tone="warning">Not linked</s-badge>
                         )}
                       </s-table-cell>
                       <s-table-cell>

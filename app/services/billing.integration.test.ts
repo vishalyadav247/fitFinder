@@ -161,8 +161,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(admin.state.created[0]).toMatchObject({
           trialDays: 14,
           test: true,
-          returnUrl:
-            "https://admin.shopify.com/store/vitest-billing/apps/sparefit/app/plans?charge=1",
+          // The handle comes from SHOPIFY_APP_HANDLE (.env: sparefit-dev locally, sparefit in production).
+          returnUrl: `https://admin.shopify.com/store/vitest-billing/apps/${subs.appHandle()}/app/plans?charge=1`,
           lineItems: [
             {
               plan: {
