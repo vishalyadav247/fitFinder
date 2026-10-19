@@ -283,7 +283,43 @@ Keeps 14 days of dumps in `/var/backups`. Restore (with both processes stopped):
 
 ---
 
-## Updating later
+## Updating later — `scripts/deploy.sh`
+
+Push from your Mac, then on the server run one command:
+
+```bash
+sudo bash /var/www/sparefit.progryss.com/html/scripts/deploy.sh
+```
+
+Optional shortcut (once), so the command is just `sparefit-deploy`:
+
+```bash
+ln -sf /var/www/sparefit.progryss.com/html/scripts/deploy.sh /usr/local/bin/sparefit-deploy
+```
+
+The script pulls `main` and runs only the steps the new commits need:
+
+| Changed since the running version | Step |
+| --- | --- |
+| `package.json` / `package-lock.json` | `npm ci` + `prisma generate` + build + restart |
+| `prisma/schema.prisma` | `prisma generate` |
+| `prisma/migrations/` | `prisma migrate deploy`, only if the database lacks them (after a successful build) |
+| app code, config, `public/`, `scripts/` | `npm run build` + restart |
+| only docs, `.claude/`, `extensions/`, `storefront-src/`, TOML files | nothing on the server; it reminds you to run `npm run deploy:prod` on your Mac when the theme extension or `shopify.app.toml` changed |
+
+Then it restarts `sparefit-web` and `sparefit-worker`, waits for `http://127.0.0.1:3006/` to answer 200 and checks the worker is online.
+
+Safety built in:
+
+- Nothing new → "already up to date", nothing runs.
+- One run at a time (lock file).
+- Stops if someone edited files on the server (they would be overwritten); commit changes in the repo instead.
+- The build runs before migrations and the restart. If it fails, the previous code and build are put back and the running app is never restarted, so the site keeps working. Fix, push, run again.
+- `chown` to `sparefit` after the pull; npm and Prisma run as `sparefit`.
+
+Options: `--dry-run` (shows the plan, changes nothing), `--force` (runs every step even without new commits), `--help`. A changed `.env` needs only `pm2 restart sparefit-web sparefit-worker`.
+
+The manual steps, if you ever need them:
 
 ```bash
 cd /var/www/sparefit.progryss.com/html
