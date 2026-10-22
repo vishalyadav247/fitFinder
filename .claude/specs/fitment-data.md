@@ -1,14 +1,20 @@
 # Filter data
 
-**Prototype:** `design/scripts/screens/fitment-data.js` · Styles: `design/styles/fitment-data.css` · **Route:** `/app/filter-data` (built in M5; Import CSV opens the import card on Search setup via `/app/search-setup?import=1`)
+**Prototype:** `design/scripts/screens/fitment-data.js` · Styles: `design/styles/fitment-data.css` · **Route:** `/app/filter-data` (built in M5; since 2026-10-22 it also holds the import: `?tab=filter-data` / `?tab=import-data` open the tabs (older `import` still works); `?import=1` also opens the import card)
 
 ## Purpose
-Everything about the filter rows on one page, with no tabs: browse and edit rows, import a CSV, and export. There is no import history list.
+Everything about the filter rows on one page, in two tabs (2026-10-22, product owner): **Filter data** (browse and edit rows, export, clean up) and **Import** (import a CSV and Import history, moved here from Search setup).
 
 ## Layout
-`s-page heading="Filter data"` · primary **Import CSV** (→ Search setup, import card open) · secondary **Export** (opens the export modal).
+`s-page heading="Filter data"`, no header actions (Import data is its own tab; removed from the header 2026-10-22, product owner). **Export data** (primary, black; opens the export modal) sits in the rows section, right of **Add row**, because it exports the table's data.
 
-1. Warning `s-banner` only when some SKUs are unlinked: "{n} SKUs aren't linked to a product" — "Shoppers won't see these rows in search results until they're linked to a product." + button **Link products** (→ Product mapping) on the right of that text, same row (`s-grid 1fr auto`). No summary cards: the row count is in the table footer.
+**Tabs** (the app's shared page tabs `.sp-tabs`, Shopify admin look): **Filter data** (icon rows, with the row count in a pill) · **Import data** (icon upload). The page opens on Filter data, or on Import data when `?tab=import-data` / `?import=1` is given, when the store has no rows yet, or while an import is checking or running. `?import=1` is dropped from the URL once used; `?tab=` stays and follows every switch.
+
+**Import data tab:** the Import filter data card, the Import CSV card and Import history exactly as described in `search-setup.md` › Layout 2–3 and › Import (the spec text stays there). After an import closes, the counts and the rows reload.
+
+**Filter data tab:**
+
+1. Warning `s-banner` only when some SKUs are unlinked: "{rows} rows of {total} aren't linked to a product" — "They use {n} SKUs with no product in your store, so shoppers won't see them in search results until they're linked." (rows first since 2026-10-22, product owner) + button **Link products** (→ Product mapping) on the right of that text, same row (`s-grid 1fr auto`). No summary cards: the row count is in the table footer.
 2. Rows section (below).
 3. **Clean up** card (full width), heading with a small eraser icon (`s-icon type="eraser"` in a soft grey tile).
 
@@ -31,7 +37,7 @@ Everything about the filter rows on one page, with no tabs: browse and edit rows
 - Note: "The file uses the same columns as the import, so you can edit it and import it again."
 - `s-choice-list` "What to export": **All rows ({n})** / **Selected rows ({n})** (disabled with "Select rows in the table first" when nothing is selected; pre-selected when rows are selected) / **Only rows with unlinked SKUs ({n})**. The empty template is not here; it is in the import flow.
 - "Format: CSV (UTF-8)".
-- Primary **Export CSV** (downloads and closes), secondary **Cancel**. The page's title-bar **Export** and **Export selected** open it with `shopify.modal.show('export-modal')` (title-bar `commandFor` is documented for menus only).
+- Primary **Export CSV** (downloads and closes), secondary **Cancel**. The rows section's **Export data** and **Export selected** open it with `shopify.modal.show('export-modal')` (title-bar `commandFor` is documented for menus only).
 
 ### Delete confirmations
 Every delete opens a small `s-modal` first (shared `confirm-modal`): title, one sentence saying what will be removed and that it can't be undone, a red primary button and **Cancel**.
@@ -53,7 +59,7 @@ Error toasts: "Rows couldn't be loaded. Try again.", "This search took too long.
 - Page loader: fields + counts (rows, rows with unlinked SKUs, unlinked SKUs). A row is linked when `product_links` has its attachment.
 - Route action on `/app/filter-data`, intents `add`, `edit` (`rowId`), `delete` (`ids` JSON, `single`), `delete-all`, `dedupe-count`, `dedupe`. Writes take the shop's setup lock (like field changes and imports) and are refused while an import runs.
 - Import: see [search-setup.md](search-setup.md).
-- `POST /api/fitment/export` `{ scope: all|selected|unmatched, ids? }`: streams a UTF-8 CSV (with BOM), header = field labels + `Attachment` (same as the import template; the table calls it SKU), one `2015-2020` / `2019-` / `2016` column per Year range. `X-Row-Count` header; files `filter-data.csv`, `filter-data-selected.csv`, `filter-data-unlinked.csv`. Cells starting with `= + - @` get a leading `'`; the import removes it, so an export imports back unchanged.
+- `POST /api/fitment/export` `{ scope: all|selected|unmatched, ids? }`: streams a UTF-8 CSV (with BOM), header = field labels + `SKU` (same as the import template; older files with an `Attachment` column still import), one `2015-2020` / `2019-` / `2016` column per Year range. `X-Row-Count` header; files `filter-data.csv`, `filter-data-selected.csv`, `filter-data-unlinked.csv`. Cells starting with `= + - @` get a leading `'`; the import removes it, so an export imports back unchanged.
 
 ## Build notes
 Plain Polaris. No tabs on this page. The export options live in an `s-modal`.

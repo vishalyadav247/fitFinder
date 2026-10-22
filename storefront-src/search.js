@@ -46,6 +46,8 @@ export function initSearch(el) {
   const s = cfg.s;
   // Read before the widget replaces the block's markup.
   const first = firstList(el);
+  // The banner image from the theme editor (search block settings): kept at the card's top.
+  const banner = el.querySelector(".sp-sfw__banner");
   const host = el.closest("[data-sp-results]");
   // On the results page the widget shows that page's selection; elsewhere the current one.
   const fixed = host ? pagePicks(host) : null;
@@ -88,7 +90,7 @@ export function initSearch(el) {
     (s.saveLink || s.reset
       ? '<div class="sp-sfw__links">' +
         (s.saveLink
-          ? '<button type="button" class="sp-sfw__save">&#9734; <span>' +
+          ? '<button type="button" class="sp-sfw__save"><i class="sp-sfw__star" aria-hidden="true"></i> <span>' +
             esc(s.saveText) +
             "</span></button>"
           : "<span></span>") +
@@ -100,6 +102,7 @@ export function initSearch(el) {
         "</div>"
       : "") +
     "</div>";
+  if (banner) el.firstElementChild.prepend(banner);
   const selects = el.querySelectorAll("select");
   // Mouse and trackpad screens get a list that opens under the field (dropdown.js).
   const buttons = usesList() ? [...selects].map(enhance) : [];

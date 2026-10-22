@@ -299,7 +299,7 @@ function DashboardDetails({
                   cy="26"
                   r="21"
                   fill="none"
-                  stroke="url(#ff-gr)"
+                  stroke="url(#sp-gr)"
                   strokeWidth="5"
                   strokeLinecap="round"
                   strokeDasharray={`${ring} 131.9`}

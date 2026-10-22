@@ -2,12 +2,7 @@
 // Spec: .claude/specs/settings.md · Prototype: .claude/design/scripts/screens/settings.js
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import {
-  useFetcher,
-  useLoaderData,
-  useNavigate,
-  useSearchParams,
-} from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 import { z } from "zod";
 
@@ -29,7 +24,15 @@ import { CUSTOM_CSS_MAX, scopeCss } from "../services/storefront/custom-css";
 import { SectionTitle } from "../components/SectionTitle";
 import { PageHeader } from "../components/PageHeader";
 import { Icon, type IconName } from "../components/Icon";
+import {
+  skipTabOnlyChanges,
+  useUrlTab,
+  type UrlTab,
+} from "../components/url-tab";
 import { writeReviewUrl } from "../services/review";
+
+// Switching tabs only changes ?tab=: the page keeps its data.
+export const shouldRevalidate = skipTabOnlyChanges;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -119,6 +122,11 @@ export const action = async ({
 const SAVE_BAR = "settings-save-bar";
 
 type Tab = "general" | "css";
+// Each tab's name in the URL (?tab=); "css" still works for older links.
+const URL_TABS: UrlTab<Tab>[] = [
+  { key: "general", slug: "general" },
+  { key: "css", slug: "custom-css", aliases: ["css"] },
+];
 const TABS: [Tab, string, IconName][] = [
   ["general", "General", "sliders"],
   ["css", "Custom CSS", "code"],
@@ -128,14 +136,8 @@ export default function SettingsPage() {
   const data = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const [params, setParams] = useSearchParams();
-  // The open tab is in the URL (?tab=css), so a reload or a link keeps it.
-  const tab: Tab = params.get("tab") === "css" ? "css" : "general";
-  const showTab = (t: Tab) =>
-    setParams(t === "general" ? {} : { tab: t }, {
-      replace: true,
-      preventScrollReset: true,
-    });
+  // The open tab is in the URL (?tab=general | custom-css), so a reload or a link keeps it.
+  const [tab, showTab] = useUrlTab(URL_TABS);
   const fetcher = useFetcher<typeof action>();
   const [css, setCss] = useState(data.customCss);
   const [savedCss, setSavedCss] = useState(data.customCss);
@@ -195,11 +197,7 @@ export default function SettingsPage() {
       </SaveBar>
       <PageHeader title="Settings" />
       <s-stack gap="base">
-        <div
-          className="sp-tabs sp-tabs--compact"
-          role="tablist"
-          aria-label="Settings"
-        >
+        <div className="sp-tabs" role="tablist" aria-label="Settings">
           {TABS.map(([k, label, icon]) => (
             <button
               key={k}
@@ -265,7 +263,7 @@ export default function SettingsPage() {
                   <s-list-item>
                     <s-text type="strong">Backups:</s-text>{" "}
                     {data.kept > 0
-                      ? `you can download your ${keptText(data.kept)} imported any time from Search setup › Import history.`
+                      ? `you can download your ${keptText(data.kept)} imported any time from Filter data › Import › Import history.`
                       : "your plan doesn't include import backups."}
                   </s-list-item>
                   <s-list-item>

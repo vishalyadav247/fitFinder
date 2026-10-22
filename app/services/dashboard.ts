@@ -61,7 +61,7 @@ export function guideSteps(f: DashboardFacts, now = new Date()): GuideStep[] {
         ? `${f.rowCount.toLocaleString("en-US")} rows are in. Import your file again any time: new rows are added, changed rows are updated and nothing else is lost.`
         : "Upload a CSV with your SKUs and the items they fit. Any column layout works, and you check the columns before importing.",
       cta: "Import data",
-      to: "/app/search-setup?import=1",
+      to: "/app/filter-data?tab=import-data&import=1",
       icon: "upload",
       minutes: 2,
       done: f.rowCount > 0,
@@ -164,7 +164,7 @@ export function overviewCards(f: DashboardFacts): OverviewCard[] {
       value: n(f.withoutData),
       badge: null,
       line: "Not shown in any search",
-      to: "/app/product-mapping?tab=p",
+      to: "/app/product-mapping?tab=products-without-data",
     },
   ];
 }

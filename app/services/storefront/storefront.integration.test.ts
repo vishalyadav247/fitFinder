@@ -4,6 +4,8 @@
 // and the app metafield publish.
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import { resultsAdminData } from "./results-admin.server";
+import { storeTags } from "./store-tags.server";
 const DOMAIN = "vitest-storefront.myshopify.com";
 const OTHER = "vitest-storefront-b.myshopify.com";
 
@@ -231,6 +233,107 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       1,
     );
     expect(none.products).toEqual([{ handle: "product-3", universal: true }]);
+  });
+
+  it("filters results by the tags of each group and counts them", async () => {
+    await prisma.$executeRaw`UPDATE catalog_products SET tags = ARRAY['Bilstein', 'Front', 'sale']
+      WHERE shop_id = ${shopId} AND product_id = ${P(1)}`;
+    await prisma.$executeRaw`UPDATE catalog_products SET tags = ARRAY['kyb', 'Rear', 'Front']
+      WHERE shop_id = ${shopId} AND product_id = ${P(3)}`;
+    const s = await search();
+    const audi = await picks(
+      `${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`,
+    );
+    // Groups list the tags in their own order; "Monroe" is on no product, so it isn't shown.
+    const filters = [
+      {
+        id: "b",
+        label: "Brand",
+        tags: ["KYB", "Bilstein", "Monroe"],
+        style: "list" as const,
+      },
+      {
+        id: "p",
+        label: "Position",
+        tags: ["Front", "Rear"],
+        style: "buttons" as const,
+      },
+    ];
+    const values = (r: Awaited<ReturnType<typeof q.searchResults>>) =>
+      r.facets.map((f) =>
+        f.values.map((v) => `${v.value} ${v.count}${v.on ? " on" : ""}`),
+      );
+
+    const all = await q.searchResults(s, audi, 1, { filters });
+    expect(all.total).toBe(2);
+    expect(values(all)).toEqual([
+      ["KYB 1", "Bilstein 1"], // tags compare without case: kyb = KYB
+      ["Front 2", "Rear 1"],
+    ]);
+
+    // OR within a group; a group's counts ignore its own picks.
+    const kyb = await q.searchResults(s, audi, 1, {
+      filters,
+      filterPicks: { b: ["kyb"] },
+    });
+    expect(kyb.products).toEqual([{ handle: "product-3", universal: true }]);
+    expect(values(kyb)).toEqual([
+      ["KYB 1 on", "Bilstein 1"],
+      ["Front 1", "Rear 1"],
+    ]);
+
+    // AND across groups; a picked tag no product here has still shows, so it can be cleared.
+    const none = await q.searchResults(s, audi, 1, {
+      filters,
+      filterPicks: { b: ["bilstein"], p: ["rear"] },
+    });
+    expect(none.total).toBe(0);
+    expect(values(none)[1]).toEqual(["Front 1", "Rear 0 on"]);
+
+    // Sort and page size.
+    const desc = await q.searchResults(s, audi, 1, {
+      sort: "title-desc",
+      perPage: 1,
+    });
+    expect(desc.products.map((p) => p.handle)).toEqual(["product-3"]);
+    expect(desc.pageCount).toBe(2);
+  });
+
+  it("lists the shop's active product tags, most used first, searchable", async () => {
+    await prisma.$executeRaw`UPDATE catalog_products SET tags = ARRAY['Bilstein', 'Front']
+      WHERE shop_id = ${shopId} AND product_id = ${P(1)}`;
+    await prisma.$executeRaw`UPDATE catalog_products SET tags = ARRAY['bilstein', 'sale_50%']
+      WHERE shop_id = ${shopId} AND product_id = ${P(2)}`;
+    await prisma.$executeRaw`UPDATE catalog_products SET tags = ARRAY['Red']
+      WHERE shop_id = ${shopId} AND product_id = ${P(5)}`; // draft
+    await catalog.replaceCatalog(
+      otherId,
+      [{ ...product(7, "X"), tags: ["Steel"] }],
+      await catalog.dbNow(),
+    );
+    expect(await storeTags(shopId, "")).toEqual([
+      { tag: "Bilstein", products: 2 },
+      { tag: "Front", products: 1 },
+      { tag: "sale_50%", products: 1 },
+    ]);
+    // Search is "contains", without case; % and _ are plain characters.
+    expect((await storeTags(shopId, "BIL")).map((t) => t.tag)).toEqual([
+      "Bilstein",
+    ]);
+    expect((await storeTags(shopId, "_5")).map((t) => t.tag)).toEqual([
+      "sale_50%",
+    ]);
+    expect(await storeTags(shopId, "steel")).toEqual([]);
+
+    // The tab's data: preview products (tagged first), no reload while tags are loaded.
+    await prisma.catalogSync.upsert({
+      where: { shopId },
+      create: { shopId, status: "completed", tagsLoaded: true },
+      update: { status: "completed", tagsLoaded: true },
+    });
+    const data = await resultsAdminData(shopId);
+    expect(data.tagsLoading).toBe(false);
+    expect(data.sample.some((p) => p.tags.includes("Red"))).toBe(false);
   });
 
   it("leaves universal products out when the plan doesn't include them", async () => {

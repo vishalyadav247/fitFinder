@@ -13,6 +13,7 @@ import {
 } from "../services/linking/relink.server";
 import {
   FitmentRuleError,
+  likePattern,
   replaceAttachmentRows,
   withSetupLock,
 } from "./fitment-row.server";
@@ -110,7 +111,13 @@ export async function unlinkedGroups(
   shopId: string,
   page: number,
   pageSize: number = MAPPING_PAGE_SIZE,
-): Promise<Paged<UnlinkedGroup>> {
+  /** Part of a SKU (any case): only the unlinked SKUs that contain it. */
+  query = "",
+): Promise<Paged<UnlinkedGroup> & { matching: number | null }> {
+  const q = query.trim().slice(0, 100);
+  const match = q
+    ? Prisma.sql`AND f.attachment ILIKE ${likePattern(q)}`
+    : Prisma.empty;
   // Each group's first row is fetched by id (LATERAL … LIMIT 1) for the page's groups only, under
   // any plan: a prepared statement's generic plan merge-joined the whole table instead.
   const groups = await timedRead(
@@ -128,7 +135,7 @@ export async function unlinkedGroups(
         SELECT f.attachment, count(*)::int AS n, min(f.id) AS first_id
         FROM fitment_rows f
         LEFT JOIN product_links p ON p.shop_id = f.shop_id AND p.attachment = f.attachment
-        WHERE f.shop_id = ${shopId} AND p.attachment IS NULL
+        WHERE f.shop_id = ${shopId} AND p.attachment IS NULL ${match}
         GROUP BY f.attachment
         ORDER BY count(*) DESC, f.attachment
         LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize}
@@ -139,6 +146,19 @@ export async function unlinkedGroups(
         LIMIT 1) f
       ORDER BY g.n DESC, g.attachment`,
   );
+  // While searching, how many unlinked SKUs match (the footer counts those).
+  const matching = q
+    ? (
+        await timedRead(
+          (tx) =>
+            tx.$queryRaw<{ n: number }[]>`
+            SELECT count(DISTINCT f.attachment)::int AS n
+            FROM fitment_rows f
+            LEFT JOIN product_links p ON p.shop_id = f.shop_id AND p.attachment = f.attachment
+            WHERE f.shop_id = ${shopId} AND p.attachment IS NULL ${match}`,
+        )
+      )[0].n
+    : null;
   return {
     items: groups.slice(0, pageSize).map((g) => ({
       attachment: g.attachment,
@@ -148,6 +168,7 @@ export async function unlinkedGroups(
     page,
     pageSize,
     hasNextPage: groups.length > pageSize,
+    matching,
   };
 }
 
@@ -182,7 +203,8 @@ export async function productsWithoutData(
   shopId: string,
   page: number,
   pageSize: number = MAPPING_PAGE_SIZE,
-): Promise<Paged<CatalogItem> & { total: number }> {
+): Promise<Paged<CatalogItem> & { total: number; storeTotal: number }> {
+  // The store's active products are read once (a): their count is the badge's "of {storeTotal}".
   // One pass for the page and the total: the products are found once (hash joins), then sorted
   // and counted. A separate "ORDER BY title LIMIT" query probed every product's links one by one
   // when few or none were left (2 s for 242k linked products, now 0.3 s). The total comes on a
@@ -192,16 +214,21 @@ export async function productsWithoutData(
       (Omit<CatalogItem, "productId"> & {
         productId: string | null;
         total: number;
+        storeTotal: number;
       })[]
     >`
-      WITH w AS MATERIALIZED (
-        SELECT p.shop_id, p.product_id, p.title, p.handle FROM catalog_products p
+      WITH a AS MATERIALIZED (
+        SELECT p.shop_id, p.product_id, p.title, p.handle, p.status FROM catalog_products p
+        WHERE p.shop_id = ${shopId} AND p.status = 'ACTIVE'),
+      w AS MATERIALIZED (
+        SELECT p.shop_id, p.product_id, p.title, p.handle FROM a p
         WHERE ${withoutDataWhere(shopId)}),
       pg AS (
         SELECT * FROM w ORDER BY title, product_id
         LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize})
       SELECT p.product_id AS "productId", p.title, p.handle,
-             CASE WHEN p.product_id IS NULL THEN '' ELSE ${firstSku} END AS sku, t.total
+             CASE WHEN p.product_id IS NULL THEN '' ELSE ${firstSku} END AS sku, t.total,
+             (SELECT count(*)::int FROM a) AS "storeTotal"
       FROM (SELECT count(*)::int AS total FROM w) t
       LEFT JOIN pg p ON true
       ORDER BY p.title, p.product_id`,
@@ -220,6 +247,8 @@ export async function productsWithoutData(
     pageSize,
     hasNextPage: items.length > pageSize,
     total: rows[0]?.total ?? 0,
+    // Active products in the store: the badge reads "{total} of {storeTotal} products".
+    storeTotal: rows[0]?.storeTotal ?? 0,
   };
 }
 
@@ -296,7 +325,7 @@ export async function linkChosenProduct(
         // A link check holds the lock longer than the setup lock's timeout.
         if (!isLockTimeout(error)) throw error;
         throw new LinkRuleError(
-          "Links are being checked right now. Try again in a moment.",
+          "Products are being synced right now. Try again in a moment.",
         );
       }
       await checkLink(tx, shopId, attachment, target.productId);
@@ -346,7 +375,7 @@ async function checkLink(
   });
   if (!used) {
     throw new LinkRuleError(
-      "No filter rows use this attachment any more. Refresh the page.",
+      "No filter rows use this SKU any more. Refresh the page.",
     );
   }
   // Only a product that isn't linked or universal yet adds to the plan's linked products; a shop
@@ -381,7 +410,11 @@ export async function addUniversal(
     return await withLinkLock(
       shopId,
       async (tx) => {
-        const notIncluded = await featureRefusal(shopId, "universalProducts", tx);
+        const notIncluded = await featureRefusal(
+          shopId,
+          "universalProducts",
+          tx,
+        );
         if (notIncluded) throw new LinkRuleError(notIncluded);
         const over = await overLimitMessage(
           shopId,
@@ -410,7 +443,7 @@ export async function addUniversal(
   } catch (error) {
     if (isLockTimeout(error)) {
       throw new LinkRuleError(
-        "Links are being checked right now. Try again in a moment.",
+        "Products are being synced right now. Try again in a moment.",
       );
     }
     throw error;

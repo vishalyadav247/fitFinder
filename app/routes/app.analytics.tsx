@@ -22,6 +22,7 @@ import {
   shortDay,
 } from "../services/analytics/report";
 import { PageHeader } from "../components/PageHeader";
+import { Icon, type IconName } from "../components/Icon";
 import { SectionTitle } from "../components/SectionTitle";
 import { EmptyState } from "../components/EmptyState";
 import styles from "../styles/analytics.css?url";
@@ -166,15 +167,32 @@ function Overview({ data }: { data: Data }) {
   const found = percent(r.searches - r.noResults, r.searches);
   const checks = r.fits + r.noFit;
   const fitPct = percent(r.fits, checks);
-  const cards = [
+  const change =
+    r.previousSearches > 0
+      ? Math.round(
+          ((r.searches - r.previousSearches) / r.previousSearches) * 100,
+        )
+      : null;
+  const cards: StatCard[] = [
     {
       label: "Searches",
+      icon: "search",
       value: fmt(r.searches),
-      line: changeLine(r.searches, r.previousSearches, data.days),
+      // The trend pill: an arrow and words, not colour alone.
+      trend:
+        change === null || change === 0
+          ? null
+          : { up: change > 0, text: `${Math.abs(change)}%` },
+      line:
+        change === null || change === 0
+          ? changeLine(r.searches, r.previousSearches, data.days)
+          : `vs the previous ${data.days} days`,
     },
     {
       label: "Found products",
+      icon: "checkCircle",
       value: found === null ? "—" : `${found}%`,
+      meter: found,
       badge: r.noResults > 0,
       line:
         r.noResults > 0
@@ -183,12 +201,15 @@ function Overview({ data }: { data: Data }) {
     },
     {
       label: "Different selections",
+      icon: "rows",
       value: fmt(r.selections),
       line: "Searched at least once",
     },
     {
       label: "Product page checks",
+      icon: "product",
       value: fmt(checks),
+      meter: fitPct,
       line:
         fitPct === null
           ? "No product page opened with a selection"
@@ -199,17 +220,47 @@ function Overview({ data }: { data: Data }) {
     <div className="sp-an-cards">
       {cards.map((c) => (
         <div key={c.label} className="sp-an-card">
-          <span className="sp-an-label">{c.label}</span>
+          <span className="sp-an-head">
+            <span className="sp-an-ico" aria-hidden="true">
+              <Icon name={c.icon} size={16} />
+            </span>
+            <span className="sp-an-label">{c.label}</span>
+          </span>
           <span className="sp-an-value">
             <span className="sp-an-number">{c.value}</span>
+            {c.trend && (
+              <span
+                className={`sp-an-trend ${c.trend.up ? "is-up" : "is-down"}`}
+                aria-label={`${c.trend.up ? "Up" : "Down"} ${c.trend.text}`}
+              >
+                {c.trend.up ? "▲" : "▼"} {c.trend.text}
+              </span>
+            )}
             {c.badge && <s-badge tone="warning">Needs attention</s-badge>}
           </span>
+          {c.meter !== undefined && c.meter !== null && (
+            <span className="sp-an-meter" aria-hidden="true">
+              <span style={{ width: `${c.meter}%` }} />
+            </span>
+          )}
           <span className="sp-an-line">{c.line}</span>
         </div>
       ))}
     </div>
   );
 }
+
+type StatCard = {
+  label: string;
+  icon: IconName;
+  value: string;
+  line: string;
+  /** Change vs the previous period: an arrow pill (green up, red down). */
+  trend?: { up: boolean; text: string } | null;
+  /** A share in % shown as a thin bar. */
+  meter?: number | null;
+  badge?: boolean;
+};
 
 /** Columns per day; one series, so no legend. Hover or focus a day to read its numbers. */
 function DailyChart({ daily }: { daily: Data["report"]["daily"] }) {

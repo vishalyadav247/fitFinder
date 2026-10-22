@@ -5,7 +5,7 @@
 // Spec: .claude/specs/storefront.md · Prototype: .claude/design/scripts/screens/storefront.js
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, useSearchParams } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -43,7 +43,6 @@ import {
   StorefrontPreview,
 } from "../components/storefront/StorefrontPreview";
 import styles from "../styles/storefront.css?url";
-import { FoldToggle } from "../components/FoldToggle";
 import { SectionTitle } from "../components/SectionTitle";
 import { Icon, type IconName } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
@@ -51,8 +50,34 @@ import { getPlans, shopPlanView } from "../models/plan.server";
 import { planWith } from "../services/billing";
 import type { ToggleKey } from "../services/plan-features";
 import { Option, Select } from "../components/Select";
+import { ResultsPreview } from "../components/storefront/ResultsPreview";
+import {
+  skipTabOnlyChanges,
+  useUrlTab,
+  type UrlTab,
+} from "../components/url-tab";
+import { defaultPageTitle } from "../services/storefront/results-page";
+import { resultsAdminData } from "../services/storefront/results-admin.server";
+import {
+  FILTER_LABEL_MAX,
+  MAX_GROUP_TAGS,
+  TAG_MAX,
+  MAX_FILTERS,
+  maxRows,
+  PAGE_TITLE_MAX,
+  TITLE_SIZE_MAX,
+  TITLE_SIZE_MIN,
+  defaultResultsPage,
+  newFilterId,
+  SORTS,
+  type ResultsFilter,
+  type ResultsPageSettings,
+} from "../services/storefront/results-settings";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
+
+// Switching tabs only changes ?tab=: the page keeps its data (no new theme read).
+export const shouldRevalidate = skipTabOnlyChanges;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin, redirect } = await authenticate.admin(request);
@@ -97,7 +122,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const sample = await previewSample(shop.id, fieldTypes);
   const first = sample.selections[0];
   // Features the plan doesn't include: the plan that adds them ("Needs Growth plan").
-  const [plan, plans] = await Promise.all([shopPlanView(shop.id), getPlans()]);
+  const [plan, plans, results] = await Promise.all([
+    shopPlanView(shop.id),
+    getPlans(),
+    resultsAdminData(shop.id),
+  ]);
   const needs = (key: ToggleKey) =>
     plan.toggles[key] ? null : (planWith(plans, key)?.name ?? "a higher");
   return {
@@ -117,16 +146,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     publishFailed,
     sample,
     previewAssets: PREVIEW_ASSETS,
+    results,
     exampleLabel: first
       ? selectionLabel(fieldTypes, new Map(Object.entries(first)))
       : "",
   };
 };
 
-type Tab = "widget" | "badge" | "table" | "garage";
+type Tab = "theme" | "widget" | "results" | "badge" | "table" | "garage";
 // Line icons (they follow the text colour: white on the active tab), like the section titles.
+// Each tab's name in the URL (?tab=); the short keys still work for older links.
+const URL_TABS: UrlTab<Tab>[] = [
+  { key: "theme", slug: "theme-integration", aliases: ["theme"] },
+  { key: "widget", slug: "search-widget", aliases: ["widget"] },
+  { key: "results", slug: "results-page", aliases: ["results"] },
+  { key: "badge", slug: "fits-badge", aliases: ["badge"] },
+  { key: "table", slug: "fitment-table", aliases: ["table"] },
+  { key: "garage", slug: "my-selection", aliases: ["garage"] },
+];
 const TABS: [Tab, string, IconName][] = [
+  ["theme", "Theme integration", "store"],
   ["widget", "Search widget", "search"],
+  ["results", "Results page", "page"],
   ["badge", "Fits badge", "checkCircle"],
   ["table", "Fitment table", "table"],
   ["garage", "My Selection", "star"],
@@ -164,12 +205,15 @@ const TEXT_KEYS = new Set<EditableKey>([
   "tableTitle",
 ]);
 const open = (url: string) => window.open(url, "_blank", "noopener");
+const FILTER_MODAL = "sp-rp-filter-modal";
+type StoreTagRow = { tag: string; products: number };
+const RESULTS_PREVIEW_MODAL = "sp-rp-preview-modal";
+const FILTER_DELETE_MODAL = "sp-rp-filter-delete";
 
 export default function StorefrontPage() {
   const data = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const { config, sample } = data;
 
   // What the server has (saved) and the draft shown in the fields and previews (s, heading). The
@@ -179,10 +223,13 @@ export default function StorefrontPage() {
   const [savedHeading, setSavedHeading] = useState(config.heading);
   const [heading, setHeading] = useState(config.heading);
   const [saving, setSaving] = useState(false);
+  // Results page tab: its own document (filters and layout), in the same draft and save bar.
+  // Over the defaults, so settings added later (e.g. filter layout) always have a value.
+  const loadedRp = { ...defaultResultsPage(), ...data.results.settings };
+  const [savedRp, setSavedRp] = useState<ResultsPageSettings>(loadedRp);
+  const [rp, setRp] = useState<ResultsPageSettings>(loadedRp);
   const [publishFailed, setPublishFailed] = useState(data.publishFailed);
-  const [tab, setTab] = useState<Tab>(
-    (TABS.find(([k]) => k === params.get("tab"))?.[0] as Tab) ?? "widget",
-  );
+  const [tab, setTab] = useUrlTab(URL_TABS);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [iconBusy, setIconBusy] = useState(false);
   const [iconError, setIconError] = useState("");
@@ -252,7 +299,9 @@ export default function StorefrontPage() {
   const same = (a: unknown, b: unknown) =>
     JSON.stringify(a) === JSON.stringify(b);
   const changedKeys = EDITABLE_KEYS.filter((k) => !same(s[k], saved[k]));
-  const dirty = changedKeys.length > 0 || heading.trim() !== savedHeading;
+  const rpChanged = !same(rp, savedRp);
+  const dirty =
+    changedKeys.length > 0 || heading.trim() !== savedHeading || rpChanged;
 
   /** A change goes into the draft; Save sends it. */
   const save = <K extends EditableKey>(key: K, value: StorefrontSettings[K]) =>
@@ -268,6 +317,8 @@ export default function StorefrontPage() {
     // What this Save sends: the draft as it is now (edits made while it runs stay in the draft).
     const sent = s;
     const sentHeading = heading;
+    const sentRp = rp;
+    const rpSent = rpChanged;
     // Texts are trimmed; an emptied one keeps its saved text (it isn't sent).
     const applied: Partial<Record<EditableKey, unknown>> = {};
     const settings: Record<string, string> = {};
@@ -289,6 +340,7 @@ export default function StorefrontPage() {
       intent: "save",
       settings,
       ...(newHeading !== savedHeading ? { heading: newHeading } : {}),
+      ...(rpSent ? { resultsPage: sentRp } : {}),
     });
     setSaving(false);
     if (!r.ok) {
@@ -311,6 +363,7 @@ export default function StorefrontPage() {
     });
     setSavedHeading(newHeading);
     setHeading((cur) => (cur === sentHeading ? newHeading : cur));
+    if (rpSent) setSavedRp(sentRp);
     setPublishFailed(r.published === false);
     shopify.toast.show("Settings saved");
   };
@@ -318,6 +371,7 @@ export default function StorefrontPage() {
   const discard = () => {
     setS(saved);
     setHeading(savedHeading);
+    setRp(savedRp);
   };
 
   /** Leaving the page from inside it: ask first while there are unsaved changes. */
@@ -585,63 +639,59 @@ export default function StorefrontPage() {
           ? status.tableCodeFound
           : blockStatus(row.key!) !== undefined,
     );
-  // Collapsed once everything is added (also when that happens on this visit); the toggle still
-  // opens it.
-  const [themeOpen, setThemeOpen] = useState(!integrated);
-  const statusKnown = !!status || !!data.themesError;
-  useEffect(() => {
-    // While another theme is being read, keep the card as it is.
-    if (statusKnown) setThemeOpen(!integrated);
-  }, [integrated, statusKnown]);
 
   const themeCard = (
     <s-section padding="none" accessibilityLabel="Theme integration">
-      <s-box padding="base" paddingBlockEnd={themeOpen ? "none" : "base"}>
+      <s-box padding="base" paddingBlockEnd="none">
         <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
           <SectionTitle icon="theme">Theme integration</SectionTitle>
           <s-stack direction="inline" gap="small-300" alignItems="center">
-            {!themeOpen && integrated && (
-              <s-badge tone="success">All added</s-badge>
-            )}
-            <FoldToggle
-              open={themeOpen}
-              label="theme integration"
-              onToggle={() => setThemeOpen(!themeOpen)}
-            />
+            {integrated && <s-badge tone="success">All added</s-badge>}
+            <s-button
+              variant="primary"
+              icon="external"
+              disabled={!themeId}
+              onClick={() => open(links.editor)}
+            >
+              Open theme editor
+            </s-button>
           </s-stack>
         </s-grid>
       </s-box>
-      {themeOpen && (
-        <>
-          {data.themesError === "access" && (
+      <>
+        {data.themesError === "access" && (
+          <s-box padding="base">
+            <s-banner
+              tone="warning"
+              heading="SpareFit needs access to your themes"
+            >
+              SpareFit checks your themes to show whether its blocks and app
+              embed are added. Open SpareFit from your apps list and approve the
+              updated permissions, then come back to this page.
+            </s-banner>
+          </s-box>
+        )}
+        {data.themesError === "other" && (
+          <s-box padding="base">
+            <s-banner tone="critical" heading="Your themes couldn't be read">
+              Reload the page to try again.
+            </s-banner>
+          </s-box>
+        )}
+        {!data.themesError && (
+          <>
             <s-box padding="base">
-              <s-banner
-                tone="warning"
-                heading="SpareFit needs access to your themes"
+              <s-grid
+                gridTemplateColumns="minmax(0, 380px) 1fr auto"
+                gap="large"
+                alignItems="center"
               >
-                SpareFit checks your themes to show whether its blocks and app
-                embed are added. Open SpareFit from your apps list and approve
-                the updated permissions, then come back to this page.
-              </s-banner>
-            </s-box>
-          )}
-          {data.themesError === "other" && (
-            <s-box padding="base">
-              <s-banner tone="critical" heading="Your themes couldn't be read">
-                Reload the page to try again.
-              </s-banner>
-            </s-box>
-          )}
-          {!data.themesError && (
-            <>
-              <s-box padding="base">
-                <s-grid
-                  gridTemplateColumns="minmax(0, 320px) 1fr auto"
-                  gap="large"
-                  alignItems="end"
-                >
+                {/* "Theme" sits left of the dropdown (one line). */}
+                <div className="sp-inline-field">
+                  <s-text type="strong">Theme</s-text>
                   <Select
                     label="Theme"
+                    labelAccessibilityVisibility="exclusive"
                     value={themeId}
                     onChange={(v) => pickTheme(v)}
                   >
@@ -651,79 +701,79 @@ export default function StorefrontPage() {
                       </Option>
                     ))}
                   </Select>
-                  <s-box />
-                  <s-stack
-                    direction="inline"
-                    gap="small-300"
-                    alignItems="center"
-                    justifyContent="end"
-                    paddingBlockEnd="small-300"
-                  >
-                    <s-text type="strong">App embed</s-text>
-                    <s-badge tone={embed ? "success" : "critical"}>
-                      {embed ? "On" : "Off"}
-                    </s-badge>
-                    <s-switch
-                      label="App embed"
-                      labelAccessibilityVisibility="exclusive"
-                      accessibilityLabel="Turn the app embed on or off in the theme editor"
-                      checked={embed}
-                      disabled={!status || !themeId}
-                      onChange={(e) => {
-                        // Apps can't switch the embed: the theme editor opens on its App embeds panel,
-                        // and the status is read again when the merchant comes back.
-                        const on = checkedOf(e);
-                        e.currentTarget.checked = embed;
-                        openEditor(
-                          on ? links.embedOn : links.embedPanel,
-                          on
-                            ? "Theme editor opened. Turn on SpareFit there and save."
-                            : "Theme editor opened. Turn off SpareFit there and save.",
-                        );
-                      }}
-                    />
-                  </s-stack>
-                </s-grid>
-              </s-box>
-            </>
-          )}
-          {!data.themesError && theme && theme.role !== "MAIN" && (
-            <s-box paddingInline="base" paddingBlockEnd="base">
-              <s-banner
-                tone="info"
-                heading={`${theme.name} isn't your live theme`}
-              >
-                You can set SpareFit up here now. Shoppers see it once you
-                publish this theme.
-              </s-banner>
+                </div>
+                <s-box />
+                <s-stack
+                  direction="inline"
+                  gap="small-300"
+                  alignItems="center"
+                  justifyContent="end"
+                  paddingBlockEnd="small-300"
+                >
+                  <s-text type="strong">App embed</s-text>
+                  <s-badge tone={embed ? "success" : "critical"}>
+                    {embed ? "On" : "Off"}
+                  </s-badge>
+                  <s-switch
+                    label="App embed"
+                    labelAccessibilityVisibility="exclusive"
+                    accessibilityLabel="Turn the app embed on or off in the theme editor"
+                    checked={embed}
+                    disabled={!status || !themeId}
+                    onChange={(e) => {
+                      // Apps can't switch the embed: the theme editor opens on its App embeds panel,
+                      // and the status is read again when the merchant comes back.
+                      const on = checkedOf(e);
+                      e.currentTarget.checked = embed;
+                      openEditor(
+                        on ? links.embedOn : links.embedPanel,
+                        on
+                          ? "Theme editor opened. Turn on SpareFit there and save."
+                          : "Theme editor opened. Turn off SpareFit there and save.",
+                      );
+                    }}
+                  />
+                </s-stack>
+              </s-grid>
             </s-box>
-          )}
-          <s-table>
-            <s-table-header-row>
-              <s-table-header listSlot="primary">Feature</s-table-header>
-              <s-table-header>Type</s-table-header>
-              <s-table-header>Placement</s-table-header>
-              <s-table-header>Status</s-table-header>
-              <s-table-header>Action</s-table-header>
-            </s-table-header-row>
-            <s-table-body>
-              {rows.map((row) => (
-                <s-table-row key={row.name}>
-                  <s-table-cell>
-                    <s-text type="strong">{row.name}</s-text>
-                  </s-table-cell>
-                  <s-table-cell>{row.type}</s-table-cell>
-                  <s-table-cell>
-                    <s-text color="subdued">{row.where}</s-text>
-                  </s-table-cell>
-                  <s-table-cell>{statusCell(row)}</s-table-cell>
-                  <s-table-cell>{actionCell(row)}</s-table-cell>
-                </s-table-row>
-              ))}
-            </s-table-body>
-          </s-table>
-        </>
-      )}
+          </>
+        )}
+        {!data.themesError && theme && theme.role !== "MAIN" && (
+          <s-box paddingInline="base" paddingBlockEnd="base">
+            <s-banner
+              tone="info"
+              heading={`${theme.name} isn't your live theme`}
+            >
+              You can set SpareFit up here now. Shoppers see it once you publish
+              this theme.
+            </s-banner>
+          </s-box>
+        )}
+        <s-table>
+          <s-table-header-row>
+            <s-table-header listSlot="primary">Feature</s-table-header>
+            <s-table-header>Type</s-table-header>
+            <s-table-header>Placement</s-table-header>
+            <s-table-header>Status</s-table-header>
+            <s-table-header>Action</s-table-header>
+          </s-table-header-row>
+          <s-table-body>
+            {rows.map((row) => (
+              <s-table-row key={row.name}>
+                <s-table-cell>
+                  <s-text type="strong">{row.name}</s-text>
+                </s-table-cell>
+                <s-table-cell>{row.type}</s-table-cell>
+                <s-table-cell>
+                  <s-text color="subdued">{row.where}</s-text>
+                </s-table-cell>
+                <s-table-cell>{statusCell(row)}</s-table-cell>
+                <s-table-cell>{actionCell(row)}</s-table-cell>
+              </s-table-row>
+            ))}
+          </s-table-body>
+        </s-table>
+      </>
     </s-section>
   );
 
@@ -780,7 +830,7 @@ export default function StorefrontPage() {
         <div className="sp-opt-grid">
           <Select
             label="Layout"
-            details="On phones the dropdowns always stack."
+            details="On mobile the dropdowns always stack."
             value={s.layout}
             onChange={(v) => save("layout", v as StorefrontSettings["layout"])}
           >
@@ -1148,24 +1198,26 @@ export default function StorefrontPage() {
             <s-text color="subdued">
               One column per search field, in the same order as Search setup.
             </s-text>
-            {config.fields.map((f) => {
-              const on = !s.tableHide[f.id];
-              return (
-                <s-checkbox
-                  key={f.id}
-                  label={f.label}
-                  checked={on}
-                  // The last column left on can't be turned off.
-                  disabled={on && shownCols.length === 1}
-                  onChange={(e) => {
-                    const hide = { ...s.tableHide };
-                    if (checkedOf(e)) delete hide[f.id];
-                    else hide[f.id] = true;
-                    save("tableHide", hide);
-                  }}
-                />
-              );
-            })}
+            <s-stack direction="inline" gap="small-100 base">
+              {config.fields.map((f) => {
+                const on = !s.tableHide[f.id];
+                return (
+                  <s-checkbox
+                    key={f.id}
+                    label={f.label}
+                    checked={on}
+                    // The last column left on can't be turned off.
+                    disabled={on && shownCols.length === 1}
+                    onChange={(e) => {
+                      const hide = { ...s.tableHide };
+                      if (checkedOf(e)) delete hide[f.id];
+                      else hide[f.id] = true;
+                      save("tableHide", hide);
+                    }}
+                  />
+                );
+              })}
+            </s-stack>
           </s-stack>
           <s-divider />
           <s-stack gap="small-300">
@@ -1425,6 +1477,669 @@ export default function StorefrontPage() {
     </s-grid>
   );
 
+  // ---------------------------------------------------------------- results page tab
+  const [editFilter, setEditFilter] = useState<ResultsFilter | null>(null);
+  const [fLabel, setFLabel] = useState("");
+  const [fTags, setFTags] = useState<string[]>([]);
+  const [fErrors, setFErrors] = useState<{ label?: string; tags?: string }>({});
+  const [deleting, setDeleting] = useState<ResultsFilter | null>(null);
+  // The store's tags for the picker (/api/storefront-tags), searched as the merchant types.
+  const [tagQuery, setTagQuery] = useState("");
+  const [storeTagList, setStoreTagList] = useState<
+    { tag: string; products: number }[] | null
+  >(null);
+  const [tagsFailed, setTagsFailed] = useState(false);
+  const tagRun = useRef(0);
+  const loadTags = useCallback((q: string) => {
+    const run = ++tagRun.current;
+    setTagsFailed(false);
+    fetch(`/api/storefront-tags?q=${encodeURIComponent(q)}`)
+      .then((res) => res.json() as Promise<{ tags?: StoreTagRow[] }>)
+      .then((body) => {
+        if (run !== tagRun.current) return;
+        setStoreTagList(body.tags ?? []);
+      })
+      .catch(() => {
+        if (run === tagRun.current) setTagsFailed(true);
+      });
+  }, []);
+  useEffect(() => {
+    if (storeTagList === null) return;
+    const t = setTimeout(() => loadTags(tagQuery), 250);
+    return () => clearTimeout(t);
+    // Search again as the merchant types (the first load happens when the modal opens).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagQuery]);
+  const setRpKey = <K extends keyof ResultsPageSettings>(
+    key: K,
+    value: ResultsPageSettings[K],
+  ) => setRp((cur) => ({ ...cur, [key]: value }));
+
+  const openFilter = (f: ResultsFilter | null) => {
+    setEditFilter(f);
+    setFLabel(f?.label ?? "");
+    setFTags(f?.tags ?? []);
+    setFErrors({});
+    setTagQuery("");
+    loadTags("");
+    if (storeTagList === null) setStoreTagList([]);
+    void shopify.modal.show(FILTER_MODAL);
+  };
+  const hasPicked = (tag: string) =>
+    fTags.some((t) => t.toLowerCase() === tag.toLowerCase());
+  /** Puts a tag in the group or takes it out (idempotent: a repeated event changes nothing). */
+  const setTagPicked = (tag: string, on: boolean) =>
+    setFTags((cur) => {
+      const has = cur.some((t) => t.toLowerCase() === tag.toLowerCase());
+      if (on === has) return cur;
+      return on
+        ? cur.length < MAX_GROUP_TAGS
+          ? [...cur, tag]
+          : cur
+        : cur.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+    });
+  const typedTag = tagQuery.trim().slice(0, TAG_MAX);
+  const saveFilter = () => {
+    const label = fLabel.trim();
+    const errors: { label?: string; tags?: string } = {};
+    if (!label) errors.label = "Enter a name";
+    if (!fTags.length) errors.tags = "Pick at least one tag";
+    setFErrors(errors);
+    if (errors.label || errors.tags) return;
+    setRp((cur) => ({
+      ...cur,
+      filters: editFilter
+        ? cur.filters.map((f) =>
+            f.id === editFilter.id ? { ...f, label, tags: fTags } : f,
+          )
+        : [
+            ...cur.filters,
+            {
+              id: newFilterId(cur.filters.map((f) => f.id)),
+              label,
+              tags: fTags,
+            },
+          ],
+    }));
+    void shopify.modal.hide(FILTER_MODAL);
+  };
+  const moveFilter = (i: number, by: number) =>
+    setRp((cur) => {
+      const filters = [...cur.filters];
+      const [f] = filters.splice(i, 1);
+      filters.splice(i + by, 0, f);
+      return { ...cur, filters };
+    });
+  const askDelete = (f: ResultsFilter) => {
+    setDeleting(f);
+    void shopify.modal.show(FILTER_DELETE_MODAL);
+  };
+  const deleteFilter = () => {
+    if (deleting) {
+      setRp((cur) => ({
+        ...cur,
+        filters: cur.filters.filter((f) => f.id !== deleting.id),
+      }));
+    }
+    void shopify.modal.hide(FILTER_DELETE_MODAL);
+  };
+
+  const resultsTab = (
+    <>
+      {s.results !== "app" && (
+        <s-banner tone="info" heading="Shoppers don't see this page yet">
+          Results open on your store&apos;s search page. To use this page, set
+          Show results on to SpareFit&apos;s results page in the Search widget
+          tab.
+          <s-button slot="secondary-actions" onClick={() => showTab("widget")}>
+            Go to Search widget
+          </s-button>
+        </s-banner>
+      )}
+      {data.results.tagsLoading && (
+        <s-banner tone="info" heading="Reading your product tags">
+          SpareFit is loading your products&apos; tags from Shopify. Filter
+          values show in the preview when it&apos;s done; refresh the page in a
+          few minutes.
+        </s-banner>
+      )}
+      <div className="sp-rp-top">
+        <s-section accessibilityLabel="Filters">
+          <div className="sp-rp-head">
+            <SectionTitle icon="filter">Filters</SectionTitle>
+          </div>
+          <s-text color="subdued">
+            Group product tags under a name. Shoppers pick a tag to filter. Up
+            to {MAX_FILTERS} groups.
+          </s-text>
+          {rp.filters.length > 0 ? (
+            <div className="sp-rp-list">
+              <div className="sp-rp-row sp-rp-row--head" aria-hidden="true">
+                <span className="sp-rp-row__n">#</span>
+                <span className="sp-rp-row__t">Filter group</span>
+                <span className="sp-rp-row__a">Actions</span>
+              </div>
+              {rp.filters.map((f, i) => (
+                <div className="sp-rp-row" key={f.id}>
+                  <span className="sp-rp-row__n">
+                    <s-badge>{i + 1}</s-badge>
+                  </span>
+                  <div className="sp-rp-row__t">
+                    <s-text type="strong">{f.label}</s-text>
+                    <s-text color="subdued">
+                      {f.tags.length
+                        ? `${f.tags.slice(0, 4).join(", ")}${f.tags.length > 4 ? ` +${f.tags.length - 4} more` : ""}`
+                        : "No tags yet: edit to pick some"}
+                    </s-text>
+                  </div>
+                  <div className="sp-rp-row__a">
+                    <s-button
+                      variant="tertiary"
+                      icon="arrow-up"
+                      accessibilityLabel={`Move ${f.label} up`}
+                      disabled={i === 0}
+                      onClick={() => moveFilter(i, -1)}
+                    />
+                    <s-button
+                      variant="tertiary"
+                      icon="arrow-down"
+                      accessibilityLabel={`Move ${f.label} down`}
+                      disabled={i === rp.filters.length - 1}
+                      onClick={() => moveFilter(i, 1)}
+                    />
+                    <s-button
+                      variant="tertiary"
+                      icon="edit"
+                      accessibilityLabel={`Edit ${f.label}`}
+                      onClick={() => openFilter(f)}
+                    />
+                    <s-button
+                      variant="tertiary"
+                      tone="critical"
+                      icon="delete"
+                      accessibilityLabel={`Delete ${f.label}`}
+                      onClick={() => askDelete(f)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <s-box paddingBlockStart="base">
+              <s-text color="subdued">
+                No filter groups yet: shoppers see the {things} without a filter
+                bar.
+              </s-text>
+            </s-box>
+          )}
+          <s-box paddingBlockStart="base">
+            <s-button
+              icon="plus"
+              disabled={rp.filters.length >= MAX_FILTERS}
+              onClick={() => openFilter(null)}
+            >
+              Add filter group
+            </s-button>
+          </s-box>
+        </s-section>
+        <s-section accessibilityLabel="Preview">
+          <s-stack gap="small-100">
+            <div className="sp-rp-head">
+              <SectionTitle icon="view">Preview</SectionTitle>
+              <s-button
+                variant="tertiary"
+                icon="view"
+                accessibilityLabel="Preview page"
+                onClick={() => void shopify.modal.show(RESULTS_PREVIEW_MODAL)}
+              />
+            </div>
+            <s-text color="subdued">
+              The page as shoppers see it. Unsaved changes show too.
+            </s-text>
+          </s-stack>
+          <button
+            type="button"
+            className="sp-rp-thumb"
+            aria-label="Open the full preview"
+            onClick={() => void shopify.modal.show(RESULTS_PREVIEW_MODAL)}
+          >
+            <ResultsPreview
+              config={previewConfig}
+              settings={rp}
+              sample={data.results.sample}
+              label={data.exampleLabel}
+              picks={sample.selections[0] ?? {}}
+              widgetCss={
+                data.previewAssets.embedCss + data.previewAssets.searchCss
+              }
+              device="desktop"
+              thumb
+            />
+          </button>
+        </s-section>
+      </div>
+
+      <div className="sp-rp-settings">
+        <s-section accessibilityLabel="Filter settings">
+          <SectionTitle icon="settings" gap>
+            Filter settings
+          </SectionTitle>
+          {rp.filters.length === 0 && (
+            <s-box paddingBlockEnd="base">
+              <s-banner tone="info">
+                Add a filter above to see these settings on the page and in the
+                preview. Without filters, the products take the full width.
+              </s-banner>
+            </s-box>
+          )}
+          <div className="sp-opt-grid">
+            <Select
+              label="Filter layout"
+              details="On mobile it opens as a drawer."
+              value={rp.filterLayout}
+              onChange={(v) =>
+                setRpKey(
+                  "filterLayout",
+                  v as ResultsPageSettings["filterLayout"],
+                )
+              }
+            >
+              <Option value="vertical">Vertical (sidebar)</Option>
+              <Option value="horizontal">Horizontal (dropdowns)</Option>
+              <Option value="drawer">Drawer</Option>
+            </Select>
+            {rp.filterLayout === "vertical" && (
+              <Select
+                label="Sidebar position"
+                value={rp.filterSide}
+                onChange={(v) =>
+                  setRpKey("filterSide", v as ResultsPageSettings["filterSide"])
+                }
+              >
+                <Option value="left">Left</Option>
+                <Option value="right">Right</Option>
+              </Select>
+            )}
+            <s-text-field
+              label="Filter bar title"
+              details="Shown above the filters, and on the filter button on mobile."
+              value={rp.filterTitle}
+              maxLength={FILTER_LABEL_MAX}
+              onInput={(e) => setRpKey("filterTitle", valueOf(e))}
+              onBlur={() =>
+                setRpKey("filterTitle", rp.filterTitle.trim() || "Filters")
+              }
+            />
+            {rp.filterLayout !== "horizontal" && (
+              <Select
+                label="Values shown per filter"
+                value={rp.valuesShown}
+                onChange={(v) =>
+                  setRpKey(
+                    "valuesShown",
+                    v as ResultsPageSettings["valuesShown"],
+                  )
+                }
+              >
+                <Option value="5">First 5, then Show more</Option>
+                <Option value="10">First 10, then Show more</Option>
+                <Option value="all">All</Option>
+              </Select>
+            )}
+            {rp.filterLayout !== "horizontal" && (
+              <Select
+                label="Filter groups start"
+                details="A group with a picked tag is always open."
+                value={rp.groupsOpen}
+                onChange={(v) =>
+                  setRpKey("groupsOpen", v as ResultsPageSettings["groupsOpen"])
+                }
+              >
+                <Option value="all">All open</Option>
+                <Option value="first">First open, the rest closed</Option>
+                <Option value="none">All closed</Option>
+              </Select>
+            )}
+          </div>
+          <s-box paddingBlockStart="base">
+            <s-stack gap="small-200">
+              <s-checkbox
+                label="Show how many products have each value"
+                checked={rp.showCounts}
+                onChange={(e) => setRpKey("showCounts", checkedOf(e))}
+              />
+            </s-stack>
+          </s-box>
+        </s-section>
+
+        <s-section accessibilityLabel="Page settings">
+          <SectionTitle icon="layout-columns-3" gap>
+            Page settings
+          </SectionTitle>
+          <s-box paddingBlockEnd="base">
+            <s-stack gap="small-300">
+              <s-checkbox
+                label="Show the page title"
+                checked={rp.showTitle}
+                onChange={(e) => setRpKey("showTitle", checkedOf(e))}
+              />
+              {rp.showTitle && (
+                <>
+                  <s-text-field
+                    label="Page title"
+                    details="Leave it empty to use the title for your store type."
+                    placeholder={defaultPageTitle(config)}
+                    value={rp.pageTitle}
+                    maxLength={PAGE_TITLE_MAX}
+                    onInput={(e) => setRpKey("pageTitle", valueOf(e))}
+                  />
+                  <div className="sp-rp-trio">
+                    <Select
+                      label="Alignment"
+                      value={rp.titleAlign}
+                      onChange={(v) =>
+                        setRpKey(
+                          "titleAlign",
+                          v as ResultsPageSettings["titleAlign"],
+                        )
+                      }
+                    >
+                      <Option value="left">Left</Option>
+                      <Option value="center">Center</Option>
+                      <Option value="right">Right</Option>
+                    </Select>
+                    <s-number-field
+                      label="Size"
+                      suffix="px"
+                      placeholder="Theme"
+                      min={TITLE_SIZE_MIN}
+                      max={TITLE_SIZE_MAX}
+                      step={1}
+                      value={rp.titleSize ? String(rp.titleSize) : ""}
+                      onChange={(e) => {
+                        const v = valueOf(e).trim();
+                        const n = Math.round(Number(v));
+                        setRpKey(
+                          "titleSize",
+                          !v || !Number.isFinite(n)
+                            ? 0
+                            : Math.min(
+                                TITLE_SIZE_MAX,
+                                Math.max(TITLE_SIZE_MIN, n),
+                              ),
+                        );
+                      }}
+                    />
+                    <s-color-field
+                      label="Colour"
+                      placeholder="Theme"
+                      value={rp.titleColor}
+                      onChange={(e) => {
+                        const v = valueOf(e).trim();
+                        if (!v) setRpKey("titleColor", "");
+                        else if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+                          setRpKey("titleColor", v.toUpperCase());
+                        } else e.currentTarget.value = rp.titleColor;
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </s-stack>
+          </s-box>
+          <s-box paddingBlockEnd="base">
+            <s-stack gap="small-200">
+              <s-checkbox
+                label="Show the search widget at the top of the page"
+                details="Prefilled with the shopper's selection, so they can change it without leaving the page."
+                checked={rp.showWidget}
+                onChange={(e) => setRpKey("showWidget", checkedOf(e))}
+              />
+              <s-checkbox
+                label="Show the number of results"
+                details="Above the products, e.g. 24 results."
+                checked={rp.showCount}
+                onChange={(e) => setRpKey("showCount", checkedOf(e))}
+              />
+              <s-checkbox
+                label="Show the Sort by menu"
+                checked={rp.showSort}
+                onChange={(e) => setRpKey("showSort", checkedOf(e))}
+              />
+            </s-stack>
+          </s-box>
+          <div className="sp-opt-grid">
+            <Select
+              label="Sort by default"
+              value={rp.sort}
+              onChange={(v) =>
+                setRpKey("sort", v as ResultsPageSettings["sort"])
+              }
+            >
+              {SORTS.map(([value, label]) => (
+                <Option key={value} value={value}>
+                  {label}
+                </Option>
+              ))}
+            </Select>
+            <div className="sp-rp-pair">
+              <Select
+                label="Products per row"
+                value={rp.columns}
+                onChange={(v) =>
+                  // Rows that no longer fit the page are trimmed (20 products at most).
+                  setRp((cur) => ({
+                    ...cur,
+                    columns: v as ResultsPageSettings["columns"],
+                    rowsPerPage: Math.min(cur.rowsPerPage, maxRows(Number(v))),
+                  }))
+                }
+              >
+                <Option value="2">2</Option>
+                <Option value="3">3</Option>
+                <Option value="4">4</Option>
+                <Option value="5">5</Option>
+              </Select>
+              <Select
+                label="Products per row on mobile"
+                value={rp.mobileColumns}
+                onChange={(v) =>
+                  setRpKey(
+                    "mobileColumns",
+                    v as ResultsPageSettings["mobileColumns"],
+                  )
+                }
+              >
+                <Option value="1">1</Option>
+                <Option value="2">2</Option>
+              </Select>
+            </div>
+            <Select
+              label="Rows per page"
+              value={String(
+                Math.min(rp.rowsPerPage, maxRows(Number(rp.columns))),
+              )}
+              onChange={(v) => setRpKey("rowsPerPage", Number(v))}
+            >
+              {Array.from({ length: maxRows(Number(rp.columns)) }, (_, i) => (
+                <Option key={i + 1} value={String(i + 1)}>
+                  {`${i + 1} ${i ? "rows" : "row"} (${(i + 1) * Number(rp.columns)} products)`}
+                </Option>
+              ))}
+            </Select>
+          </div>
+        </s-section>
+      </div>
+
+      <s-modal
+        id={RESULTS_PREVIEW_MODAL}
+        accessibilityLabel="Results page preview"
+        size="large-100"
+        padding="none"
+      >
+        <div className="sp-rpm">
+          <div className="sp-rpm-head">
+            <s-stack direction="inline" gap="small-200" alignItems="center">
+              <s-text type="strong">Results page preview</s-text>
+              {liveBadge}
+            </s-stack>
+            <s-stack direction="inline" gap="small-300" alignItems="center">
+              {deviceButton("desktop", "Desktop")}
+              {deviceButton("mobile", "Mobile")}
+              <s-button
+                variant="tertiary"
+                icon="x"
+                accessibilityLabel="Close preview"
+                commandFor={RESULTS_PREVIEW_MODAL}
+                command="--hide"
+              />
+            </s-stack>
+          </div>
+          <ResultsPreview
+            config={previewConfig}
+            settings={rp}
+            sample={data.results.sample}
+            label={data.exampleLabel}
+            picks={sample.selections[0] ?? {}}
+            widgetCss={
+              data.previewAssets.embedCss + data.previewAssets.searchCss
+            }
+            device={device}
+            bare
+          />
+          {!data.results.sample.length && (
+            <s-box padding="base">
+              <s-text color="subdued">
+                Your active products show here once SpareFit has read them.
+              </s-text>
+            </s-box>
+          )}
+        </div>
+      </s-modal>
+
+      <s-modal
+        id={FILTER_MODAL}
+        heading={editFilter ? "Edit filter group" : "Add filter group"}
+      >
+        <s-stack gap="base">
+          <s-text-field
+            label="Group name"
+            details="What shoppers see above the tags, e.g. Brand"
+            value={fLabel}
+            maxLength={FILTER_LABEL_MAX}
+            error={fErrors.label}
+            onInput={(e) => setFLabel(valueOf(e))}
+          />
+          <s-stack gap="small-200">
+            <s-search-field
+              label="Tags"
+              placeholder="Search your product tags or type one"
+              value={tagQuery}
+              onInput={(e) => setTagQuery(valueOf(e))}
+            />
+            {fErrors.tags && fTags.length === 0 && (
+              <s-text tone="critical">{fErrors.tags}</s-text>
+            )}
+            {fTags.length > 0 && (
+              <div className="sp-rp-chips">
+                {fTags.map((tag) => (
+                  <s-clickable-chip
+                    key={tag}
+                    removable
+                    accessibilityLabel={`Remove ${tag}`}
+                    onRemove={() => setTagPicked(tag, false)}
+                  >
+                    {tag}
+                  </s-clickable-chip>
+                ))}
+              </div>
+            )}
+            <div className="sp-rp-taglist">
+              {typedTag &&
+                !hasPicked(typedTag) &&
+                !storeTagList?.some(
+                  (t) => t.tag.toLowerCase() === typedTag.toLowerCase(),
+                ) && (
+                  <s-button
+                    icon="plus"
+                    variant="tertiary"
+                    onClick={() => {
+                      setTagPicked(typedTag, true);
+                      setTagQuery("");
+                    }}
+                  >
+                    {`Add "${typedTag}"`}
+                  </s-button>
+                )}
+              {tagsFailed ? (
+                <s-text color="subdued">
+                  Your tags couldn&apos;t be loaded. You can still type a tag.
+                </s-text>
+              ) : storeTagList && storeTagList.length > 0 ? (
+                storeTagList.map((t) => (
+                  <s-checkbox
+                    key={t.tag}
+                    label={`${t.tag} (${t.products.toLocaleString("en-US")})`}
+                    checked={hasPicked(t.tag)}
+                    disabled={
+                      !hasPicked(t.tag) && fTags.length >= MAX_GROUP_TAGS
+                    }
+                    onChange={(e) => setTagPicked(t.tag, checkedOf(e))}
+                  />
+                ))
+              ) : (
+                <s-text color="subdued">
+                  {tagQuery.trim()
+                    ? "No product has a tag like that."
+                    : "Your products have no tags yet. You can still type one."}
+                </s-text>
+              )}
+            </div>
+            <s-text color="subdued">
+              {`Tags of your active products, most used first (number of products). Up to ${MAX_GROUP_TAGS} tags per group.`}
+            </s-text>
+          </s-stack>
+        </s-stack>
+        <s-button slot="primary-action" variant="primary" onClick={saveFilter}>
+          {editFilter ? "Done" : "Add group"}
+        </s-button>
+        <s-button
+          slot="secondary-actions"
+          commandFor={FILTER_MODAL}
+          command="--hide"
+        >
+          Cancel
+        </s-button>
+      </s-modal>
+
+      <s-modal
+        id={FILTER_DELETE_MODAL}
+        heading={`Delete the ${deleting?.label ?? ""} filter group?`}
+        size="small"
+      >
+        <s-paragraph>
+          Shoppers will no longer see it on the results page. Your product tags
+          stay as they are.
+        </s-paragraph>
+        <s-button
+          slot="primary-action"
+          variant="primary"
+          tone="critical"
+          onClick={deleteFilter}
+        >
+          Delete group
+        </s-button>
+        <s-button
+          slot="secondary-actions"
+          commandFor={FILTER_DELETE_MODAL}
+          command="--hide"
+        >
+          Cancel
+        </s-button>
+      </s-modal>
+    </>
+  );
+
   return (
     <s-page inlineSize="base">
       {/* App Bridge save bar: the primary button is Save, the other one Discard. */}
@@ -1440,16 +2155,7 @@ export default function StorefrontPage() {
           Discard
         </button>
       </SaveBar>
-      <PageHeader title="Storefront">
-        <s-button
-          variant="primary"
-          icon="external"
-          disabled={!themeId}
-          onClick={() => open(links.editor)}
-        >
-          Open theme editor
-        </s-button>
-      </PageHeader>
+      <PageHeader title="Storefront" />
       <s-stack gap="base">
         {publishFailed && (
           <s-banner
@@ -1470,9 +2176,16 @@ export default function StorefrontPage() {
             Shoppers don&apos;t see My Selection or the fitment table shortcode,
             and blocks can&apos;t be added, until you turn on the app embed in
             Theme integration.
+            {tab !== "theme" && (
+              <s-button
+                slot="secondary-actions"
+                onClick={() => showTab("theme")}
+              >
+                Open Theme integration
+              </s-button>
+            )}
           </s-banner>
         )}
-        {themeCard}
         <div
           className="sp-tabs"
           role="tablist"
@@ -1492,7 +2205,9 @@ export default function StorefrontPage() {
             </button>
           ))}
         </div>
+        {tab === "theme" && themeCard}
         {tab === "widget" && widgetTab}
+        {tab === "results" && resultsTab}
         {tab === "badge" && badgeTab}
         {tab === "table" && tableTab}
         {tab === "garage" && garageTab}

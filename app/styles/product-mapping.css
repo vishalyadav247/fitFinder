@@ -6,3 +6,15 @@
   font-weight: 750;
   color: #303030;
 }
+
+/* Products without filter data: long titles wrap to two lines within a fixed width, so the SKU
+   and Action columns keep their room. The full title shows on hover. */
+.sp-cell-title {
+  max-inline-size: 260px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}

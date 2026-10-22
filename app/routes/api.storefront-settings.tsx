@@ -8,12 +8,14 @@ import { authenticate } from "../shopify.server";
 import { ensureShop } from "../models/shop.server";
 import {
   saveHeading,
+  saveResultsPage,
   saveSettings,
   SettingValueError,
   settingValue,
   storefrontIntentSchema,
 } from "../models/storefront-settings.server";
 import { publishWithOutcome } from "../services/storefront/sync.server";
+import { parseResultsPage } from "../services/storefront/results-settings";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const BAD = "That change couldn't be saved.";
@@ -48,7 +50,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           settingValue(key, value),
         ]),
       );
+      let resultsPage = null;
+      if (intent.resultsPage !== undefined) {
+        resultsPage = parseResultsPage(intent.resultsPage);
+        if (!resultsPage) throw new SettingValueError();
+      }
       if (Object.keys(patch).length) await saveSettings(shop.id, patch);
+      if (resultsPage) await saveResultsPage(shop.id, resultsPage);
       if (intent.heading) await saveHeading(shop.id, intent.heading);
     }
   } catch (error) {

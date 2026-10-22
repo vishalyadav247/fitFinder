@@ -1,14 +1,13 @@
 // Product mapping: link filter rows to store products, find products without filter data, keep
 // universal products. Spec: .claude/specs/product-mapping.md · Prototype:
 // .claude/design/scripts/screens/product-mapping.js
-// Lists are paged in the URL (u = unlinked, p = products, x = universal). Check links again runs
+// Lists are paged in the URL (u = unlinked, p = products, x = universal). Sync products runs
 // as a job; the page polls the loader until it has finished.
 import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   LinksFunction,
   LoaderFunctionArgs,
-  ShouldRevalidateFunction,
 } from "react-router";
 import {
   data,
@@ -56,6 +55,11 @@ import { TableFooter } from "../components/TableFooter";
 import { EmptyState } from "../components/EmptyState";
 import { Icon, type IconName } from "../components/Icon";
 import {
+  skipTabOnlyChanges,
+  useUrlTab,
+  type UrlTab,
+} from "../components/url-tab";
+import {
   DEFAULT_TABLE_PAGE_SIZE,
   TABLE_PAGE_SIZES,
   tablePageSize,
@@ -84,39 +88,22 @@ const sizeParam = (url: URL, key: string) =>
 
 type TableKey = "u" | "p" | "x";
 
-// One tab per list (?tab=); Unlinked rows first.
+// One tab per list (?tab=); Unlinked SKUs first.
 // Line icons (they follow the text colour: white on the active tab), like the section titles.
 const TABS = [
-  ["u", "Unlinked rows", "link"],
-  ["p", "Products without filter data", "product"],
+  ["u", "Unlinked Rows", "link"],
+  ["p", "Store products without filter data", "product"],
   ["x", "Universal products", "globe"],
 ] as const satisfies readonly (readonly [TableKey, string, IconName])[];
-const tabParam = (value: string | null): TableKey =>
-  TABS.find(([k]) => k === value)?.[0] ?? "u";
+// Each tab's name in the URL (?tab=); the one-letter names still work for older links.
+const URL_TABS: UrlTab<TableKey>[] = [
+  { key: "u", slug: "unlinked-rows", aliases: ["unlinked-skus", "u"] },
+  { key: "p", slug: "products-without-data", aliases: ["p"] },
+  { key: "x", slug: "universal-products", aliases: ["x"] },
+];
 
 /** Switching tabs only changes ?tab=: the lists are already loaded, so don't load them again. */
-export const shouldRevalidate: ShouldRevalidateFunction = ({
-  currentUrl,
-  nextUrl,
-  formMethod,
-  defaultShouldRevalidate,
-}) => {
-  // Same URL = an explicit reload (revalidator, after a link check): always load.
-  if (
-    formMethod ||
-    currentUrl.pathname !== nextUrl.pathname ||
-    currentUrl.search === nextUrl.search
-  ) {
-    return defaultShouldRevalidate;
-  }
-  const strip = (url: URL) => {
-    const p = new URLSearchParams(url.search);
-    p.delete("tab");
-    p.sort();
-    return p.toString();
-  };
-  return strip(currentUrl) === strip(nextUrl) ? false : defaultShouldRevalidate;
-};
+export const shouldRevalidate = skipTabOnlyChanges;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -139,7 +126,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const url = new URL(request.url);
   const read = {
-    u: (page: number) => unlinkedGroups(shop.id, page, sizeParam(url, "un")),
+    u: (page: number) =>
+      unlinkedGroups(
+        shop.id,
+        page,
+        sizeParam(url, "un"),
+        url.searchParams.get("uq") ?? "",
+      ),
     p: (page: number) =>
       productsWithoutData(shop.id, page, sizeParam(url, "pn")),
     x: (page: number) => universalProducts(shop.id, page, sizeParam(url, "xn")),
@@ -166,7 +159,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? again(Math.ceil(total / list.pageSize))
       : list;
   const [unlinked, withoutData, universal] = await Promise.all([
-    lastPage(firstUnlinked, counts.unlinkedSkus, read.u),
+    lastPage(
+      firstUnlinked,
+      firstUnlinked.matching ?? counts.unlinkedSkus,
+      read.u,
+    ),
     lastPage(firstWithout, firstWithout.total, read.p),
     lastPage(firstUniversal, firstUniversal.total, read.x),
   ]);
@@ -175,6 +172,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     things: config.thingsWord,
     fields,
     unlinkedCount: counts.unlinkedSkus,
+    unlinkedQuery: url.searchParams.get("uq") ?? "",
+    // Filter rows: the badge reads "{unlinked rows} of {all rows} rows" (2026-10-22).
+    unlinkedRows: counts.unlinkedRows,
+    rowTotal: counts.total,
     unlinked,
     withoutData,
     universal,
@@ -322,8 +323,8 @@ function fitsText(fields: RowField[], g: UnlinkedGroup) {
 
 const checkedToast = (n: number) =>
   n === 0
-    ? "Links checked. No new matches"
-    : `Links checked. ${n.toLocaleString("en-US")} new match${n === 1 ? "" : "es"}`;
+    ? "Products synced. No new matches"
+    : `Products synced. ${n.toLocaleString("en-US")} new match${n === 1 ? "" : "es"}`;
 
 type Picked = { id: string; variants?: { id?: string }[] }[] | undefined;
 
@@ -333,7 +334,10 @@ export default function ProductMappingPage() {
     things,
     fields,
     unlinkedCount,
+    unlinkedRows,
+    rowTotal,
     unlinked,
+    unlinkedQuery,
     withoutData,
     universal,
     universalLocked,
@@ -344,18 +348,8 @@ export default function ProductMappingPage() {
   const navigate = useNavigate();
   const navigation = useNavigation();
   const revalidator = useRevalidator();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tab = tabParam(searchParams.get("tab"));
-  const showTab = (key: TableKey) =>
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (key === "u") next.delete("tab");
-        else next.set("tab", key);
-        return next;
-      },
-      { preventScrollReset: true, replace: true },
-    );
+  const [, setSearchParams] = useSearchParams();
+  const [tab, showTab] = useUrlTab(URL_TABS);
   const fetcher = useFetcher<MappingResult>();
   const busy = fetcher.state !== "idle";
   // The table being paged shows its loading state; the others stay as they are.
@@ -379,6 +373,28 @@ export default function ProductMappingPage() {
     );
   };
 
+  // Unlinked SKUs search (?uq=), searched as you type: back to page 1.
+  const [skuSearch, setSkuSearch] = useState(unlinkedQuery);
+  useEffect(() => {
+    if (skuSearch.trim() === unlinkedQuery) return;
+    const t = setTimeout(() => {
+      setPagingKey("u");
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (skuSearch.trim()) next.set("uq", skuSearch.trim());
+          else next.delete("uq");
+          next.delete("u");
+          return next;
+        },
+        { preventScrollReset: true, replace: true },
+      );
+    }, 300);
+    return () => clearTimeout(t);
+    // Only the typed text starts a search; the URL value is read for comparison.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skuSearch]);
+
   const footer = (
     key: TableKey,
     list: { page: number; pageSize: number },
@@ -397,7 +413,7 @@ export default function ProductMappingPage() {
     />
   );
 
-  // ---- Check links again: wait for the run this page started, then toast its result. While a
+  // ---- Sync products: wait for the run this page started, then toast its result. While a
   // check runs, only the small status endpoint is polled; the lists reload when it has ended.
   const [live, setLive] = useState<LinkCheckView>(linkCheck);
   useEffect(() => setLive(linkCheck), [linkCheck]);
@@ -414,7 +430,7 @@ export default function ProductMappingPage() {
       icon="alert-circle"
       heading="Your products couldn't be loaded yet"
     >
-      Click Check links again to try again.
+      Click Sync products to try again.
     </EmptyState>
   );
   const [watching, setWatching] = useState<number | null>(null);
@@ -443,7 +459,7 @@ export default function ProductMappingPage() {
       // The requested rerun should be queued right after the running check; don't wait forever.
       if (++idlePolls.current > MAX_IDLE_POLLS) {
         setWatching(null);
-        shopify.toast.show("Links couldn't be checked. Try again.", {
+        shopify.toast.show("Products couldn't be synced. Try again.", {
           isError: true,
         });
       }
@@ -454,7 +470,7 @@ export default function ProductMappingPage() {
       shopify.toast.show(checkedToast(live.newMatches));
     } else if (live.status === "failed") {
       shopify.toast.show(
-        live.error ?? "Links couldn't be checked. Try again.",
+        live.error ?? "Products couldn't be synced. Try again.",
         {
           isError: true,
         },
@@ -582,7 +598,7 @@ export default function ProductMappingPage() {
           }
           onClick={() => submit({ intent: "check" })}
         >
-          Check links again
+          Sync products
         </s-button>
       </PageHeader>
 
@@ -591,7 +607,7 @@ export default function ProductMappingPage() {
           {TABS.map(([key, label, icon]) => {
             const count =
               key === "u"
-                ? unlinkedCount
+                ? unlinkedRows // rows, like the section's badge
                 : key === "p"
                   ? withoutData.total
                   : universal.total;
@@ -624,34 +640,52 @@ export default function ProductMappingPage() {
         </div>
 
         {tab === "u" && (
-          <s-section padding="none" accessibilityLabel="Unlinked rows">
+          <s-section padding="none" accessibilityLabel="Unlinked Rows">
             <s-box padding="base">
               <s-stack gap="small-100">
                 <s-stack direction="inline" gap="small-200" alignItems="center">
-                  <SectionTitle icon="link">Unlinked rows</SectionTitle>
+                  <SectionTitle icon="link">Unlinked Rows</SectionTitle>
                   {!firstLoad && (
-                    <s-badge tone={unlinkedCount ? "warning" : "success"}>
-                      {unlinkedCount.toLocaleString("en-US")} to link
+                    <s-badge tone={unlinkedRows ? "warning" : "success"}>
+                      {unlinkedRows.toLocaleString("en-US")} of{" "}
+                      {rowTotal.toLocaleString("en-US")} rows
                     </s-badge>
                   )}
                 </s-stack>
                 <s-text color="subdued">
-                  Each filter row points to a product through the SKU in its
-                  Attachment. We couldn&apos;t find these SKUs in your store, so
-                  shoppers don&apos;t see them in search results. Choose product
-                  replaces the SKU with that product&apos;s SKU.
+                  Each filter row points to a product through its SKU. We
+                  couldn&apos;t find these SKUs in your store, so shoppers
+                  don&apos;t see them in search results. Choose product replaces
+                  the SKU with that product&apos;s SKU.
                 </s-text>
               </s-stack>
             </s-box>
+            {!firstLoad && unlinkedCount > 0 && (
+              <s-box paddingInline="base" paddingBlockEnd="base">
+                <s-search-field
+                  label="Search unlinked SKUs"
+                  labelAccessibilityVisibility="exclusive"
+                  placeholder="Search SKUs"
+                  value={skuSearch}
+                  onInput={(e) =>
+                    setSkuSearch(String(e.currentTarget.value ?? ""))
+                  }
+                />
+              </s-box>
+            )}
             {firstLoad ? (
               loadingState
+            ) : unlinkedQuery && !unlinked.items.length ? (
+              <s-box padding="base">
+                <s-text color="subdued">
+                  No unlinked SKU contains &ldquo;{unlinkedQuery}&rdquo;.
+                </s-text>
+              </s-box>
             ) : unlinked.items.length ? (
               <>
                 <s-table loading={paging("u")}>
                   <s-table-header-row>
-                    <s-table-header listSlot="primary">
-                      Attachment
-                    </s-table-header>
+                    <s-table-header listSlot="primary">SKU</s-table-header>
                     <s-table-header>Fits</s-table-header>
                     <s-table-header format="numeric">Rows</s-table-header>
                     <s-table-header>Action</s-table-header>
@@ -680,7 +714,12 @@ export default function ProductMappingPage() {
                     ))}
                   </s-table-body>
                 </s-table>
-                {footer("u", unlinked, unlinkedCount, "attachments")}
+                {footer(
+                  "u",
+                  unlinked,
+                  unlinked.matching ?? unlinkedCount,
+                  unlinkedQuery ? "matching SKUs" : "SKUs",
+                )}
               </>
             ) : (
               <EmptyState
@@ -704,17 +743,18 @@ export default function ProductMappingPage() {
         {tab === "p" && (
           <s-section
             padding="none"
-            accessibilityLabel="Products without filter data"
+            accessibilityLabel="Store products without filter data"
           >
             <s-box padding="base">
               <s-stack gap="small-100">
                 <s-stack direction="inline" gap="small-200" alignItems="center">
                   <SectionTitle icon="product">
-                    Products without filter data
+                    Store products without filter data
                   </SectionTitle>
                   {!firstLoad && (
                     <s-badge tone={withoutData.total ? "warning" : "success"}>
-                      {withoutData.total.toLocaleString("en-US")} products
+                      {withoutData.total.toLocaleString("en-US")} of{" "}
+                      {withoutData.storeTotal.toLocaleString("en-US")} products
                     </s-badge>
                   )}
                 </s-stack>
@@ -739,7 +779,9 @@ export default function ProductMappingPage() {
                     {withoutData.items.map((p) => (
                       <s-table-row key={p.productId}>
                         <s-table-cell>
-                          <s-text type="strong">{p.title}</s-text>
+                          <div className="sp-cell-title" title={p.title}>
+                            <s-text type="strong">{p.title}</s-text>
+                          </div>
                         </s-table-cell>
                         <s-table-cell>
                           {p.sku || <s-text color="subdued">No SKU</s-text>}

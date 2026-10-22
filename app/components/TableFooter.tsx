@@ -25,7 +25,7 @@ export function TableFooter({
   page: number;
   pageSize: number;
   pageSizes: readonly number[];
-  /** Plural, lower case: "products", "attachments". */
+  /** Plural: "products", "SKUs". */
   noun: string;
   disabled?: boolean;
   onPage: (page: number) => void;

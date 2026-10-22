@@ -49,7 +49,9 @@ describe("years", () => {
 
   it("shows ranges like the prototype", () => {
     expect(yearsDisplay(2008, 2011)).toBe("2008 – 2011");
-    expect(yearsDisplay(2016, null)).toBe("2016 – now");
+    expect(yearsDisplay(2016, null, 2026)).toBe("2016 – 2026"); // open: up to this year
+    expect(yearsDisplay(2026, null, 2026)).toBe("2026");
+    expect(yearsDisplay(2027, null, 2026)).toBe("2027"); // starts next year
     expect(yearsDisplay(2016, 2016)).toBe("2016");
     expect(yearsDisplay(null, null)).toBe("—");
   });
@@ -125,8 +127,8 @@ describe("export CSV", () => {
     expect(csvCell("AUDI")).toBe("AUDI");
   });
 
-  it("uses the import columns: field labels, one year column, Attachment", () => {
-    expect(exportHeader(FIELDS)).toBe("Make,Year,Model,Attachment\r\n");
+  it("uses the import columns: field labels, one year column, SKU", () => {
+    expect(exportHeader(FIELDS)).toBe("Make,Year,Model,SKU\r\n");
     expect(exportLine(FIELDS, row({ yearTo: null }))).toBe(
       "Audi,2008-,A4,SKU-1\r\n",
     );

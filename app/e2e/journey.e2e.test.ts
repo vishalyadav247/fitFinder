@@ -442,12 +442,16 @@ describe("SpareFit end to end", () => {
 
     // The history entry and the error report.
     expect(done.hasReport).toBe(true);
-    const setup = await run(
-      routes.searchSetup.loader,
-      adminRequest(SHOP, "/app/search-setup"),
+    // Filter data › Import shows it (the import moved there from Search setup).
+    const filterPage = await run(
+      routes.filterData.loader,
+      adminRequest(SHOP, "/app/filter-data"),
     );
-    expect(setup.body.currentRows).toBe(6);
-    expect(setup.body.history[0]).toMatchObject({ id: jobId, mode: "upsert" });
+    expect(filterPage.body.counts.total).toBe(6);
+    expect(filterPage.body.history[0]).toMatchObject({
+      id: jobId,
+      mode: "upsert",
+    });
 
     const report = await run(
       routes.importFile.loader,
@@ -678,7 +682,7 @@ describe("SpareFit end to end", () => {
     expect(exported.status).toBe(200);
     expect(exported.headers.get("x-row-count")).toBe("7");
     const lines = String(exported.body).replace(BOM, "").trim().split(/\r?\n/);
-    expect(lines[0]).toBe("Make,Year,Model,Attachment");
+    expect(lines[0]).toBe("Make,Year,Model,SKU");
     expect(lines).toHaveLength(8);
     expect(lines).toContain("Audi,2016-2020,A3,SP-300");
 

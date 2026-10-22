@@ -443,7 +443,7 @@ describe.skipIf(!process.env.DATABASE_URL)("filter data (Postgres)", () => {
     expect(exported.count).toBe("4");
     expect(exported.text.charCodeAt(0)).toBe(0xfeff);
     expect(exported.text.slice(1).split("\r\n")[0]).toBe(
-      "Make,Year,Model,Attachment",
+      "Make,Year,Model,SKU",
     );
 
     const job = await importCsv(exported.text, "upsert");

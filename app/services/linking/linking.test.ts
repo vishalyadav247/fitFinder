@@ -49,6 +49,7 @@ describe("collectBulkLines", () => {
         title: "Pads",
         handle: "Pads",
         status: "ACTIVE",
+        tags: [" Brand_KYB ", "", "Position:Front"],
       }),
       JSON.stringify({
         id: "gid://shopify/ProductVariant/3",
@@ -71,6 +72,7 @@ describe("collectBulkLines", () => {
         title: "Pads",
         handle: "pads",
         status: "ACTIVE",
+        tags: ["Brand_KYB", "Position:Front"],
         variants: [
           { variantId: "gid://shopify/ProductVariant/3", sku: "" },
           { variantId: "gid://shopify/ProductVariant/2", sku: "B" },
@@ -81,6 +83,7 @@ describe("collectBulkLines", () => {
         title: "Disc",
         handle: "disc",
         status: "DRAFT",
+        tags: [],
         variants: [],
       },
     ]);

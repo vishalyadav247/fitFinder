@@ -25,7 +25,7 @@ export const LINK_STALE_MS = 3 * 60_000;
 // Waiting behind other shops' runs in the queue (see pipeline.server.ts QUEUE_STALE_MS).
 export const LINK_QUEUE_STALE_MS = 6 * 60 * 60_000;
 const STOPPED = "The link check stopped unexpectedly.";
-const FAILED = "Links couldn't be checked. Try again.";
+const FAILED = "Products couldn't be synced. Try again.";
 
 export type LinkCheckStatus =
   "idle" | "queued" | "running" | "completed" | "failed";
@@ -211,7 +211,7 @@ export async function runLinkCheck(
         status: "completed",
         newMatches,
         finishedAt: new Date(),
-        ...(run.fullSync ? { syncedAt: new Date() } : {}),
+        ...(run.fullSync ? { syncedAt: new Date(), tagsLoaded: true } : {}),
       },
     });
   } catch (error) {

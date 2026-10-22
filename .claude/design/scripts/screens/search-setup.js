@@ -46,7 +46,7 @@ function importHistory(sp, historyOnly = false) {
       <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
         <s-stack gap="small-100"><h2 class="sec-title">Import filter data</h2>
           <s-text color="subdued">Upload a CSV with your SKUs and what they fit. You match its columns to your search fields next.</s-text></s-stack>
-        <s-button variant="primary" icon="upload" data-act="imp-open">${hist.length ? 'Import new file' : 'Import CSV'}</s-button>
+        <s-button variant="primary" icon="upload" data-act="imp-open">Import CSV</s-button>
       </s-grid></s-section>`;
   if (!hist.length) return historyOnly ? '' : start;
   return (historyOnly ? '' : start) + `<s-section padding="none" accessibilityLabel="Import history">
@@ -58,10 +58,10 @@ function importHistory(sp, historyOnly = false) {
     </s-section>`;
 }
 
-// What a file column can be mapped to: exactly the search fields, plus Attachment (what each row links to: SKU, product or collection).
+// What a file column can be mapped to: exactly the search fields, plus SKU (the product each row fits; stored as the row's attachment).
 // A Year range field can take one column (2015-2020) or two (left = from, right = to).
 function mapTargets(sp) {
-  return [['skip', 'Map column']].concat(sp.fields.map((f) => [f.id, f.label]), [['part', 'Attachment']]);
+  return [['skip', 'Map column']].concat(sp.fields.map((f) => [f.id, f.label]), [['part', 'SKU']]);
 }
 
 // CSV import, shown as a card below the fields (in place of Last import): 1 Upload file › 2 Map columns › 3 Review and import.
@@ -109,7 +109,7 @@ function mapStep(sp) {
   const rows = Math.max(0, ...cols.map((c) => c.samples.length));
   return `<s-stack gap="base">
       <s-stack gap="none">
-        <s-text type="strong">Map the columns in your file to your search fields (${esc(structure)}) and the Attachment (the product SKU).</s-text>
+        <s-text type="strong">Map the columns in your file to your search fields (${esc(structure)}) and the SKU (the product each row fits).</s-text>
         <s-text color="subdued">Columns you don't map are ignored. The first rows of your file are shown below. We filled in the mapping from your last import.</s-text>
       </s-stack>
       <s-checkbox label="Column titles in the first row" data-act="map-titles"${state.mapNoTitles ? '' : ' checked'}></s-checkbox>
@@ -118,7 +118,7 @@ function mapStep(sp) {
         <tr class="mg-titles">${cols.map((c) => `<td>${esc(c.name)}</td>`).join('')}</tr></thead>
         <tbody>${Array.from({ length: rows }, (_, i) => `<tr>${cols.map((c) => `<td>${esc(c.samples[i] || '')}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>
-      <div id="map-error" hidden><s-banner tone="critical" heading="Map the Attachment column">Each row needs an Attachment: the SKU of the product it points to.</s-banner></div>
+      <div id="map-error" hidden><s-banner tone="critical" heading="Map the SKU column">Each row needs a SKU: the SKU of the product it fits.</s-banner></div>
       <s-text color="subdued">${sp.fields.some((f) => f.type === 'years') ? `${esc(sp.fields.filter((f) => f.type === 'years').map((f) => f.label).join(', '))} can use one column (like 2015-2020) or two columns: the left one is from, the right one is to. ` : ''}Missing a field? Add it under Fields shoppers pick, then map a column to it.</s-text>
     </s-stack>`;
 }

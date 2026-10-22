@@ -316,6 +316,8 @@ model CatalogProduct {
   handle    String
   // ACTIVE | DRAFT | ARCHIVED (Admin GraphQL ProductStatus)
   status    String
+  // Product tags as Shopify returns them (results page filters)
+  tags      String[] @default([])
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -364,6 +366,8 @@ model CatalogSync {
   finishedAt      DateTime?       @map("finished_at")
   // last successful catalog sync; null = the cache was never filled
   syncedAt        DateTime?       @map("synced_at")
+  // the last full sync read product tags (false: cache filled before tags were kept)
+  tagsLoaded      Boolean         @default(false) @map("tags_loaded")
   // A check asked for while one was running: run again when it ends (true = with catalog sync).
   pendingFullSync Boolean?        @map("pending_full_sync")
   // heartbeat while running

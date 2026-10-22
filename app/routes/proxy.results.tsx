@@ -15,9 +15,19 @@ import {
 } from "../services/storefront/picks";
 import { searchResults } from "../services/storefront/query.server";
 import { loadStorefrontConfig } from "../services/storefront/sync.server";
-import { resultsLiquid } from "../services/storefront/results-page";
+import {
+  resultsLiquid,
+  type ResultsState,
+} from "../services/storefront/results-page";
+import {
+  filterPicksFrom,
+  productsPerPage,
+  SORTS,
+} from "../services/storefront/results-settings";
+import { getResultsPage } from "../models/storefront-settings.server";
 
 const MAX_PAGE = 1000;
+const PROXY_PREFIX = /^\/(apps|a|community|tools)\/[A-Za-z0-9_-]{1,64}$/;
 
 /**
  * A shopper's page load, not a script call: when the store is over its request budget or no
@@ -50,19 +60,50 @@ async function page({ request }: LoaderFunctionArgs) {
   if (!picks || page < 1 || page > MAX_PAGE) {
     return json({ error: "bad_request" }, 400);
   }
-  const config = await loadStorefrontConfig(search.shopId);
-  if (!config) return json({ error: "not_found" }, 404);
+  const [stored, settings] = await Promise.all([
+    loadStorefrontConfig(search.shopId),
+    getResultsPage(search.shopId),
+  ]);
+  if (!stored) return json({ error: "not_found" }, 404);
+  // Links and the sort form use the proxy path Shopify sent (signed; merchants can rename the
+  // prefix and subpath), else the default one.
+  const prefix = params.get("path_prefix") ?? "";
+  const config = PROXY_PREFIX.test(prefix)
+    ? { ...stored, proxy: prefix }
+    : stored;
 
+  const sortText = params.get("sort");
+  const state: ResultsState = {
+    filterPicks: filterPicksFrom(params, settings.filters),
+    sort: SORTS.some(([k]) => k === sortText)
+      ? (sortText as ResultsState["sort"])
+      : settings.sort,
+    page,
+  };
+  const options = {
+    filters: settings.filters,
+    filterPicks: state.filterPicks,
+    sort: state.sort,
+    perPage: productsPerPage(settings),
+  };
   const complete = isComplete(picks, search.fields);
-  let results = complete ? await searchResults(search, picks, page) : null;
+  let results = complete
+    ? await searchResults(search, picks, page, options)
+    : null;
   // Past the last page (e.g. rows removed since): show the first page.
   if (results && page > 1 && results.products.length === 0) {
-    results = await searchResults(search, picks, 1);
+    results = await searchResults(search, picks, 1, options);
+    state.page = 1;
   }
   const query = picksQuery(search.fields, picks);
-  const pageHref = (n: number) => {
-    const q = picksLinkQuery(search.fields, picks);
-    if (n > 1) q.set("page", String(n));
+  const linkQuery = [...picksLinkQuery(search.fields, picks)];
+  const href = (next: ResultsState) => {
+    const q = new URLSearchParams(linkQuery);
+    for (const f of settings.filters) {
+      for (const v of next.filterPicks[f.id] ?? []) q.append(`f_${f.id}`, v);
+    }
+    if (next.sort !== settings.sort) q.set("sort", next.sort);
+    if (next.page > 1) q.set("page", String(next.page));
     return `${config.proxy}/results?${q}`;
   };
   return liquidPage(
@@ -72,7 +113,10 @@ async function page({ request }: LoaderFunctionArgs) {
       label: selectionLabel(search.fields, picks),
       complete,
       results,
-      pageHref,
+      settings,
+      state,
+      href,
+      pickQuery: linkQuery,
     }),
   );
 }

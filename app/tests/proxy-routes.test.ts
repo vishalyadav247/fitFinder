@@ -9,6 +9,7 @@ const productFits = vi.fn();
 const searchResults = vi.fn();
 const fitSkus = vi.fn();
 const loadStorefrontConfig = vi.fn();
+const getResultsPage = vi.fn();
 // Analytics: track runs the recording at once here, so the calls can be checked.
 const recordSearch = vi.fn();
 const recordFitCheck = vi.fn();
@@ -28,6 +29,9 @@ vi.mock("../services/storefront/query.server", () => ({
 vi.mock("../services/storefront/sync.server", () => ({
   loadStorefrontConfig,
 }));
+vi.mock("../models/storefront-settings.server", () => ({
+  getResultsPage,
+}));
 vi.mock("../services/analytics/record.server", () => ({
   recordSearch,
   recordFitCheck,
@@ -39,6 +43,8 @@ const { loader: fits } = await import("../routes/proxy.fits");
 const { loader: results } = await import("../routes/proxy.results");
 const { loader: searchRoute } = await import("../routes/proxy.search");
 const { buildStorefrontConfig } = await import("../services/storefront/config");
+const { defaultResultsPage } =
+  await import("../services/storefront/results-settings");
 
 const SHOP = "shop=demo.myshopify.com&signature=x&timestamp=1";
 const search = {
@@ -175,6 +181,10 @@ describe("GET results", () => {
     stored: {},
   });
 
+  beforeEach(() => {
+    getResultsPage.mockResolvedValue(defaultResultsPage());
+  });
+
   it("renders a Liquid page with the products that fit", async () => {
     loadStorefrontConfig.mockResolvedValue(config);
     searchResults.mockResolvedValue({
@@ -182,13 +192,16 @@ describe("GET results", () => {
       total: 1,
       page: 1,
       pageCount: 1,
+      facets: [],
     });
     const res = await call(results, "results", "make=AUDI&year=2008&model=A6");
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/liquid");
     const body = await res.text();
     expect(body).toContain("all_products['shock']");
-    expect(body).toContain("AUDI 2008 A6");
+    // The picks prefill the widget; the selection isn't repeated under the title.
+    expect(body).toContain("data-sp-picks");
+    expect(body).not.toContain("sp-results__sel");
     expect(searchResults.mock.calls[0][2]).toBe(1);
   });
 
@@ -209,15 +222,75 @@ describe("GET results", () => {
         total: 0,
         page: 9,
         pageCount: 1,
+        facets: [],
       })
       .mockResolvedValueOnce({
         products: [],
         total: 0,
         page: 1,
         pageCount: 1,
+        facets: [],
       });
     await call(results, "results", "make=AUDI&year=2008&model=A6&page=9");
     expect(searchResults.mock.calls.map((c) => c[2])).toEqual([9, 1]);
+  });
+
+  it("links to the proxy path Shopify sent", async () => {
+    loadStorefrontConfig.mockResolvedValue(config);
+    searchResults.mockResolvedValue({
+      products: [],
+      total: 0,
+      page: 1,
+      pageCount: 1,
+      facets: [],
+    });
+    const html = await (
+      await call(
+        results,
+        "results",
+        "make=AUDI&year=2008&model=A6&path_prefix=%2Fapps%2Fparts",
+      )
+    ).text();
+    expect(html).toContain('action="/apps/parts/results"');
+    const bad = await (
+      await call(
+        results,
+        "results",
+        "make=AUDI&year=2008&model=A6&path_prefix=%2F%2Fevil.com",
+      )
+    ).text();
+    expect(bad).toContain('action="/apps/sparefit/results"');
+  });
+
+  it("passes the filter picks and sort from the URL, ignoring unknown filters", async () => {
+    loadStorefrontConfig.mockResolvedValue(config);
+    getResultsPage.mockResolvedValue({
+      ...defaultResultsPage(),
+      rowsPerPage: 3, // 4 per row → 12 per page
+      filters: [
+        { id: "b1", label: "Brand", tags: ["KYB", "Bilstein"], style: "list" },
+      ],
+    });
+    searchResults.mockResolvedValue({
+      products: [],
+      total: 0,
+      page: 1,
+      pageCount: 1,
+      facets: [],
+    });
+    await call(
+      results,
+      "results",
+      "make=AUDI&year=2008&model=A6&f_b1=KYB&f_b1=Bilstein&f_zz=x&sort=title-desc",
+    );
+    expect(searchResults.mock.calls[0][3]).toEqual({
+      filters: [
+        { id: "b1", label: "Brand", tags: ["KYB", "Bilstein"], style: "list" },
+      ],
+      filterPicks: { b1: ["kyb", "bilstein"] },
+      sort: "title-desc",
+      perPage: 12,
+    });
   });
 
   it("refuses bad pages", async () => {

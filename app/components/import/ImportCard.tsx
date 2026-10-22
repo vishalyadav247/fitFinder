@@ -477,7 +477,7 @@ function MapStep({
   const options: [string, string][] = [
     [SKIP, "Map column"],
     ...fields.map((f): [string, string] => [f.id, f.label]),
-    [ATTACHMENT, "Attachment"],
+    [ATTACHMENT, "SKU"],
   ];
   const titles = job.firstRow;
   // Without column titles the first row is data: show it with the samples.
@@ -490,7 +490,7 @@ function MapStep({
       <s-stack gap="none">
         <s-text type="strong">
           Map the columns in your file to your search fields ({structure}) and
-          the Attachment (the product SKU).
+          the SKU (the product each row fits).
         </s-text>
         <s-text color="subdued">
           Columns you don&apos;t map are ignored. The first rows of your file
@@ -543,8 +543,8 @@ function MapStep({
         </table>
       </div>
       {attachmentError && (
-        <s-banner tone="critical" heading="Map the Attachment column">
-          Each row needs an Attachment: the SKU of the product it points to.
+        <s-banner tone="critical" heading="Map the SKU column">
+          Each row needs a SKU: the SKU of the product it fits.
         </s-banner>
       )}
       <s-text color="subdued">

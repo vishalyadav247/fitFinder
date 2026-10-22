@@ -12,7 +12,7 @@ Shows how shoppers use the search on the storefront, so the merchant can see wha
 
 Otherwise:
 
-1. **Cards** (4 in a row, 2 on phones; Dashboard overview look, not clickable): label · number · one muted line.
+1. **Cards** (4 in a row, 2 on mobile; not clickable; redesigned 2026-10-22, product owner: an icon chip in the app's Sky tone + bold label (Searches: search · Found products: check-circle · Different selections: rows · Product page checks: product), the number at 28px, a trend pill on Searches ("▲ 25%" green / "▼ 12%" red + "vs the previous {n} days"; the old text when the previous period had none or no change), and a thin percentage bar on Found products and Product page checks (fit share)): label · number · one muted line.
    | Card | Number | Line |
    |---|---|---|
    | Searches | searches in the period | "+12% vs the previous 30 days" / "Same as …" / "None in the previous 30 days" |

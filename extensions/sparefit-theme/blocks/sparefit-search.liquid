@@ -19,6 +19,37 @@
       endif
     -%}
     <div class="sp-sfw sp-sfw--{% if sp.s.layout == 'card' %}v{% else %}h{% endif %}" style="--sp-b:{{ sp.s.btn }};--sp-bg:{{ sp.s.bg }};--sp-t:{{ sp.s.text }};--sp-r:{{ sp_r | at_most: 14 }}px;--sp-rb:{{ sp_r }}px">
+      {%- comment -%} Banner image: set in the theme editor only (block settings below). {%- endcomment -%}
+      {%- assign sp_img = block.settings.banner_image -%}
+      {%- if sp_img != blank -%}
+        {%- comment -%}
+          Focal point: "image" keeps the one set on the image (image_tag adds it as object-position);
+          any other choice overrides it. Only visible when a fixed height crops the image.
+        {%- endcomment -%}
+        {%- assign sp_focus = block.settings.banner_focus -%}
+        {%- capture sp_pic -%}
+          {%- if sp_focus == 'image' -%}
+            {{ sp_img | image_url: width: 2400 | image_tag: widths: '600, 900, 1200, 1600, 2000, 2400', sizes: '(min-width: 1200px) 1200px, 100vw' }}
+          {%- else -%}
+            {%- assign sp_pos = 'object-position: ' | append: sp_focus -%}
+            {{ sp_img | image_url: width: 2400 | image_tag: widths: '600, 900, 1200, 1600, 2000, 2400', sizes: '(min-width: 1200px) 1200px, 100vw', style: sp_pos }}
+          {%- endif -%}
+        {%- endcapture -%}
+        {%- comment -%} Overlay: a colour over the image at the chosen opacity (0 = none). {%- endcomment -%}
+        {%- assign sp_ov = block.settings.banner_overlay_opacity | divided_by: 100.0 -%}
+        {%- capture sp_banner_attrs -%}class="sp-sfw__banner sp-sfw__banner--{{ block.settings.banner_height }}"{% if sp_ov > 0 %} style="--sp-ov:{{ block.settings.banner_overlay_color | default: '#000000' }};--sp-ovo:{{ sp_ov }}"{% endif %}{%- endcapture -%}
+        {%- comment -%} Banner text: over the image, above the overlay. {%- endcomment -%}
+        {%- capture sp_btext -%}
+          {%- if block.settings.banner_text != blank -%}
+            <span class="sp-sfw__btext sp-sfw__btext--{{ block.settings.banner_text_position }}"><span style="--sp-bfs:{{ block.settings.banner_text_size }}px;color:{{ block.settings.banner_text_color | default: '#ffffff' }}">{{ block.settings.banner_text | escape }}</span></span>
+          {%- endif -%}
+        {%- endcapture -%}
+        {%- if block.settings.banner_link != blank -%}
+          <a {{ sp_banner_attrs }} href="{{ block.settings.banner_link | escape }}">{{ sp_pic }}{{ sp_btext }}</a>
+        {%- else -%}
+          <div {{ sp_banner_attrs }}>{{ sp_pic }}{{ sp_btext }}</div>
+        {%- endif -%}
+      {%- endif -%}
       {%- if sp.s.showHeading -%}<p class="sp-sfw__h">{{ sp.heading | escape }}</p>{%- endif -%}
       <div class="sp-sfw__row">
         {%- for f in sp.fields -%}
@@ -28,7 +59,7 @@
       </div>
       {%- if sp.s.saveLink or sp.s.reset -%}
         <div class="sp-sfw__links">
-          {%- if sp.s.saveLink -%}<button type="button" class="sp-sfw__save">&#9734; <span>{{ sp.s.saveText | escape }}</span></button>{%- else -%}<span></span>{%- endif -%}
+          {%- if sp.s.saveLink -%}<button type="button" class="sp-sfw__save"><i class="sp-sfw__star" aria-hidden="true"></i> <span>{{ sp.s.saveText | escape }}</span></button>{%- else -%}<span></span>{%- endif -%}
           {%- if sp.s.reset -%}<button type="button" class="sp-sfw__reset">{{ sp.s.resetText | escape }}</button>{%- endif -%}
         </div>
       {%- endif -%}
@@ -44,6 +75,105 @@
   "target": "section",
   "javascript": "sp-search.js",
   "stylesheet": "sp-search.css",
-  "settings": []
+  "settings": [
+    {
+      "type": "header",
+      "content": "Banner"
+    },
+    {
+      "type": "image_picker",
+      "id": "banner_image",
+      "label": "Banner image",
+      "info": "Shows at the top of the search. Remove the image to hide the banner."
+    },
+    {
+      "type": "url",
+      "id": "banner_link",
+      "label": "Banner link"
+    },
+    {
+      "type": "select",
+      "id": "banner_height",
+      "label": "Banner height",
+      "options": [
+        { "value": "auto", "label": "Image's own height" },
+        { "value": "small", "label": "Small (140px)" },
+        { "value": "medium", "label": "Medium (220px)" },
+        { "value": "large", "label": "Large (300px)" }
+      ],
+      "default": "auto"
+    },
+    {
+      "type": "select",
+      "id": "banner_focus",
+      "label": "Focal point",
+      "info": "Which part of the image stays in view when a banner height crops it.",
+      "options": [
+        { "value": "image", "label": "Image's focal point" },
+        { "value": "center top", "label": "Top" },
+        { "value": "center center", "label": "Center" },
+        { "value": "center bottom", "label": "Bottom" },
+        { "value": "left center", "label": "Left" },
+        { "value": "right center", "label": "Right" }
+      ],
+      "default": "image"
+    },
+    {
+      "type": "color",
+      "id": "banner_overlay_color",
+      "label": "Overlay colour",
+      "default": "#000000"
+    },
+    {
+      "type": "range",
+      "id": "banner_overlay_opacity",
+      "label": "Overlay opacity",
+      "info": "Darkens the image so it stands back. 0 shows the image as it is.",
+      "min": 0,
+      "max": 90,
+      "step": 5,
+      "unit": "%",
+      "default": 0
+    },
+    {
+      "type": "text",
+      "id": "banner_text",
+      "label": "Banner text",
+      "info": "A heading over the image. Leave it empty for no text."
+    },
+    {
+      "type": "range",
+      "id": "banner_text_size",
+      "label": "Text size",
+      "min": 14,
+      "max": 64,
+      "step": 2,
+      "unit": "px",
+      "default": 32
+    },
+    {
+      "type": "color",
+      "id": "banner_text_color",
+      "label": "Text colour",
+      "default": "#ffffff"
+    },
+    {
+      "type": "select",
+      "id": "banner_text_position",
+      "label": "Text position",
+      "options": [
+        { "value": "top-left", "label": "Top left" },
+        { "value": "top-center", "label": "Top center" },
+        { "value": "top-right", "label": "Top right" },
+        { "value": "middle-left", "label": "Middle left" },
+        { "value": "middle-center", "label": "Middle center" },
+        { "value": "middle-right", "label": "Middle right" },
+        { "value": "bottom-left", "label": "Bottom left" },
+        { "value": "bottom-center", "label": "Bottom center" },
+        { "value": "bottom-right", "label": "Bottom right" }
+      ],
+      "default": "middle-center"
+    }
+  ]
 }
 {% endschema %}

@@ -40,7 +40,7 @@ describe("setup guide", () => {
       false,
     ]);
     expect(steps[0].description).toContain("Make › Year › Model");
-    expect(steps[1].to).toBe("/app/search-setup?import=1");
+    expect(steps[1].to).toBe("/app/filter-data?tab=import-data&import=1");
   });
 
   it("follows the real state of each step", () => {

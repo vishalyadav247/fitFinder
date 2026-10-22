@@ -35,6 +35,7 @@ const PATHS = {
   sliders:
     '<path d="M4 6h7M15 6h1M4 14h1M9 14h7"/><circle cx="13" cy="6" r="2"/><circle cx="7" cy="14" r="2"/>',
   code: '<path d="M7.5 6 3.5 10l4 4M12.5 6l4 4-4 4"/>',
+  page: '<path d="M5.5 2.5h6l4 4v11h-10z"/><path d="M11.5 2.5v4h4M8 10.5h5M8 13.5h5"/>',
   lock: '<rect x="4.5" y="9" width="11" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 016 0V9"/>',
 } as const;
 

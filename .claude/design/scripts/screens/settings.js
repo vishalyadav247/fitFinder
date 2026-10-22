@@ -27,7 +27,7 @@ S.settings = () => {
       <s-unordered-list>
         <s-list-item><s-text type="strong">What we store:</s-text> · your search fields, filter rows, product links, the last 5 imported files (as backups) and the texts and settings you set in the app.</s-list-item>
         <s-list-item><s-text type="strong">Shoppers:</s-text> · a shopper's My Selection is saved in their own browser, not on our servers. We don't store names, emails or orders.</s-list-item>
-        <s-list-item><s-text type="strong">Backups:</s-text> · you can download each of your last 5 imported files any time from Search setup › Import history.</s-list-item>
+        <s-list-item><s-text type="strong">Backups:</s-text> · you can download each of your last 5 imported files any time from Filter data › Import › Import history.</s-list-item>
         <s-list-item><s-text type="strong">If you uninstall:</s-text> · the search disappears from your store straight away. Your data is kept for 30 days in case you reinstall, then deleted for good.</s-list-item>
         <s-list-item><s-text type="strong">Privacy requests:</s-text> · customer and shop data requests from Shopify (GDPR) are handled automatically.</s-list-item>
       </s-unordered-list>

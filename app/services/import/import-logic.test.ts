@@ -196,7 +196,7 @@ describe("buildRow", () => {
   });
 
   it.each([
-    [["AUDI", "2016", "", "", ""], "Attachment is empty"],
+    [["AUDI", "2016", "", "", ""], "SKU is empty"],
     [["", "2016", "", "", "X"], "Make is empty"],
     [["AUDI", "", "", "", "X"], "Year is empty"],
     [

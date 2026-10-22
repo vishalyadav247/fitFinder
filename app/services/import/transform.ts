@@ -78,9 +78,9 @@ export function buildRow(
     yearTo = r.to;
   }
 
-  if (!attachment) return fail("Attachment is empty");
+  if (!attachment) return fail("SKU is empty");
   if (attachment.length > MAX_ATTACHMENT_LENGTH) {
-    return fail("Attachment is too long");
+    return fail("SKU is too long");
   }
 
   for (const f of fields) {

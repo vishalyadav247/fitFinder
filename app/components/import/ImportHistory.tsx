@@ -1,4 +1,4 @@
-// Search setup's import cards (specs/search-setup.md): Import (starts the Import CSV card) and
+// Filter data › Import's cards (specs/search-setup.md › Import): Import (starts the Import CSV card) and
 // Import history, the files the plan keeps (backups), newest first, each downloadable. Without the
 // plan's Import backups, the history shows locked (LockedSection).
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -38,14 +38,7 @@ export const keptText = (n: number) =>
   n === 1 ? "last file" : `last ${n} files`;
 
 /** The card that starts an import (above Import history). */
-export function ImportStart({
-  imported,
-  onImport,
-}: {
-  /** The shop has imported a file before. */
-  imported: boolean;
-  onImport: () => void;
-}) {
+export function ImportStart({ onImport }: { onImport: () => void }) {
   return (
     <s-section accessibilityLabel="Import filter data">
       <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
@@ -57,7 +50,7 @@ export function ImportStart({
           </s-text>
         </s-stack>
         <s-button variant="primary" icon="upload" onClick={onImport}>
-          {imported ? "Import new file" : "Import CSV"}
+          Import CSV
         </s-button>
       </s-grid>
     </s-section>

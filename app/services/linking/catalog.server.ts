@@ -21,6 +21,8 @@ export interface CatalogProductInput {
   title: string;
   handle: string;
   status: string;
+  /** Product tags as Shopify returns them (results page filters); missing = none. */
+  tags?: string[];
   variants: { variantId: string; sku: string }[];
 }
 
@@ -87,7 +89,7 @@ export async function gqlData<T>(
 // variants carry __parentId).
 export const BULK_PRODUCTS_QUERY = `{
   products {
-    edges { node { id title handle status variants { edges { node { id sku } } } } }
+    edges { node { id title handle status tags variants { edges { node { id sku } } } } }
   }
 }`;
 
@@ -180,6 +182,7 @@ const bulkLineSchema = z.object({
   title: z.string().optional(),
   handle: z.string().optional(),
   status: z.string().optional(),
+  tags: z.array(z.string()).optional(),
   sku: z.string().nullable().optional(),
   __parentId: z.string().optional(),
 });
@@ -206,6 +209,7 @@ export async function collectBulkLines(
         title: n.title ?? "",
         handle: (n.handle ?? "").toLowerCase(),
         status: (n.status ?? "ACTIVE").toUpperCase(),
+        tags: cleanTags(n.tags),
         variants: existing?.variants ?? [],
       });
     } else if (
@@ -226,6 +230,16 @@ export async function collectBulkLines(
   return [...products.values()];
 }
 
+/** Tags kept per product: trimmed, no empties, at most 250 of up to 255 characters. */
+export function cleanTags(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return [];
+  return tags
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => t.trim().slice(0, 255))
+    .filter(Boolean)
+    .slice(0, 250);
+}
+
 /** Streams the JSONL file of a finished bulk operation. */
 export async function* fetchJsonlLines(url: string): AsyncGenerator<string> {
   const res = await fetch(url);
@@ -244,7 +258,7 @@ export async function* fetchJsonlLines(url: string): AsyncGenerator<string> {
 const PRODUCT_VARIANTS = `#graphql
   query ProductVariantsPage($id: ID!, $after: String) {
     product(id: $id) {
-      id title handle status
+      id title handle status tags
       variants(first: 250, after: $after) { pageInfo { hasNextPage endCursor } nodes { id sku } }
     }
   }`;
@@ -263,6 +277,7 @@ export async function fetchProduct(
         title: string;
         handle: string;
         status: string;
+        tags: string[];
         variants: {
           pageInfo: { hasNextPage: boolean; endCursor: string | null };
           nodes: { id: string; sku: string | null }[];
@@ -276,6 +291,7 @@ export async function fetchProduct(
       title: p.title,
       handle: p.handle.toLowerCase(),
       status: p.status.toUpperCase(),
+      tags: cleanTags(p.tags),
       variants: [],
     };
     for (const v of p.variants.nodes) {
@@ -289,7 +305,7 @@ export async function fetchProduct(
 const PICKED = `#graphql
   query PickedResources($ids: [ID!]!) {
     nodes(ids: $ids) {
-      ... on Product { id title handle status variants(first: 1) { nodes { id sku } } }
+      ... on Product { id title handle status tags variants(first: 1) { nodes { id sku } } }
     }
   }`;
 
@@ -326,6 +342,7 @@ async function fetchResourceBatch(
       title?: string;
       handle?: string;
       status?: string;
+      tags?: string[];
       variants?: { nodes: { id: string; sku: string | null }[] };
     } | null)[];
   }>(gql, PICKED, { ids });
@@ -337,6 +354,7 @@ async function fetchResourceBatch(
         title: n.title ?? "",
         handle: n.handle.toLowerCase(),
         status: (n.status ?? "ACTIVE").toUpperCase(),
+        tags: cleanTags(n.tags),
         variants: (n.variants?.nodes ?? []).map((v) => ({
           variantId: v.id,
           sku: v.sku ?? "",
@@ -382,15 +400,19 @@ async function insertProducts(
 ) {
   for (let i = 0; i < products.length; i += INSERT_BATCH) {
     const b = products.slice(i, i + INSERT_BATCH);
+    // Tags are a list per product: one JSON text per product, unnested with the other columns
+    // (a whole-batch JSON parsed per row is quadratic under a generic plan).
     await tx.$executeRaw`
-      INSERT INTO catalog_products (shop_id, product_id, title, handle, status, updated_at)
-      SELECT ${shopId}, p.id, p.title, p.handle, p.status, now()
+      INSERT INTO catalog_products (shop_id, product_id, title, handle, status, tags, updated_at)
+      SELECT ${shopId}, p.id, p.title, p.handle, p.status,
+             ARRAY(SELECT jsonb_array_elements_text(p.tj::jsonb)), now()
       FROM unnest(${b.map((p) => p.productId)}::text[], ${b.map((p) => p.title)}::text[],
-                  ${b.map((p) => p.handle)}::text[], ${b.map((p) => p.status)}::text[])
-        AS p(id, title, handle, status)
+                  ${b.map((p) => p.handle)}::text[], ${b.map((p) => p.status)}::text[],
+                  ${b.map((p) => JSON.stringify(p.tags ?? []))}::text[])
+        AS p(id, title, handle, status, tj)
       ON CONFLICT (shop_id, product_id) DO UPDATE SET
         title = EXCLUDED.title, handle = EXCLUDED.handle, status = EXCLUDED.status,
-        updated_at = now()`;
+        tags = EXCLUDED.tags, updated_at = now()`;
   }
 }
 

@@ -17,6 +17,12 @@ import {
   type PickField,
   type Picks,
 } from "./picks";
+import {
+  type Facet,
+  type FilterPicks,
+  type ResultsFilter,
+  type ResultsPageSettings,
+} from "./results-settings";
 
 type Tx = Prisma.TransactionClient;
 
@@ -39,7 +45,7 @@ const universalHits = (search: ShopSearch, variant: boolean) =>
 const READ_TIMEOUT = "8s";
 export const MAX_OPTIONS = 5000;
 export const MAX_TABLE_ROWS = 1000;
-export const RESULTS_PAGE_SIZE = 16; // Liquid all_products: 20 unique handles per page
+export const RESULTS_PAGE_SIZE = 20; // Liquid all_products: 20 unique handles per page
 
 /**
  * Reads with a statement timeout, so a pathological query can't hold a connection, and in one of
@@ -301,20 +307,81 @@ export interface ResultsPage {
   total: number;
   page: number;
   pageCount: number;
+  /** One per results page filter, in the filters' order (empty without filters). */
+  facets: Facet[];
 }
 
-/** Products that fit the picks (linked rows), then universal products; A–Z by title. */
+export interface ResultsOptions {
+  filters?: ResultsFilter[];
+  /** Picked values per filter id, lower case. */
+  filterPicks?: FilterPicks;
+  sort?: ResultsPageSettings["sort"];
+  perPage?: number;
+}
+
+/** Products (alias p, with tags) that have one of these tags (compared without case). */
+const hasTagSql = (tags: string[]) =>
+  Prisma.sql`EXISTS (SELECT 1 FROM unnest(p.tags) t
+    WHERE lower(t) IN (SELECT lower(x) FROM unnest(${tags}::text[]) x))`;
+
+const SORT_SQL: Record<ResultsPageSettings["sort"], Prisma.Sql> = {
+  match: Prisma.sql`universal, title, product_id`,
+  "title-asc": Prisma.sql`title, product_id`,
+  "title-desc": Prisma.sql`title DESC, product_id`,
+};
+
+/**
+ * Products that fit the picks (linked rows), then universal products; A–Z by title. With results
+ * page filters: only products with a picked value of every filter that has picks (OR within a
+ * filter), plus each filter's values and counts among the products matching the other filters.
+ */
 export async function searchResults(
   search: ShopSearch,
   picks: Picks,
   page: number,
+  {
+    filters = [],
+    filterPicks = {},
+    sort = "match",
+    perPage = RESULTS_PAGE_SIZE,
+  }: ResultsOptions = {},
 ): Promise<ResultsPage> {
   const { shopId } = search;
+  const size = Math.max(1, Math.min(RESULTS_PAGE_SIZE, perPage));
   const matching = Prisma.sql`SELECT DISTINCT f.attachment FROM fitment_rows f
     WHERE f.shop_id = ${shopId} ${picksWhere(search.fields, picks)}`;
+  const picked = filters.filter((f) => filterPicks[f.id]?.length);
+  const allBut = (skip: string | null) => {
+    const conds = picked
+      .filter((f) => f.id !== skip)
+      .map((f) => hasTagSql(filterPicks[f.id]));
+    return conds.length
+      ? Prisma.sql`WHERE ${Prisma.join(conds, " AND ")}`
+      : Prisma.empty;
+  };
+  // Per group: how many products have each of its tags, among those matching the other groups.
+  const groups = filters.filter((f) => f.tags.length);
+  const facetSql = groups.length
+    ? Prisma.join(
+        groups.map(
+          (f) => Prisma.sql`SELECT ${f.id}::text AS g, lower(t) AS k,
+              count(DISTINCT p.product_id)::int AS n
+            FROM (SELECT * FROM p ${allBut(f.id)}) p, unnest(p.tags) t
+            WHERE lower(t) IN (SELECT lower(x) FROM unnest(${f.tags}::text[]) x)
+            GROUP BY lower(t)`,
+        ),
+        " UNION ALL ",
+      )
+    : null;
   return timedRead(async (tx) => {
-    const products = await tx.$queryRaw<
-      { handle: string; universal: boolean; total: number }[]
+    const [row] = await tx.$queryRaw<
+      {
+        products: { handle: string; universal: boolean }[] | null;
+        total: number;
+        facets:
+          | { g: string; k: string; n: number }[]
+          | null;
+      }[]
     >`
         WITH m AS (${matching}),
         hits AS (
@@ -322,25 +389,47 @@ export async function searchResults(
           JOIN m ON m.attachment = l.attachment
           WHERE l.shop_id = ${shopId} AND l.product_id IS NOT NULL
           ${universalHits(search, false)}),
-        p AS (
-          SELECT c.handle, c.title, c.product_id, bool_and(h.universal) AS universal
+        p AS MATERIALIZED (
+          SELECT c.handle, c.title, c.product_id, c.tags, bool_and(h.universal) AS universal
           FROM hits h JOIN catalog_products c
             ON c.shop_id = ${shopId} AND c.product_id = h.product_id
           WHERE c.status = 'ACTIVE'
-          GROUP BY c.handle, c.title, c.product_id)
-        SELECT handle, universal, (count(*) OVER ())::int AS total FROM p
-        ORDER BY universal, title, product_id
-        LIMIT ${RESULTS_PAGE_SIZE} OFFSET ${(page - 1) * RESULTS_PAGE_SIZE}`;
-    // Past the last page there is no row to carry the total (0); the route goes back to page 1.
-    const total = products[0]?.total ?? 0;
+          GROUP BY c.handle, c.title, c.product_id, c.tags),
+        f AS MATERIALIZED (SELECT * FROM p ${allBut(null)})
+        SELECT
+          (SELECT json_agg(json_build_object('handle', handle, 'universal', universal) ORDER BY n)
+           FROM (SELECT handle, universal, row_number() OVER (ORDER BY ${SORT_SQL[sort]}) AS n
+                 FROM f ORDER BY ${SORT_SQL[sort]}
+                 LIMIT ${size} OFFSET ${(page - 1) * size}) x) AS products,
+          (SELECT count(*)::int FROM f) AS total,
+          ${facetSql ? Prisma.sql`(SELECT json_agg(y) FROM (${facetSql}) y)` : Prisma.sql`NULL::json`} AS facets`;
+    const total = row?.total ?? 0;
+    // Each group lists its own tags, in its order: those some product has, and picked ones (so
+    // they can be cleared).
+    const facets = filters.map((filter) => {
+      const on = new Set(filterPicks[filter.id] ?? []);
+      const counts = new Map(
+        (row?.facets ?? [])
+          .filter((r) => r.g === filter.id)
+          .map((r) => [r.k, r.n]),
+      );
+      return {
+        filter,
+        values: filter.tags
+          .map((tag) => ({
+            value: tag,
+            count: counts.get(tag.toLowerCase()) ?? 0,
+            on: on.has(tag.toLowerCase()),
+          }))
+          .filter((v) => v.count > 0 || v.on),
+      };
+    });
     return {
-      products: products.map(({ handle, universal }) => ({
-        handle,
-        universal,
-      })),
+      products: row?.products ?? [],
       total,
       page,
-      pageCount: Math.max(1, Math.ceil(total / RESULTS_PAGE_SIZE)),
+      pageCount: Math.max(1, Math.ceil(total / size)),
+      facets,
     };
   });
 }

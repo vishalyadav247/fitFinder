@@ -15,18 +15,68 @@
 .sp-an-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 104px;
-  padding: 18px 16px;
+  gap: 8px;
+  min-height: 132px;
+  padding: 16px;
   border-radius: 12px;
   background: #ffffff;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.06),
     var(--sp-card-shadow);
 }
+.sp-an-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Icon chip: the app's Sky tone, the same on every tile (identity comes from the label). */
+.sp-an-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--sp-p-soft);
+  color: var(--sp-p-strong);
+}
 .sp-an-label {
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
   color: #303030;
+}
+/* Trend vs the previous period: arrow + number, green up / red down (never colour alone). */
+.sp-an-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 18px;
+}
+.sp-an-trend.is-up {
+  background: #e3f6ea;
+  color: #0b6b3a;
+}
+.sp-an-trend.is-down {
+  background: #fde8e8;
+  color: #a1161a;
+}
+/* A share in %: thin bar on a grey track. */
+.sp-an-meter {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: #eef0f2;
+  overflow: hidden;
+}
+.sp-an-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--sp-p);
 }
 .sp-an-value {
   display: flex;
@@ -35,8 +85,9 @@
   flex-wrap: wrap;
 }
 .sp-an-number {
-  font-size: 20px;
-  line-height: 26px;
+  font-size: 28px;
+  line-height: 34px;
+  letter-spacing: -0.01em;
   font-weight: 700;
   color: #303030;
 }

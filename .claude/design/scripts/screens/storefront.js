@@ -50,7 +50,7 @@ function sfWidget(sp, mobile) {
     ${results}</div>`;
 }
 
-// Previews show only SpareFit's part (no browser or store frame). Mobile narrows it to phone width.
+// Previews show only SpareFit's part (no browser or store frame). Mobile narrows it to mobile width.
 const browser = (inner, mobile) => `<div class="pv-stage ${mobile ? 'mobile' : ''}">${inner}</div>`;
 
 // The store's themes (real app: GraphQL `themes` query). The live theme is what shoppers see.
@@ -129,7 +129,7 @@ S.store = () => {
     body = `<s-section>${previewHead('Live preview', true)}${browser(sfWidget(sp, mobile), mobile)}</s-section>
     <s-section accessibilityLabel="Layout and style"><h2 class="sec-title sec-gap">Layout and style</h2>
       <div class="opt-grid">
-        ${sel('layout', 'Layout', [['bar', 'Horizontal (one row)'], ['card', 'Vertical (stacked)']], 'On phones the dropdowns always stack.')}
+        ${sel('layout', 'Layout', [['bar', 'Horizontal (one row)'], ['card', 'Vertical (stacked)']], 'On mobile the dropdowns always stack.')}
         ${sel('corners', 'Corners', [['square', 'Square'], ['rounded', 'Rounded'], ['pill', 'Pill']])}
       </div>
       <s-box paddingBlockStart="base"><div class="opt-grid three">
@@ -219,7 +219,7 @@ S.store = () => {
               <li>In the theme editor, open a product page and select your tabs section (the one with Description, Specifications …).</li>
               <li>Add a tab, name it for example “Fits these ${esc(sp.noun)}s”, and paste this code as its content:
                 <span class="code-row"><code>[sparefit-table]</code><s-button variant="tertiary" icon="clipboard" data-act="copy-code" data-code="[sparefit-table]">Copy</s-button></span></li>
-              <li>Save. SpareFit replaces the code with the table on every product page. Your theme decides how the tabs look: tabs on desktop, often an accordion on phones.</li>
+              <li>Save. SpareFit replaces the code with the table on every product page. Your theme decides how the tabs look: tabs on desktop, often an accordion on mobile.</li>
             </ol>
             <s-text color="subdued">Needs the app embed (Theme integration). Products with no rows follow “When a product has no rows” below.</s-text>
             <s-stack direction="inline"><s-button icon="external">Open theme editor</s-button></s-stack>
@@ -250,7 +250,7 @@ S.store = () => {
         </s-stack>
       </s-stack>
     </s-section>
-    ${pv(inTabs ? 'Inside your theme\'s tabs, with sample rows. On phones your theme may show them as an accordion.' : 'With sample rows.', `<p class="pv-cap">Product with rows</p>${fitRow}<p class="pv-cap">Product with no rows</p>${emptyRow}`)}
+    ${pv(inTabs ? 'Inside your theme\'s tabs, with sample rows. On mobile your theme may show them as an accordion.' : 'With sample rows.', `<p class="pv-cap">Product with rows</p>${fitRow}<p class="pv-cap">Product with no rows</p>${emptyRow}`)}
     </s-grid>`;
   } else {
     // My Selection: the tab shows the current selection; hover shows a hint card;

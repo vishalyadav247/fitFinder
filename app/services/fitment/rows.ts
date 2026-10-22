@@ -30,11 +30,19 @@ export function yearsText(from: number | null, to: number | null): string {
   return `${from}-${to ?? ""}`;
 }
 
-/** Years in the table (prototype showValue): "2008 – 2011", "2016 – now", "2016", "—". */
-export function yearsDisplay(from: number | null, to: number | null): string {
+/**
+ * Years in the table: "2008 – 2011", "2016", "—". An open range ("2016-", still made) shows up to
+ * the current year, "2016 – 2026" (agreed 2026-10-22, instead of "now").
+ */
+export function yearsDisplay(
+  from: number | null,
+  to: number | null,
+  thisYear = new Date().getFullYear(),
+): string {
   if (from === null) return "—";
-  if (to === from) return String(from);
-  return `${from} – ${to ?? "now"}`;
+  const end = to ?? Math.max(from, thisYear);
+  if (end === from) return String(from);
+  return `${from} – ${end}`;
 }
 
 /** One cell's text for a field, as the import reads it. */
@@ -120,7 +128,7 @@ export function parseRowForm(
 }
 
 /** Export column for the attachment; the import template uses the same name. */
-export const ATTACHMENT_COLUMN = "Attachment";
+export const ATTACHMENT_COLUMN = "SKU";
 
 /**
  * CSV cell. Text a spreadsheet would run as a formula gets a leading apostrophe; the import
@@ -138,7 +146,7 @@ export function csvLine(cells: unknown[]): string {
   return cells.map(csvCell).join(",") + "\r\n";
 }
 
-/** Export header: one column per field (a Year range as one "2015-2020" column) + Attachment. */
+/** Export header: one column per field (a Year range as one "2015-2020" column) + SKU. */
 export function exportHeader(fields: RowField[]): string {
   return csvLine([...fields.map((f) => f.label), ATTACHMENT_COLUMN]);
 }

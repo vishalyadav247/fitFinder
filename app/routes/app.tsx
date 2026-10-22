@@ -120,13 +120,16 @@ export default function App() {
         {showNav && (
           <s-app-nav>
             {/* Documented App Bridge markup. polaris-types' s-link has no `rel`; app-bridge-types defines it for app-nav links. */}
+            {/* rel="home" only sets where the app name links to; App Bridge hides that link from
+                the menu, so Dashboard is listed again as a visible item. */}
             <s-link href="/app" {...homeRel}>
               Dashboard
             </s-link>
+            <s-link href="/app">Dashboard</s-link>
             <s-link href="/app/search-setup">Search setup</s-link>
             <s-link href="/app/filter-data">Filter data</s-link>
-            <s-link href="/app/storefront">Storefront</s-link>
             <s-link href="/app/product-mapping">Product mapping</s-link>
+            <s-link href="/app/storefront">Storefront</s-link>
             <s-link href="/app/analytics">Analytics</s-link>
             <s-link href="/app/settings">Settings</s-link>
             <s-link href="/app/plans">Plans</s-link>

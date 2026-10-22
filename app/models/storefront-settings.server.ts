@@ -9,6 +9,11 @@ import {
   parseSettingValue,
   TEXT_MAX,
 } from "../services/storefront/settings";
+import {
+  RESULTS_KEY,
+  storedResultsPage,
+  type ResultsPageSettings,
+} from "../services/storefront/results-settings";
 
 export const storefrontIntentSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -29,6 +34,8 @@ export const storefrontIntentSchema = z.discriminatedUnion("intent", [
       .partialRecord(z.enum(EDITABLE_KEYS), z.string().max(5000))
       .refine((s) => Object.keys(s).length <= EDITABLE_KEYS.length),
     heading: z.string().trim().min(1).max(TEXT_MAX).optional(),
+    // The Results page tab: the whole document (checked by parseResultsPage).
+    resultsPage: z.unknown().optional(),
   }),
 ]);
 
@@ -72,4 +79,20 @@ export async function saveHeading(shopId: string, heading: string) {
     where: { shopId },
     data: { heading },
   });
+}
+
+/** The shop's results page settings (filters and layout), defaults when none are stored. */
+export async function getResultsPage(
+  shopId: string,
+): Promise<ResultsPageSettings> {
+  const row = await prisma.storefrontSettings.findUnique({
+    where: { shopId },
+    select: { settings: true },
+  });
+  return storedResultsPage(row?.settings);
+}
+
+/** Replaces the shop's results page settings (already checked by parseResultsPage). */
+export function saveResultsPage(shopId: string, value: ResultsPageSettings) {
+  return saveSettings(shopId, { [RESULTS_KEY]: value });
 }

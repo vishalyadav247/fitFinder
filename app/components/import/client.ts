@@ -134,10 +134,10 @@ export function saveBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 }
 
-/** CSV template: one column per field (a Year range as one "2015-2020" column) and Attachment. */
+/** CSV template: one column per field (a Year range as one "2015-2020" column) and SKU. */
 export function templateCsv(labels: string[]): Blob {
   const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  return new Blob([[...labels, "Attachment"].map(q).join(",") + "\r\n"], {
+  return new Blob([[...labels, "SKU"].map(q).join(",") + "\r\n"], {
     type: "text/csv",
   });
 }

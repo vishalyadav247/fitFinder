@@ -7,6 +7,12 @@ import {
   searchPlan,
 } from "./search-query";
 import { defaultSettings, resolveSettings } from "./settings";
+import {
+  defaultResultsPage,
+  parseResultsPage,
+  maxRows,
+  productsPerPage,
+} from "./results-settings";
 import { buildStorefrontConfig, byPosition, PROXY_PATH } from "./config";
 import {
   isComplete,
@@ -344,7 +350,9 @@ describe("picks", () => {
     )!;
     expect(selectionLabel(fields, p)).toBe("AUDI 2008 A6 C6 Avant (4F5)");
     p.set("engine", "2.0 TDI");
-    expect(selectionLabel(fields, p)).toBe("AUDI 2008 A6 C6 Avant (4F5) 2.0 TDI");
+    expect(selectionLabel(fields, p)).toBe(
+      "AUDI 2008 A6 C6 Avant (4F5) 2.0 TDI",
+    );
     expect(selectionLabel(fields, new Map([["make", "BMW"]]))).toBe("BMW");
   });
 
@@ -381,8 +389,17 @@ describe("results page (Liquid)", () => {
       total: 40,
       page: 2,
       pageCount: 3,
+      facets: [],
     },
-    pageHref: (n) => `/apps/sparefit/results?make=AUDI&page=${n}`,
+    settings: defaultResultsPage(),
+    state: { filterPicks: {}, sort: "match", page: 2 },
+    href: (st) =>
+      `/apps/sparefit/results?make=AUDI&page=${st.page}${Object.entries(
+        st.filterPicks,
+      )
+        .flatMap(([id, vs]) => vs.map((v) => `&f_${id}=${v}`))
+        .join("")}`,
+    pickQuery: [["make", "AUDI"]],
     ...over,
   });
 
@@ -395,7 +412,9 @@ describe("results page (Liquid)", () => {
   });
 
   it("escapes merchant text so it can't open Liquid or HTML", () => {
-    const html = resultsLiquid(view({ label: "<b>{{ shop.email }}</b>" }));
+    const html = resultsLiquid(
+      view({ picks: { make: "<b>{{ shop.email }}</b>" } }),
+    );
     expect(html).not.toContain("{{ shop.email }}");
     expect(html).not.toContain("<b>{");
     expect(escapeLiquidText("{% x %}")).toBe("&#123;&#37; x &#37;&#125;");
@@ -416,6 +435,7 @@ describe("results page (Liquid)", () => {
           total: 0,
           page: 1,
           pageCount: 1,
+          facets: [],
         },
       }),
     );
@@ -425,6 +445,212 @@ describe("results page (Liquid)", () => {
       "Select your vehicle to see the parts that fit.",
     );
     expect(incomplete).toContain("data-sp-search");
+  });
+
+  it("lists filters from tags with counts, picked values linked off, and Clear all", () => {
+    const brand = {
+      id: "b1",
+      label: "Brand",
+      tags: ["Bilstein", "KYB"],
+      style: "list" as const,
+    };
+    const html = resultsLiquid(
+      view({
+        state: { filterPicks: { b1: ["kyb"] }, sort: "match", page: 1 },
+        results: {
+          products: [{ handle: "shock-front", universal: false }],
+          total: 1,
+          page: 1,
+          pageCount: 1,
+          facets: [
+            {
+              filter: brand,
+              values: [
+                { value: "Bilstein", count: 3, on: false },
+                { value: "KYB", count: 1, on: true },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(html).toContain('class="sp-rp__side"');
+    expect(html).toContain("Brand");
+    // Picking Bilstein adds it to KYB; KYB's link removes it.
+    expect(html).toContain("page=1&#38;f_b1=kyb&#38;f_b1=bilstein");
+    expect(html).toMatch(/is-on" href="[^"]*page=1"[^>]*aria-checked="true"/);
+    expect(html).toContain('<span class="sp-rp__n">3</span>');
+    expect(html).toContain("Clear all");
+    expect(html).toContain("Filters (1)");
+    // The sort form keeps the picks and filter picks.
+    expect(html).toContain('<input type="hidden" name="f_b1" value="kyb">');
+    expect(html).toContain("--sp-cols:4;--sp-mcols:2");
+  });
+
+  it("lays filters out as a sidebar, dropdowns or a drawer, with Show more and an optional sort", () => {
+    const brand = {
+      id: "b1",
+      label: "Brand",
+      tags: ["Bilstein", "KYB"],
+      style: "list" as const,
+    };
+    const values = Array.from({ length: 14 }, (_, i) => ({
+      value: `B${String(i).padStart(2, "0")}`,
+      count: 1,
+      on: i === 12,
+    }));
+    const page = (over: Partial<ResultsView["settings"]>) =>
+      resultsLiquid(
+        view({
+          settings: { ...defaultResultsPage(), ...over },
+          state: { filterPicks: { b1: ["b12"] }, sort: "match", page: 1 },
+          results: {
+            products: [{ handle: "shock-front", universal: false }],
+            total: 1,
+            page: 1,
+            pageCount: 1,
+            facets: [{ filter: brand, values }],
+          },
+        }),
+      );
+    const side = page({});
+    expect(side).toContain("sp-rp--vertical");
+    expect(side).toContain("Show 9 more"); // default: first 5
+    // The picked value is in the rest: that part starts open, and so does the group.
+    expect(side).toContain('<details class="sp-rp__more" open>');
+    expect(side).toContain("Sort by");
+    expect(page({ filterSide: "right" })).toContain("sp-rp--right");
+    expect(page({ valuesShown: "all" })).not.toContain("more</summary>");
+    expect(page({ valuesShown: "10" })).toContain("Show 4 more");
+    // Old saved checkbox values still read: true = all open, false = all closed.
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), groupsOpen: false })
+        ?.groupsOpen,
+    ).toBe("none");
+    const closed = page({ groupsOpen: "none" });
+    expect(closed).toContain('<details class="sp-rp__g" open>'); // has a pick
+
+    const bar = page({ filterLayout: "horizontal" });
+    expect(bar).toContain("sp-rp--horizontal");
+    expect(bar).toContain('<details class="sp-rp__dd" name="sp-rp-dd">');
+    expect(bar).not.toContain('class="sp-rp__side"');
+
+    const drawer = page({ filterLayout: "drawer", showSort: false });
+    expect(drawer).toContain('class="sp-rp__drawer"');
+    expect(drawer).toContain('class="sp-rp__fbtn">Filters (1)</label>');
+    expect(drawer).not.toContain("Sort by");
+  });
+
+  it("fills whole rows: products per page = products per row × rows, at most 20", () => {
+    const per = (columns: string, rowsPerPage: number) =>
+      productsPerPage({ columns, rowsPerPage });
+    expect(per("4", 5)).toBe(20);
+    expect(per("3", 6)).toBe(18);
+    expect(per("3", 9)).toBe(18); // too many rows for 20 products: 6
+    expect(per("5", 2)).toBe(10);
+    expect(per("2", 10)).toBe(20);
+    expect(maxRows(5)).toBe(4);
+  });
+
+  it("styles the page title, or leaves it out", () => {
+    const page = (over: Partial<ResultsView["settings"]>) =>
+      resultsLiquid(view({ settings: { ...defaultResultsPage(), ...over } }));
+    expect(page({})).toContain(
+      '<h1 class="sp-results__title" style="text-align:left">',
+    );
+    expect(
+      page({ titleAlign: "center", titleSize: 44, titleColor: "#123ABC" }),
+    ).toContain('style="text-align:center;font-size:44px;color:#123ABC"');
+    expect(page({ showTitle: false })).not.toContain("<h1");
+    // Sizes saved as words before px still read; a colour that isn't #RRGGBB never reaches the page.
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), titleSize: "large" })
+        ?.titleSize,
+    ).toBe(44);
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), titleColor: "red;x:y" }),
+    ).toBeNull();
+  });
+
+  it("uses the merchant's page title, or the store type's one when empty", () => {
+    expect(resultsLiquid(view())).toContain("Parts that fit your vehicle");
+    const custom = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          pageTitle: "Shocks for {{ you }}",
+        },
+      }),
+    );
+    expect(custom).toContain("Shocks for &#123;&#123; you &#125;&#125;");
+    expect(custom).not.toContain("Parts that fit your vehicle");
+  });
+
+  it("filters without a page reload: one script, no Liquid in it, links still work without it", () => {
+    const html = resultsLiquid(view());
+    const script = html.slice(html.indexOf("<script>"));
+    expect(script).toContain("history.pushState");
+    expect(script).not.toMatch(/\{\{|\{%/);
+    // The sort no longer submits on its own; the script (or the no-JS Sort button) does.
+    expect(html).not.toContain("onchange");
+    expect(html).toContain(
+      '<noscript><button type="submit">Sort</button></noscript>',
+    );
+  });
+
+  it("opens all groups, only the first, or none (a group with a pick stays open)", () => {
+    const g = (id: string, picked: boolean) => ({
+      filter: { id, label: id.toUpperCase(), tags: ["One", "Two"] },
+      values: [
+        { value: "One", count: 1, on: picked },
+        { value: "Two", count: 1, on: false },
+      ],
+    });
+    const page = (groupsOpen: "all" | "first" | "none", pickSecond = false) =>
+      resultsLiquid(
+        view({
+          settings: { ...defaultResultsPage(), groupsOpen },
+          results: {
+            products: [{ handle: "shock-front", universal: false }],
+            total: 1,
+            page: 1,
+            pageCount: 1,
+            facets: [g("a", false), g("b", pickSecond), g("c", false)],
+          },
+        }),
+      );
+    const openCount = (html: string) =>
+      (html.match(/<details class="sp-rp__g" open>/g) ?? []).length;
+    expect(openCount(page("all"))).toBe(3);
+    expect(openCount(page("first"))).toBe(1);
+    expect(openCount(page("none"))).toBe(0);
+    expect(openCount(page("none", true))).toBe(1);
+  });
+
+  it("shows the result count and Sort by only when they are on", () => {
+    const page = (over: Partial<ResultsView["settings"]>) =>
+      resultsLiquid(view({ settings: { ...defaultResultsPage(), ...over } }));
+    expect(page({})).toContain('<p class="sp-rp__count">40 results</p>');
+    expect(page({ showCount: false })).not.toContain('class="sp-rp__count"');
+    const neither = page({ showCount: false, showSort: false });
+    expect(neither).not.toContain('<div class="sp-rp__bar">');
+  });
+
+  it("has no filter bar without filters, and says when filters match nothing", () => {
+    expect(resultsLiquid(view())).toContain("sp-rp--nofilters");
+    const none = resultsLiquid(
+      view({
+        state: { filterPicks: { b1: ["x"] }, sort: "match", page: 1 },
+        results: {
+          products: [],
+          total: 0,
+          page: 1,
+          pageCount: 1,
+          facets: [],
+        },
+      }),
+    );
+    expect(none).toContain("No parts match these filters.");
   });
 });
 

@@ -1,4 +1,5 @@
-// Filter data: browse, search, add, edit, delete and export filter rows; clean up.
+// Filter data, in two tabs: Filter data (browse, search, add, edit, delete and export filter rows;
+// clean up) and Import (the Import CSV card and Import history, moved here from Search setup).
 // Spec: .claude/specs/fitment-data.md · Prototype: .claude/design/scripts/screens/fitment-data.js
 // Rows come from /api/fitment (paged, searched as you type); the counts from this loader.
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +13,7 @@ import {
   useFetcher,
   useLoaderData,
   useNavigate,
+  useRevalidator,
   useSearchParams,
 } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -44,6 +46,25 @@ import { MAX_ATTACHMENT_LENGTH } from "../services/import/transform";
 import { isLockTimeout, relink } from "../services/linking/relink.server";
 import { saveBlob } from "../components/import/client";
 import styles from "../styles/filter-data.css?url";
+import importStyles from "../styles/import.css?url";
+import { listFields } from "../models/search-field.server";
+import { currentJob, importHistory } from "../services/import/pipeline.server";
+import { jobView } from "../services/import/view.server";
+import { ImportCard } from "../components/import/ImportCard";
+import {
+  ImportHistory,
+  ImportStart,
+  type HistoryItem,
+} from "../components/import/ImportHistory";
+import { getPlans } from "../models/plan.server";
+import { backupsOf } from "../services/plan-features";
+import { effectivePlan, planWith } from "../services/billing";
+import { Icon, type IconName } from "../components/Icon";
+import {
+  skipTabOnlyChanges,
+  useUrlTab,
+  type UrlTab,
+} from "../components/url-tab";
 import { PageHeader } from "../components/PageHeader";
 import { TableFooter } from "../components/TableFooter";
 import { EmptyState } from "../components/EmptyState";
@@ -52,18 +73,51 @@ import {
   TABLE_PAGE_SIZES,
 } from "../components/table-paging";
 
-export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
+// Switching tabs only changes ?tab=: the page keeps its data.
+export const shouldRevalidate = skipTabOnlyChanges;
+
+export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: styles },
+  { rel: "stylesheet", href: importStyles },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
   const shop = await ensureShop(session.shop);
   // The layout redirects too, but child loaders run in parallel with it.
   if (!(await getSearchConfig(shop.id))) throw redirect("/app/onboarding");
-  const [fields, counts] = await Promise.all([
+  const plans = await getPlans();
+  const kept = backupsOf(effectivePlan(plans, shop.plan));
+  const [fields, counts, searchFields, history, current] = await Promise.all([
     listRowFields(shop.id),
     rowCounts(shop.id),
+    listFields(shop.id),
+    importHistory(shop.id, kept),
+    currentJob(shop.id),
   ]);
-  return { fields, counts };
+  const items: HistoryItem[] = history.map((j) => ({
+    id: j.id,
+    fileName: j.fileName,
+    finishedAt: j.finishedAt?.toISOString() ?? null,
+    mode: j.mode,
+    rows: j.totalRows,
+    hasFile: kept > 0 && !!j.fileKey,
+  }));
+  // An import checking or running in the background reopens the card with its progress.
+  const active =
+    current && (current.status === "previewing" || current.status === "running")
+      ? jobView(current, searchFields)
+      : null;
+  return {
+    fields,
+    counts,
+    history: items,
+    // How many imported files the plan keeps as backups (0: Import backups isn't in the plan).
+    kept,
+    // Without Import backups: the plan that adds it ("" = none yet).
+    backupsLocked: kept ? null : (planWith(plans, "importBackups")?.name ?? ""),
+    active,
+  };
 };
 
 export type ActionResult =
@@ -225,11 +279,53 @@ function confirmText(c: Confirm, fields: RowField[]) {
   }
 }
 
+type Tab = "rows" | "import";
+// Each tab's name in the URL (?tab=); "import" still works for older links.
+const URL_TABS: UrlTab<Tab>[] = [
+  { key: "rows", slug: "filter-data" },
+  { key: "import", slug: "import-data", aliases: ["import"] },
+];
+const TABS: [Tab, string, IconName][] = [
+  ["rows", "Filter data", "rows"],
+  ["import", "Import data", "upload"],
+];
+
 export default function FilterDataPage() {
-  const { fields, counts } = useLoaderData<typeof loader>();
+  const { fields, counts, history, kept, backupsLocked, active } =
+    useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const navigate = useNavigate();
-  const openImport = () => navigate("/app/search-setup?import=1");
+  const revalidator = useRevalidator();
+
+  // ---- tabs, in the URL (?tab=filter-data | import-data). Without one, a store without rows or
+  // with an import in progress starts on Import data; ?import=1 also opens the card.
+  const [params, setParams] = useSearchParams();
+  const [tab, setTab] = useUrlTab(
+    URL_TABS,
+    params.get("import") === "1" || active !== null || counts.total === 0
+      ? "import"
+      : "rows",
+  );
+  // The import card replaces the Import start card while open (spec).
+  const [importing, setImporting] = useState(
+    active !== null || params.get("import") === "1",
+  );
+  // Drop ?import=1 once used (the tab stays), so a reload after closing the card doesn't reopen it.
+  useEffect(() => {
+    if (!params.has("import")) return;
+    setParams(
+      (p) => {
+        p.delete("import");
+        p.set("tab", "import-data");
+        return p;
+      },
+      { replace: true, preventScrollReset: true },
+    );
+  }, [params, setParams]);
+  const openImport = () => {
+    setTab("import");
+    setImporting(true);
+  };
 
   // ---- rows: searched as you type, paged on the server
   const [search, setSearch] = useState("");
@@ -237,6 +333,12 @@ export default function FilterDataPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [rowsVersion, setRowsVersion] = useState(0);
+  const closeImport = (toast?: string) => {
+    setImporting(false);
+    if (toast) shopify.toast.show(toast);
+    revalidator.revalidate();
+    setRowsVersion((v) => v + 1);
+  };
   const [rows, setRows] = useState<RowPage | null>(null);
   const [rowsLoading, setRowsLoading] = useState(true);
   useEffect(() => {
@@ -455,25 +557,61 @@ export default function FilterDataPage() {
 
   return (
     <s-page inlineSize="base">
-      <PageHeader title="Filter data">
-        {/* These buttons open modals through the Modal API. */}
-        <s-button icon="export" onClick={() => openExport(null)}>
-          Export
-        </s-button>
-        <s-button variant="primary" icon="upload" onClick={openImport}>
-          Import CSV
-        </s-button>
-      </PageHeader>
+      <PageHeader title="Filter data" />
 
       <s-stack gap="base">
-        {counts.unlinkedSkus > 0 && (
+        <div className="sp-tabs" role="tablist" aria-label="Filter data">
+          {TABS.map(([k, label, icon]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+            >
+              <Icon name={icon} size={16} />
+              {label}
+              {k === "rows" && (
+                <span className="sp-tab-count">
+                  {counts.total.toLocaleString("en-US")}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {tab === "import" && (
+          <>
+            {/* The import steps take the start card's place; Import history stays below. */}
+            {importing ? (
+              <div className="sp-unfold">
+                <ImportCard
+                  fields={fields.map((f) => ({
+                    id: f.id,
+                    label: f.label,
+                    type: f.type,
+                    required: f.required,
+                  }))}
+                  currentRows={counts.total}
+                  resume={active}
+                  onClose={closeImport}
+                />
+              </div>
+            ) : (
+              <ImportStart onImport={() => setImporting(true)} />
+            )}
+            <ImportHistory
+              items={history}
+              kept={kept}
+              lockedPlan={backupsLocked}
+            />
+          </>
+        )}
+
+        {tab === "rows" && counts.unlinkedSkus > 0 && (
           <s-banner
             tone="warning"
-            heading={
-              counts.unlinkedSkus === 1
-                ? "1 SKU isn't linked to a product"
-                : `${counts.unlinkedSkus.toLocaleString("en-US")} SKUs aren't linked to a product`
-            }
+            heading={`${plural(counts.unlinkedRows, "row")} of ${counts.total.toLocaleString("en-US")} ${counts.unlinkedRows === 1 ? "isn't" : "aren't"} linked to a product`}
           >
             <s-grid
               gridTemplateColumns="1fr auto"
@@ -481,9 +619,7 @@ export default function FilterDataPage() {
               alignItems="center"
             >
               <s-text>
-                {counts.unlinkedRows === 1
-                  ? "Shoppers won't see this row in search results until it's linked to a product."
-                  : "Shoppers won't see these rows in search results until they're linked to a product."}
+                {`${counts.unlinkedRows === 1 ? "It uses" : "They use"} ${plural(counts.unlinkedSkus, "SKU")} with no product in your store, so shoppers won't see ${counts.unlinkedRows === 1 ? "it" : "them"} in search results until ${counts.unlinkedRows === 1 ? "it's" : "they're"} linked.`}
               </s-text>
               <s-button onClick={() => navigate("/app/product-mapping")}>
                 Link products
@@ -492,201 +628,224 @@ export default function FilterDataPage() {
           </s-banner>
         )}
 
-        <s-section padding="none" accessibilityLabel="Filter rows">
-          <s-box padding="base">
-            <s-grid
-              gridTemplateColumns="1fr auto"
-              gap="base"
-              alignItems="center"
-            >
-              <s-search-field
-                label="Search rows"
-                labelAccessibilityVisibility="exclusive"
-                placeholder={searchPlaceholder}
-                value={search}
-                onInput={(e) => setSearch(String(e.currentTarget.value ?? ""))}
-              />
-              <s-button icon="plus" onClick={() => openRowModal(null)}>
-                Add row
-              </s-button>
-            </s-grid>
-          </s-box>
-
-          {selected.length > 0 && (
-            <div className="sp-bulk">
-              <s-text type="strong">
-                {selected.length.toLocaleString("en-US")} selected
-              </s-text>
-              <s-button-group>
-                <s-button slot="secondary-actions" onClick={clearSelection}>
-                  Clear selection
-                </s-button>
-                <s-button
-                  slot="secondary-actions"
-                  icon="export"
-                  onClick={() => openExport("selected")}
+        {tab === "rows" && (
+          <>
+            <s-section padding="none" accessibilityLabel="Filter rows">
+              <s-box padding="base">
+                <s-grid
+                  gridTemplateColumns="1fr auto"
+                  gap="base"
+                  alignItems="center"
                 >
-                  Export selected
-                </s-button>
-                <s-button
-                  slot="secondary-actions"
-                  tone="critical"
-                  icon="delete"
-                  onClick={() => ask({ kind: "selected", ids: selected })}
-                >
-                  Delete selected
-                </s-button>
-              </s-button-group>
-            </div>
-          )}
-
-          {counts.total === 0 ? (
-            <EmptyState
-              icon="upload"
-              heading="No rows yet"
-              actions={
-                <s-button variant="primary" icon="upload" onClick={openImport}>
-                  Import CSV
-                </s-button>
-              }
-            >
-              Import a CSV or add rows by hand.
-            </EmptyState>
-          ) : (
-            <>
-              <s-table loading={rowsLoading}>
-                <s-table-header-row>
-                  <s-table-header listSlot="inline">Select</s-table-header>
-                  {fields.map((f, i) => (
-                    <s-table-header
-                      key={f.id}
-                      listSlot={i === 0 ? "primary" : "labeled"}
+                  <s-search-field
+                    label="Search rows"
+                    labelAccessibilityVisibility="exclusive"
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    onInput={(e) =>
+                      setSearch(String(e.currentTarget.value ?? ""))
+                    }
+                  />
+                  <s-stack direction="inline" gap="small-200">
+                    <s-button icon="plus" onClick={() => openRowModal(null)}>
+                      Add row
+                    </s-button>
+                    {/* Export opens its modal through the Modal API. */}
+                    <s-button
+                      variant="primary"
+                      icon="export"
+                      onClick={() => openExport(null)}
                     >
-                      {f.label}
-                    </s-table-header>
-                  ))}
-                  <s-table-header>SKU</s-table-header>
-                  <s-table-header>Product</s-table-header>
-                  <s-table-header>Actions</s-table-header>
-                </s-table-header-row>
-                <s-table-body>
-                  {(rows?.rows ?? []).map((r) => (
-                    <s-table-row key={r.id}>
-                      <s-table-cell>
-                        <s-checkbox
-                          accessibilityLabel={`Select ${r.attachment}`}
-                          checked={selected.includes(r.id)}
-                          onChange={(e) =>
-                            toggle(r.id, e.currentTarget.checked)
-                          }
-                        />
-                      </s-table-cell>
-                      {fields.map((f, i) => (
-                        <s-table-cell key={f.id}>
-                          {i === 0 ? (
-                            <s-text type="strong">{cellDisplay(f, r)}</s-text>
-                          ) : (
-                            cellDisplay(f, r)
-                          )}
-                        </s-table-cell>
-                      ))}
-                      <s-table-cell>{r.attachment}</s-table-cell>
-                      <s-table-cell>
-                        {r.linked ? (
-                          <s-badge tone="success">Linked</s-badge>
-                        ) : (
-                          <s-badge tone="warning">Not linked</s-badge>
-                        )}
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-stack direction="inline" gap="small-300">
-                          <s-button
-                            variant="tertiary"
-                            icon="edit"
-                            accessibilityLabel={`Edit ${r.attachment}`}
-                            onClick={() => openRowModal(r)}
-                          />
-                          <s-button
-                            variant="tertiary"
-                            icon="delete"
-                            tone="critical"
-                            accessibilityLabel={`Delete ${r.attachment}`}
-                            onClick={() => ask({ kind: "row", row: r })}
-                          />
-                        </s-stack>
-                      </s-table-cell>
-                    </s-table-row>
-                  ))}
-                </s-table-body>
-              </s-table>
-              <TableFooter
-                total={tableTotal}
-                page={page}
-                pageSize={pageSize}
-                pageSizes={TABLE_PAGE_SIZES}
-                noun={searching ? "matching rows" : "rows"}
-                disabled={rowsLoading}
-                onPage={setPage}
-                onPageSize={(size) => {
-                  setPageSize(size);
-                  setPage(1);
-                }}
-              />
-            </>
-          )}
-        </s-section>
+                      Export data
+                    </s-button>
+                  </s-stack>
+                </s-grid>
+              </s-box>
 
-        <s-section accessibilityLabel="Clean up">
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <span className="sp-cu-ico">
-              <s-icon type="eraser" size="small" />
-            </span>
-            <h2 className="sp-sec-title">Clean up</h2>
-          </s-stack>
-          <s-box paddingBlockStart="base">
-            <s-grid
-              gridTemplateColumns="1fr auto"
-              gap="base"
-              alignItems="center"
-            >
-              <s-stack gap="none">
-                <s-text type="strong">Remove duplicate rows</s-text>
-                <s-text color="subdued">
-                  Deletes rows that are the same apart from upper/lower case and
-                  spaces, keeping one of each.
-                </s-text>
-              </s-stack>
-              <s-stack alignItems="end">
-                <s-button
-                  loading={countFetcher.state !== "idle"}
-                  onClick={() =>
-                    countFetcher.submit(
-                      { intent: "dedupe-count" },
-                      { method: "post" },
-                    )
+              {selected.length > 0 && (
+                <div className="sp-bulk">
+                  <s-text type="strong">
+                    {selected.length.toLocaleString("en-US")} selected
+                  </s-text>
+                  <s-button-group>
+                    <s-button slot="secondary-actions" onClick={clearSelection}>
+                      Clear selection
+                    </s-button>
+                    <s-button
+                      slot="secondary-actions"
+                      icon="export"
+                      onClick={() => openExport("selected")}
+                    >
+                      Export selected
+                    </s-button>
+                    <s-button
+                      slot="secondary-actions"
+                      tone="critical"
+                      icon="delete"
+                      onClick={() => ask({ kind: "selected", ids: selected })}
+                    >
+                      Delete selected
+                    </s-button>
+                  </s-button-group>
+                </div>
+              )}
+
+              {counts.total === 0 ? (
+                <EmptyState
+                  icon="upload"
+                  heading="No rows yet"
+                  actions={
+                    <s-button
+                      variant="primary"
+                      icon="upload"
+                      onClick={openImport}
+                    >
+                      Import CSV
+                    </s-button>
                   }
                 >
-                  Remove duplicates
-                </s-button>
+                  Import a CSV or add rows by hand.
+                </EmptyState>
+              ) : (
+                <>
+                  <s-table loading={rowsLoading}>
+                    <s-table-header-row>
+                      <s-table-header listSlot="inline">Select</s-table-header>
+                      {fields.map((f, i) => (
+                        <s-table-header
+                          key={f.id}
+                          listSlot={i === 0 ? "primary" : "labeled"}
+                        >
+                          {f.label}
+                        </s-table-header>
+                      ))}
+                      <s-table-header>SKU</s-table-header>
+                      <s-table-header>Product</s-table-header>
+                      <s-table-header>Actions</s-table-header>
+                    </s-table-header-row>
+                    <s-table-body>
+                      {(rows?.rows ?? []).map((r) => (
+                        <s-table-row key={r.id}>
+                          <s-table-cell>
+                            <s-checkbox
+                              accessibilityLabel={`Select ${r.attachment}`}
+                              checked={selected.includes(r.id)}
+                              onChange={(e) =>
+                                toggle(r.id, e.currentTarget.checked)
+                              }
+                            />
+                          </s-table-cell>
+                          {fields.map((f, i) => (
+                            <s-table-cell key={f.id}>
+                              {i === 0 ? (
+                                <s-text type="strong">
+                                  {cellDisplay(f, r)}
+                                </s-text>
+                              ) : (
+                                cellDisplay(f, r)
+                              )}
+                            </s-table-cell>
+                          ))}
+                          <s-table-cell>{r.attachment}</s-table-cell>
+                          <s-table-cell>
+                            {r.linked ? (
+                              <s-badge tone="success">Linked</s-badge>
+                            ) : (
+                              <s-badge tone="warning">Not linked</s-badge>
+                            )}
+                          </s-table-cell>
+                          <s-table-cell>
+                            <s-stack direction="inline" gap="small-300">
+                              <s-button
+                                variant="tertiary"
+                                icon="edit"
+                                accessibilityLabel={`Edit ${r.attachment}`}
+                                onClick={() => openRowModal(r)}
+                              />
+                              <s-button
+                                variant="tertiary"
+                                icon="delete"
+                                tone="critical"
+                                accessibilityLabel={`Delete ${r.attachment}`}
+                                onClick={() => ask({ kind: "row", row: r })}
+                              />
+                            </s-stack>
+                          </s-table-cell>
+                        </s-table-row>
+                      ))}
+                    </s-table-body>
+                  </s-table>
+                  <TableFooter
+                    total={tableTotal}
+                    page={page}
+                    pageSize={pageSize}
+                    pageSizes={TABLE_PAGE_SIZES}
+                    noun={searching ? "matching rows" : "rows"}
+                    disabled={rowsLoading}
+                    onPage={setPage}
+                    onPageSize={(size) => {
+                      setPageSize(size);
+                      setPage(1);
+                    }}
+                  />
+                </>
+              )}
+            </s-section>
+
+            <s-section accessibilityLabel="Clean up">
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <span className="sp-cu-ico">
+                  <s-icon type="eraser" size="small" />
+                </span>
+                <h2 className="sp-sec-title">Clean up</h2>
               </s-stack>
-              <s-stack gap="none">
-                <s-text type="strong">Delete all rows</s-text>
-                <s-text color="subdued">
-                  Removes every filter row. Products in Shopify are not changed.
-                </s-text>
-              </s-stack>
-              <s-stack alignItems="end">
-                <s-button
-                  tone="critical"
-                  disabled={counts.total === 0}
-                  onClick={() => ask({ kind: "all", total: counts.total })}
+              <s-box paddingBlockStart="base">
+                <s-grid
+                  gridTemplateColumns="1fr auto"
+                  gap="base"
+                  alignItems="center"
                 >
-                  Delete all rows
-                </s-button>
-              </s-stack>
-            </s-grid>
-          </s-box>
-        </s-section>
+                  <s-stack gap="none">
+                    <s-text type="strong">Remove duplicate rows</s-text>
+                    <s-text color="subdued">
+                      Deletes rows that are the same apart from upper/lower case
+                      and spaces, keeping one of each.
+                    </s-text>
+                  </s-stack>
+                  <s-stack alignItems="end">
+                    <s-button
+                      loading={countFetcher.state !== "idle"}
+                      onClick={() =>
+                        countFetcher.submit(
+                          { intent: "dedupe-count" },
+                          { method: "post" },
+                        )
+                      }
+                    >
+                      Remove duplicates
+                    </s-button>
+                  </s-stack>
+                  <s-stack gap="none">
+                    <s-text type="strong">Delete all rows</s-text>
+                    <s-text color="subdued">
+                      Removes every filter row. Products in Shopify are not
+                      changed.
+                    </s-text>
+                  </s-stack>
+                  <s-stack alignItems="end">
+                    <s-button
+                      tone="critical"
+                      disabled={counts.total === 0}
+                      onClick={() => ask({ kind: "all", total: counts.total })}
+                    >
+                      Delete all rows
+                    </s-button>
+                  </s-stack>
+                </s-grid>
+              </s-box>
+            </s-section>
+          </>
+        )}
       </s-stack>
 
       <s-modal id={EXPORT_MODAL} heading="Export filter data">

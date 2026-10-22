@@ -297,7 +297,7 @@ export async function saveMapping(
     throw new ImportError("Your search fields changed. Map the columns again.");
   }
   if (validateChoices(input.choices).attachmentMissing) {
-    throw new ImportError("Map the Attachment column");
+    throw new ImportError("Map the SKU column");
   }
 
   const mapping: Record<string, string> = {};
@@ -627,7 +627,7 @@ async function writeReport(job: ImportJob): Promise<string | null> {
     "Line",
     "Problem",
     ...fields.map((f) => f.label),
-    "Attachment",
+    "SKU",
   ];
 
   async function* lines() {

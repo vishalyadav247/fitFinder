@@ -37,7 +37,7 @@ Home screen. Explains the app in one glance, guides setup to "live", and shows f
 The guide opens on the first unfinished step.
 
 ### 3. Overview (at-a-glance cards)
-Heading "Overview", then 4 small cards in one row (2 per row on phones), styled like Polaris cards (white background). Each card is just: label (12px), one number (20px, dark #303030) with an optional status badge, and one short specific line (11.5px, muted). The whole card is clickable. No icons, dividers, pills, chips or tips — keep it glanceable.
+Heading "Overview", then 4 small cards in one row (2 per row on mobile), styled like Polaris cards (white background). Each card is just: label (12px), one number (20px, dark #303030) with an optional status badge, and one short specific line (11.5px, muted). The whole card is clickable. No icons, dividers, pills, chips or tips — keep it glanceable.
 
 | Card | Number / badge | Line | Opens |
 |---|---|---|---|

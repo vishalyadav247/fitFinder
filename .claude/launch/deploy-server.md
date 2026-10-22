@@ -345,3 +345,4 @@ Server first; then `npm run deploy:prod` on your Mac, only when a TOML file or `
 | Memory | `free -h`, `pm2 ls` (mem column) |
 | Upload disk use | `du -sh /var/lib/sparefit/storage` |
 | Certificate | `certbot certificates` (renews automatically) |
+| Wipe an uninstalled store's data now (e.g. the demo store before a screencast), instead of after 30 days | Uninstall the app from the store first, then `cd /var/www/sparefit.progryss.com/html && sudo -u sparefit node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/purge-shop.ts <store>.myshopify.com`. Refuses an installed store. |

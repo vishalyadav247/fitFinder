@@ -1,4 +1,4 @@
-// Search setup: the fields shoppers pick, Import history and the Import CSV card. Field edits
+// Search setup: the fields shoppers pick (importing moved to Filter data › Import). Field edits
 // (name, placeholder, type, required) collect in a draft behind the App Bridge save bar and are
 // saved together; Add field, the move arrows and Delete are immediate actions.
 // Spec: .claude/specs/search-setup.md · Prototype: .claude/design/scripts/screens/search-setup.js
@@ -8,14 +8,7 @@ import type {
   LinksFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import {
-  data,
-  useFetcher,
-  useLoaderData,
-  useNavigate,
-  useRevalidator,
-  useSearchParams,
-} from "react-router";
+import { data, useFetcher, useLoaderData, useNavigate } from "react-router";
 import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 import { z } from "zod";
 import type { SearchField } from "@prisma/client";
@@ -33,7 +26,6 @@ import {
   type SaveStep,
   listFields,
 } from "../models/search-field.server";
-import { STORE_TYPES } from "../services/store-types";
 import {
   FIELD_EXAMPLES,
   LABEL_MAX,
@@ -41,28 +33,13 @@ import {
   PLACEHOLDER_MAX,
   placeholderFor,
 } from "../services/search-fields";
-import prisma from "../db.server";
-import { currentJob, importHistory } from "../services/import/pipeline.server";
-import { jobView } from "../services/import/view.server";
-import { ImportCard } from "../components/import/ImportCard";
-import { getPlans } from "../models/plan.server";
-import { backupsOf, MAX_SEARCH_FIELDS } from "../services/plan-features";
-import { effectivePlan, planWith } from "../services/billing";
-import {
-  ImportHistory,
-  ImportStart,
-  type HistoryItem,
-} from "../components/import/ImportHistory";
+import { MAX_SEARCH_FIELDS } from "../services/plan-features";
 import styles from "../styles/search-setup.css?url";
-import importStyles from "../styles/import.css?url";
 import { SectionTitle } from "../components/SectionTitle";
 import { PageHeader } from "../components/PageHeader";
 import { Option, Select } from "../components/Select";
 
-export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: styles },
-  { rel: "stylesheet", href: importStyles },
-];
+export const links: LinksFunction = () => [{ rel: "stylesheet", href: styles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, redirect } = await authenticate.admin(request);
@@ -70,40 +47,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const config = await getSearchConfig(shop.id);
   // The layout redirects too, but child loaders run in parallel with it.
   if (!config) throw redirect("/app/onboarding");
-  const plans = await getPlans();
-  const plan = effectivePlan(plans, shop.plan);
-  const kept = backupsOf(plan);
-  const [fields, history, current, currentRows] = await Promise.all([
-    listFields(shop.id),
-    importHistory(shop.id, kept),
-    currentJob(shop.id),
-    prisma.fitmentRow.count({ where: { shopId: shop.id } }),
-  ]);
-  const items: HistoryItem[] = history.map((j) => ({
-    id: j.id,
-    fileName: j.fileName,
-    finishedAt: j.finishedAt?.toISOString() ?? null,
-    mode: j.mode,
-    rows: j.totalRows,
-    hasFile: kept > 0 && !!j.fileKey,
-  }));
-  // An import checking or running in the background reopens the card with its progress.
-  const active =
-    current && (current.status === "previewing" || current.status === "running")
-      ? jobView(current, fields)
-      : null;
+  const fields = await listFields(shop.id);
   return {
     storeType: config.storeType,
     fields,
-    history: items,
-    // How many imported files the plan keeps as backups (0: Import backups isn't in the plan).
-    kept,
-    // Without Import backups: the plan that adds it ("" = none yet).
-    backupsLocked: kept ? null : (planWith(plans, "importBackups")?.name ?? ""),
     // Add field stops at the search fields cap (the same on every plan).
     fieldLimit: MAX_SEARCH_FIELDS,
-    active,
-    currentRows,
   };
 };
 
@@ -279,40 +228,8 @@ function useResultToast(result: ActionResult | undefined) {
 const DELETE_MODAL = "delete-field-modal";
 
 export default function SearchSetupPage() {
-  const {
-    storeType,
-    fields,
-    history,
-    kept,
-    backupsLocked,
-    fieldLimit,
-    active,
-    currentRows,
-  } = useLoaderData<typeof loader>();
+  const { storeType, fields, fieldLimit } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const revalidator = useRevalidator();
-  // The import card replaces Import history while open (spec).
-  // Filter data › Import CSV links here with ?import=1 to open the card.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [importing, setImporting] = useState(
-    active !== null || searchParams.get("import") === "1",
-  );
-  // Drop the flag once used, so a reload after closing the card doesn't reopen it.
-  useEffect(() => {
-    if (searchParams.get("import") !== "1") return;
-    setSearchParams(
-      (p) => {
-        p.delete("import");
-        return p;
-      },
-      { replace: true },
-    );
-  }, [searchParams, setSearchParams]);
-  const closeImport = (toast?: string) => {
-    setImporting(false);
-    if (toast) shopify.toast.show(toast);
-    revalidator.revalidate();
-  };
   const deleteFetcher = useFetcher<typeof action>();
   const [deleting, setDeleting] = useState<Field | null>(null);
   const shopify = useAppBridge();
@@ -510,6 +427,7 @@ export default function SearchSetupPage() {
       </SaveBar>
       <PageHeader title="Search setup">
         <s-button
+          variant="primary"
           icon="store"
           onClick={() => void leave(() => navigate("/app/onboarding"))}
         >
@@ -520,17 +438,7 @@ export default function SearchSetupPage() {
       <s-stack gap="base">
         <s-section padding="none" accessibilityLabel="Fields shoppers pick">
           <s-box padding="base">
-            <s-stack gap="small-100">
-              <SectionTitle icon="filter">Fields shoppers pick</SectionTitle>
-              <s-stack gap="none">
-                <s-text color="subdued">
-                  {`${STORE_TYPES[storeType].label} · Shoppers pick these in this order. Your CSV columns fill them on import.`}
-                </s-text>
-                <s-text color="subdued">
-                  {`Up to ${fieldLimit} fields. Add more, such as ${FIELD_EXAMPLES[storeType]}.`}
-                </s-text>
-              </s-stack>
-            </s-stack>
+            <SectionTitle icon="filter">Fields shoppers pick</SectionTitle>
           </s-box>
           <div className="sp-fgrid sp-fhead" aria-hidden="true">
             <span>Order</span>
@@ -572,28 +480,23 @@ export default function SearchSetupPage() {
           </s-box>
         </s-section>
 
-        {/* The import steps take the Import card's place; Import history stays below. */}
-        {importing ? (
-          <div className="sp-unfold">
-            <ImportCard
-              fields={fields.map((f) => ({
-                id: f.id,
-                label: f.label,
-                type: f.type,
-                required: f.required,
-              }))}
-              currentRows={currentRows}
-              resume={active}
-              onClose={closeImport}
-            />
-          </div>
-        ) : (
-          <ImportStart
-            imported={history.length > 0}
-            onImport={() => setImporting(true)}
-          />
-        )}
-        <ImportHistory items={history} kept={kept} lockedPlan={backupsLocked} />
+        <s-section accessibilityLabel="About search fields">
+          <SectionTitle icon="info" gap>
+            About search fields
+          </SectionTitle>
+          <s-unordered-list>
+            <s-list-item>
+              Shoppers pick these fields in this order; each one narrows the
+              next.
+            </s-list-item>
+            <s-list-item>
+              Your CSV columns fill them when you import in Filter data.
+            </s-list-item>
+            <s-list-item>
+              {`Up to ${fieldLimit} fields. Add more, such as ${FIELD_EXAMPLES[storeType]}.`}
+            </s-list-item>
+          </s-unordered-list>
+        </s-section>
       </s-stack>
 
       <s-modal

@@ -120,7 +120,8 @@ export async function requestLinkCheck(
       where: { shopId, attempt, status: "queued" },
       data: {
         status: "failed",
-        error: "Links couldn't be checked. Try again.",
+        error: "Products couldn't be synced. Try again.",
+        finishedAt: new Date(),
       },
     });
     throw error;

@@ -150,11 +150,11 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
     expect(job.reportKey).toBeTruthy();
     const report = await text(await storage().get(job.reportKey!));
     expect(report.split("\n")[0]).toBe(
-      "Line,Problem,Make,Year,Model,Attachment",
+      "Line,Problem,Make,Year,Model,SKU",
     );
     expect(report).toContain("5,Make is empty");
     expect(report).toContain("6,Year isn't a valid year or year range");
-    expect(report).toContain("7,Attachment is empty");
+    expect(report).toContain("7,SKU is empty");
 
     const done = await finish(job.id);
     expect(done.status).toBe("completed");
@@ -240,7 +240,7 @@ describe.skipIf(!process.env.DATABASE_URL)("import pipeline (Postgres)", () => {
         hasHeader: true,
         mode: "upsert",
       }),
-    ).rejects.toThrow("Map the Attachment column");
+    ).rejects.toThrow("Map the SKU column");
   });
 
   it("refuses another shop's upload and another shop's job", async () => {

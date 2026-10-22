@@ -258,6 +258,33 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     expect((await links())["NEW-1"]).toBe(`${P(1)}:${V(100)}:auto`);
   });
 
+  it("keeps each product's own tags", async () => {
+    await loadCatalog(shopId, [
+      { ...product(1, ["A"]), tags: ["Brand_KYB", "Position:Front"] },
+      product(2, ["B"]),
+      { ...product(3, ["C"]), tags: ["Brand_Öhlins", 'a "quoted" tag'] },
+    ]);
+    const rows = await prisma.catalogProduct.findMany({
+      where: { shopId },
+      orderBy: { productId: "asc" },
+      select: { productId: true, tags: true },
+    });
+    expect(rows.map((r) => [r.productId, r.tags])).toEqual([
+      [P(1), ["Brand_KYB", "Position:Front"]],
+      [P(2), []],
+      [P(3), ["Brand_Öhlins", 'a "quoted" tag']],
+    ]);
+    // A later sync replaces them.
+    await loadCatalog(shopId, [
+      { ...product(1, ["A"]), tags: ["Brand_Monroe"] },
+    ]);
+    const again = await prisma.catalogProduct.findUnique({
+      where: { shopId_productId: { shopId, productId: P(1) } },
+      select: { tags: true },
+    });
+    expect(again?.tags).toEqual(["Brand_Monroe"]);
+  });
+
   it("lists unlinked rows by attachment, products without data and universal products", async () => {
     await loadCatalog(shopId, [
       product(1, ["A"], { title: "Alpha" }),
@@ -287,6 +314,11 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     ]);
     expect(without.total).toBe(2);
     expect(without.hasNextPage).toBe(false);
+    // The badge's "of {storeTotal}": active products only (Draft left out), linked ones included,
+    // and never another shop's products.
+    expect(without.storeTotal).toBe(3);
+    await loadCatalog(otherShopId, [product(9, ["X"], { title: "Other" })]);
+    expect((await mapping.productsWithoutData(shopId, 1)).storeTotal).toBe(3);
 
     // Paged: one per page, the total on every page, also past the last one.
     const firstOfTwo = await mapping.productsWithoutData(shopId, 1, 1);
@@ -300,8 +332,20 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
     ]);
     expect([secondOfTwo.total, secondOfTwo.hasNextPage]).toEqual([2, false]);
     const pastLast = await mapping.productsWithoutData(shopId, 5, 1);
-    expect([pastLast.items, pastLast.total]).toEqual([[], 2]);
+    expect([pastLast.items, pastLast.total, pastLast.storeTotal]).toEqual([
+      [],
+      2,
+      3,
+    ]);
 
+    // Search by part of the SKU, any case; the count is of the matching SKUs only.
+    const searched = await mapping.unlinkedGroups(shopId, 1, 10, "y");
+    expect(searched.items.map((g) => g.attachment)).toEqual(["Y"]);
+    expect(searched.matching).toBe(1);
+    expect((await mapping.unlinkedGroups(shopId, 1, 10, "nope")).matching).toBe(
+      0,
+    );
+    expect((await mapping.unlinkedGroups(shopId, 1)).matching).toBeNull();
     const unlinkedSecond = await mapping.unlinkedGroups(shopId, 2, 1);
     expect(
       unlinkedSecond.items.map((g) => [
@@ -524,7 +568,7 @@ describe.skipIf(!process.env.DATABASE_URL)("linking (Postgres)", () => {
             variantId: V(100),
             sku: "A",
           }),
-        ).rejects.toThrow("Links are being checked right now");
+        ).rejects.toThrow("Products are being synced right now");
       } finally {
         release();
         await holder;
