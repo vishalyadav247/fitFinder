@@ -75,7 +75,7 @@ describe("PUT /api/storefront-settings", () => {
     for (const body of [
       "not json",
       { intent: "nope" },
-      { intent: "setting", key: "resetText", value: '"Clear"' },
+      { intent: "setting", key: "hintTitle", value: '"Clear"' },
       { intent: "setting", key: "layout", value: '"grid"' },
       { intent: "setting", key: "btn", value: "red" },
       { intent: "setting", key: "button", value: '"   "' },
@@ -135,7 +135,7 @@ describe("PUT /api/storefront-settings", () => {
   it("writes nothing when one of the save bar's values is invalid", async () => {
     for (const body of [
       { intent: "save", settings: { btn: '"#1d4ed8"', layout: '"grid"' } },
-      { intent: "save", settings: { resetText: '"Clear"' } },
+      { intent: "save", settings: { hintTitle: '"Clear"' } },
       { intent: "save", settings: {}, heading: "   " },
     ]) {
       expect((await put(body)).status).toBe(400);

@@ -1,6 +1,5 @@
 // Product mapping: link filter rows to store products, find products without filter data, keep
-// universal products. Spec: .claude/specs/product-mapping.md · Prototype:
-// .claude/design/scripts/screens/product-mapping.js
+// universal products. Spec: .claude/specs/product-mapping.md
 // Lists are paged in the URL (u = unlinked, p = products, x = universal). Sync products runs
 // as a job; the page polls the loader until it has finished.
 import { useEffect, useRef, useState } from "react";

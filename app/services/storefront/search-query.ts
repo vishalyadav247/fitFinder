@@ -24,7 +24,7 @@ export interface SearchPlan {
 const SEARCHABLE = /^[^"\\]+$/;
 
 /**
- * The theme's search page for the SKUs that fit (setting "Show results on": Default search page,
+ * The theme's search page for the SKUs that fit (setting "Button action": Open the default search page,
  * always; agreed 2026-10-16, no switch to SpareFit's page). As many SKUs as fit in one link;
  * nothing that fits, or only products without a usable SKU: a query that finds nothing.
  */

@@ -1,7 +1,7 @@
 // Search setup: the fields shoppers pick (importing moved to Filter data › Import). Field edits
 // (name, placeholder, type, required) collect in a draft behind the App Bridge save bar and are
 // saved together; Add field, the move arrows and Delete are immediate actions.
-// Spec: .claude/specs/search-setup.md · Prototype: .claude/design/scripts/screens/search-setup.js
+// Spec: .claude/specs/search-setup.md
 import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,

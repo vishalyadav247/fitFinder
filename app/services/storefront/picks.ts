@@ -47,7 +47,8 @@ export function urlNames(fields: PickField[]): Map<string, string> {
   const out = new Map<string, string>();
   for (const f of fields) {
     const name = f.label ? urlName(f.label) : "";
-    if (!name || RESERVED.has(name) || ids.has(name) || taken.has(name)) continue;
+    if (!name || RESERVED.has(name) || ids.has(name) || taken.has(name))
+      continue;
     taken.add(name);
     out.set(f.id, name);
   }

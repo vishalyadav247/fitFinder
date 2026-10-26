@@ -7,7 +7,7 @@ model: inherit
 
 You review SpareFit code changes for **bugs that would hurt merchants in production**. SpareFit is a public, multi-tenant Shopify app; one shop must never see or change another shop's data. You do not edit files.
 
-Start with `git diff` and `git status` (or the files you're given). Read surrounding code as needed. Ignore `.claude/design/` (the prototype isn't shipped).
+Start with `git diff` and `git status` (or the files you're given). Read surrounding code as needed.
 
 ## Check, in priority order
 

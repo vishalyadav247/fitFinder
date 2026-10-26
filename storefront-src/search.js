@@ -16,6 +16,27 @@ import {
 import { enhance, usesList } from "./dropdown.js";
 
 const RADIUS = { square: 2, rounded: 10, pill: 999 };
+// The widget's looks as CSS variables (--sp-{name}: setting; a bare name is both). Only set
+// ones are written: settings published before one existed keep the stylesheet's default.
+// Colours are #RRGGBB, checked when saved.
+const VARS =
+  "b:btn,bg,t:text,ddb:ddBg,ddt:ddText,bt:btnText,ht:headColor,lt:labelColor,st:saveColor,rc:resetColor,r,rb,ddr,btr";
+const px = (c) => RADIUS[c] && RADIUS[c] + "px";
+const looks = (s, r) => {
+  const v = {
+    ...s,
+    r: Math.min(r, 14) + "px",
+    rb: r + "px",
+    ddr: px(s.ddCorners),
+    btr: px(s.btnCorners),
+  };
+  return VARS.split(",")
+    .map((p) => {
+      const [k, n = k] = p.split(":");
+      return v[n] ? "--sp-" + k + ":" + v[n] + ";" : "";
+    })
+    .join("");
+};
 
 const pagePicks = (el) => {
   try {
@@ -57,17 +78,9 @@ export function initSearch(el) {
   el.innerHTML =
     '<div class="sp-sfw sp-sfw--' +
     (s.layout === "card" ? "v" : "h") +
-    '" style="--sp-b:' +
-    s.btn +
-    ";--sp-bg:" +
-    s.bg +
-    ";--sp-t:" +
-    s.text +
-    ";--sp-r:" +
-    Math.min(r, 14) +
-    "px;--sp-rb:" +
-    r +
-    'px">' +
+    '" style="' +
+    looks(s, r) +
+    '">' +
     (s.showHeading ? '<p class="sp-sfw__h">' + esc(cfg.heading) + "</p>" : "") +
     '<div class="sp-sfw__row">' +
     cfg.fields
@@ -93,7 +106,7 @@ export function initSearch(el) {
           ? '<button type="button" class="sp-sfw__save"><i class="sp-sfw__star" aria-hidden="true"></i> <span>' +
             esc(s.saveText) +
             "</span></button>"
-          : "<span></span>") +
+          : "") +
         (s.reset
           ? '<button type="button" class="sp-sfw__reset">' +
             esc(s.resetText) +
@@ -103,11 +116,11 @@ export function initSearch(el) {
       : "") +
     "</div>";
   if (banner) el.firstElementChild.prepend(banner);
-  const selects = el.querySelectorAll("select");
+  const selects = [...el.querySelectorAll("select")];
   // Mouse and trackpad screens get a list that opens under the field (dropdown.js).
-  const buttons = usesList() ? [...selects].map(enhance) : [];
+  const buttons = usesList() ? selects.map(enhance) : [];
   const focusField = (sel, opts) =>
-    (buttons[[...selects].indexOf(sel)] || sel).focus(opts);
+    (buttons[selects.indexOf(sel)] || sel).focus(opts);
   const go = el.querySelector(".sp-sfw__go");
 
   const enabledAt = (i) =>
@@ -169,7 +182,7 @@ export function initSearch(el) {
         () => {
           if (mine !== run) return;
           // Request failed: this and the later dropdowns stay empty and disabled.
-          for (const later of [...selects].slice(i)) {
+          for (const later of selects.slice(i)) {
             later.length = 1;
             later.disabled = true;
           }
@@ -198,7 +211,7 @@ export function initSearch(el) {
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
       if (!complete(picks)) {
-        const empty = [...selects].find((x) => !x.disabled && !x.value);
+        const empty = selects.find((x) => !x.disabled && !x.value);
         if (empty) focusField(empty);
         return;
       }
@@ -225,7 +238,7 @@ export function initSearch(el) {
   // My Selection's "Add a {noun}" brings the shopper here.
   el.spFocus = () => {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    const first = [...selects].find((x) => !x.disabled);
+    const first = selects.find((x) => !x.disabled);
     if (first) focusField(first, { preventScroll: true });
   };
   refresh(0);

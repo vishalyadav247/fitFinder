@@ -2,7 +2,7 @@
 // settings of the shopper-facing blocks with live previews. Changes collect in a draft (the
 // previews follow it) behind the App Bridge save bar; Save sends them all at once and publishes
 // the result to the theme (app metafield).
-// Spec: .claude/specs/storefront.md · Prototype: .claude/design/scripts/screens/storefront.js
+// Spec: .claude/specs/storefront.md
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
@@ -51,6 +51,7 @@ import { planWith } from "../services/billing";
 import type { ToggleKey } from "../services/plan-features";
 import { Option, Select } from "../components/Select";
 import { ResultsPreview } from "../components/storefront/ResultsPreview";
+import { TagPicker } from "../components/storefront/TagPicker";
 import {
   skipTabOnlyChanges,
   useUrlTab,
@@ -60,8 +61,21 @@ import { defaultPageTitle } from "../services/storefront/results-page";
 import { resultsAdminData } from "../services/storefront/results-admin.server";
 import {
   FILTER_LABEL_MAX,
+  BADGE_LABEL_MAX,
+  BADGE_SIZE_MAX,
+  BADGE_SIZE_MIN,
+  BADGE_TAG_COLORS,
+  CARD_GAP_MAX,
+  CART_TEXT_MAX,
+  EMPTY_TEXT_MAX,
+  SHAPE_RADIUS,
+  type BadgeTag,
+  type Shape,
+  PAGE_WIDTH_MAX,
+  PAGE_WIDTH_MIN,
+  MAX_BADGE_TAGS,
   MAX_GROUP_TAGS,
-  TAG_MAX,
+  SAFE_LINK,
   MAX_FILTERS,
   maxRows,
   PAGE_TITLE_MAX,
@@ -154,7 +168,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 type Tab = "theme" | "widget" | "results" | "badge" | "table" | "garage";
-// Line icons (they follow the text colour: white on the active tab), like the section titles.
+// Line icons (they follow the text colour), like the section titles.
 // Each tab's name in the URL (?tab=); the short keys still work for older links.
 const URL_TABS: UrlTab<Tab>[] = [
   { key: "theme", slug: "theme-integration", aliases: ["theme"] },
@@ -200,13 +214,37 @@ const TEXT_KEYS = new Set<EditableKey>([
   "garageName",
   "noFitLinkText",
   "noFitText",
+  "resetText",
   "saveText",
   "tableEmptyText",
   "tableTitle",
 ]);
 const open = (url: string) => window.open(url, "_blank", "noopener");
+/** The Results page tab's side menu (?section=): four settings sections, then Preview. */
+type RpSection = "page" | "grid" | "filters" | "cards";
+// In the order they show on the page: the page, the filters, the grid, its cards.
+const RP_SECTIONS: [RpSection, string][] = [
+  ["page", "Page"],
+  ["filters", "Filters"],
+  ["grid", "Product grid"],
+  ["cards", "Product cards"],
+];
+const RP_SECTION_TABS: UrlTab<RpSection>[] = [
+  { key: "page", slug: "page" },
+  { key: "grid", slug: "product-grid" },
+  { key: "filters", slug: "filters" },
+  { key: "cards", slug: "product-cards" },
+];
+/** The side menu's icons (components/Icon). */
+const RP_ICON: Record<RpSection, IconName> = {
+  page: "page",
+  grid: "grid",
+  filters: "sliders",
+  cards: "product",
+};
 const FILTER_MODAL = "sp-rp-filter-modal";
-type StoreTagRow = { tag: string; products: number };
+const BADGE_MODAL = "sp-rp-badge-modal";
+const BADGE_DELETE_MODAL = "sp-rp-badge-delete";
 const RESULTS_PREVIEW_MODAL = "sp-rp-preview-modal";
 const FILTER_DELETE_MODAL = "sp-rp-filter-delete";
 
@@ -230,6 +268,10 @@ export default function StorefrontPage() {
   const [rp, setRp] = useState<ResultsPageSettings>(loadedRp);
   const [publishFailed, setPublishFailed] = useState(data.publishFailed);
   const [tab, setTab] = useUrlTab(URL_TABS);
+  const [rpSection, setRpSection] = useUrlTab(RP_SECTION_TABS, "page", {
+    param: "section",
+    active: tab === "results",
+  });
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [iconBusy, setIconBusy] = useState(false);
   const [iconError, setIconError] = useState("");
@@ -799,6 +841,49 @@ export default function StorefrontPage() {
     />
   );
 
+  /** A widget colour (#RRGGBB only; anything else puts the saved colour back). */
+  const widgetColor = (
+    key:
+      | "bg"
+      | "btn"
+      | "ddBg"
+      | "ddText"
+      | "btnText"
+      | "headColor"
+      | "labelColor"
+      | "saveColor"
+      | "resetColor",
+    label: string,
+    disabled = false,
+  ) => (
+    <s-color-field
+      label={label}
+      disabled={disabled}
+      // Colours not set yet show what the widget uses: the reset link the button colour,
+      // the title, labels and save link the widget's earlier text colour.
+      value={s[key] || (key === "resetColor" ? s.btn : s.text)}
+      onChange={(e) => {
+        const v = valueOf(e);
+        if (/^#[0-9a-fA-F]{6}$/.test(v)) save(key, v.toUpperCase());
+        else
+          e.currentTarget.value =
+            s[key] || (key === "resetColor" ? s.btn : s.text);
+      }}
+    />
+  );
+  /** Dropdown or search button corners: their own, or the widget's. */
+  const partCorners = (key: "ddCorners" | "btnCorners") => (
+    <Select
+      label="Corners"
+      value={s[key]}
+      onChange={(v) => save(key, v as StorefrontSettings[typeof key])}
+    >
+      <Option value="">Same as the widget</Option>
+      <Option value="square">Square</Option>
+      <Option value="rounded">Rounded</Option>
+      <Option value="pill">Pill</Option>
+    </Select>
+  );
   const widgetTab = (
     <>
       <s-section accessibilityLabel="Live preview">
@@ -823,144 +908,167 @@ export default function StorefrontPage() {
           />
         </div>
       </s-section>
-      <s-section accessibilityLabel="Layout and style">
+      <s-section accessibilityLabel="Search widget settings">
         <SectionTitle icon="paint-brush-flat" gap>
-          Layout and style
+          Search widget settings
         </SectionTitle>
-        <div className="sp-opt-grid">
-          <Select
-            label="Layout"
-            details="On mobile the dropdowns always stack."
-            value={s.layout}
-            onChange={(v) => save("layout", v as StorefrontSettings["layout"])}
-          >
-            <Option value="bar">Horizontal (one row)</Option>
-            <Option value="card">Vertical (stacked)</Option>
-          </Select>
-          <Select
-            label="Corners"
-            value={s.corners}
-            onChange={(v) =>
-              save("corners", v as StorefrontSettings["corners"])
-            }
-          >
-            <Option value="square">Square</Option>
-            <Option value="rounded">Rounded</Option>
-            <Option value="pill">Pill</Option>
-          </Select>
-        </div>
-        <s-box paddingBlockStart="base">
-          <div className="sp-opt-grid sp-three">
-            {(
-              [
-                ["btn", "Button colour"],
-                ["bg", "Background"],
-                ["text", "Text colour"],
-              ] as const
-            ).map(([key, label]) => (
-              <s-color-field
-                key={key}
-                label={label}
-                value={s[key]}
-                onChange={(e) => {
-                  const v = valueOf(e);
-                  if (/^#[0-9a-fA-F]{6}$/.test(v)) save(key, v.toUpperCase());
-                  else e.currentTarget.value = s[key];
-                }}
-              />
-            ))}
-          </div>
-        </s-box>
-        <s-box paddingBlockStart="base">
-          <s-checkbox
-            label="Show labels above the dropdowns"
-            details="Off: the field name is shown inside each dropdown instead."
-            checked={s.labels}
-            onChange={(e) => save("labels", checkedOf(e))}
-          />
-        </s-box>
-      </s-section>
-      <s-grid
-        gridTemplateColumns="minmax(0, 2fr) minmax(0, 1fr)"
-        gap="base"
-        alignItems="start"
-      >
-        <s-section accessibilityLabel="Text">
-          <SectionTitle icon="text" gap>
-            Text
-          </SectionTitle>
+        <s-stack gap="large">
           <s-stack gap="base">
-            <s-stack gap="small-200">
+            <s-heading>Widget</s-heading>
+            <div className="sp-opt-grid sp-three">
+              <Select
+                label="Layout"
+                details="On mobile the dropdowns always stack."
+                value={s.layout}
+                onChange={(v) =>
+                  save("layout", v as StorefrontSettings["layout"])
+                }
+              >
+                <Option value="bar">Horizontal (one row)</Option>
+                <Option value="card">Vertical (stacked)</Option>
+              </Select>
+              {widgetColor("bg", "Background")}
+              <Select
+                label="Corners"
+                value={s.corners}
+                onChange={(v) =>
+                  save("corners", v as StorefrontSettings["corners"])
+                }
+              >
+                <Option value="square">Square</Option>
+                <Option value="rounded">Rounded</Option>
+                <Option value="pill">Pill</Option>
+              </Select>
+            </div>
+          </s-stack>
+          <s-divider />
+          <s-stack gap="base">
+            <s-heading>Title</s-heading>
+            <div className="sp-opt-grid sp-three">
               <s-text-field
                 label="Search heading"
                 value={heading}
                 maxLength={200}
                 onInput={(e) => setHeading(valueOf(e))}
               />
-              <s-checkbox
-                label="Show search heading"
-                checked={s.showHeading}
-                onChange={(e) => save("showHeading", checkedOf(e))}
+              {widgetColor("headColor", "Title colour", !s.showHeading)}
+              <div className="sp-opt-grid__check">
+                <s-checkbox
+                  label="Show the title"
+                  checked={s.showHeading}
+                  onChange={(e) => save("showHeading", checkedOf(e))}
+                />
+              </div>
+            </div>
+          </s-stack>
+          <s-divider />
+          <s-stack gap="base">
+            <s-heading>Dropdowns</s-heading>
+            <div className="sp-opt-grid sp-three">
+              {widgetColor("ddBg", "Background")}
+              {widgetColor("ddText", "Text colour")}
+              {partCorners("ddCorners")}
+            </div>
+            <div className="sp-opt-grid sp-three">
+              {widgetColor("labelColor", "Label colour", !s.labels)}
+              <div className="sp-opt-grid__check">
+                <s-checkbox
+                  label="Show labels above the dropdowns"
+                  details="Off: the field name is shown inside each dropdown instead."
+                  checked={s.labels}
+                  onChange={(e) => save("labels", checkedOf(e))}
+                />
+              </div>
+              <span aria-hidden="true" />
+            </div>
+          </s-stack>
+          <s-divider />
+          <s-stack gap="base">
+            <s-heading>Search button</s-heading>
+            <div className="sp-opt-grid sp-three">
+              <s-text-field
+                label="Button text"
+                maxLength={200}
+                {...textProps("button")}
               />
-            </s-stack>
-            <s-text-field
-              label="Button text"
-              maxLength={200}
-              {...textProps("button")}
-            />
-            <s-text-field
-              label="Save link text"
-              maxLength={200}
-              {...textProps("saveText")}
-            />
-            <s-box>
-              <s-stack direction="inline" gap="small-200" alignItems="center">
-                <s-text color="subdued">
-                  Dropdowns and their placeholder text come from your search
-                  fields:
-                </s-text>
-                {config.fields.map((f) => (
-                  <s-chip key={f.id}>{f.label}</s-chip>
-                ))}
-                <s-link
-                  onClick={() =>
-                    void leave(() => navigate("/app/search-setup"))
-                  }
-                >
-                  Edit fields
-                </s-link>
-              </s-stack>
-            </s-box>
+              <Select
+                label="Button action"
+                value={s.results}
+                onChange={(v) =>
+                  save("results", v as StorefrontSettings["results"])
+                }
+              >
+                <Option value="theme">Open the default search page</Option>
+                <Option value="app">Open SpareFit&apos;s results page</Option>
+              </Select>
+              <span aria-hidden="true" />
+            </div>
+            <div className="sp-opt-grid sp-three">
+              {widgetColor("btn", "Button colour")}
+              {widgetColor("btnText", "Text colour")}
+              {partCorners("btnCorners")}
+            </div>
           </s-stack>
-        </s-section>
-        <s-section accessibilityLabel="Behaviour">
-          <SectionTitle icon="settings" gap>
-            Behaviour
-          </SectionTitle>
-          <s-stack gap="small">
-            <Select
-              label="Show results on"
-              value={s.results}
-              onChange={(v) =>
-                save("results", v as StorefrontSettings["results"])
-              }
-            >
-              <Option value="theme">Default search page</Option>
-              <Option value="app">SpareFit&apos;s results page</Option>
-            </Select>
-            <s-checkbox
-              label={`Show “${live.saveText}”`}
-              checked={s.saveLink}
-              onChange={(e) => save("saveLink", checkedOf(e))}
-            />
-            <s-checkbox
-              label="Show a reset link"
-              checked={s.reset}
-              onChange={(e) => save("reset", checkedOf(e))}
-            />
+          <s-divider />
+          <s-stack gap="base">
+            <s-heading>Save to My Selection</s-heading>
+            <div className="sp-opt-grid sp-three">
+              <s-text-field
+                label="Link text"
+                maxLength={200}
+                disabled={!s.saveLink}
+                {...textProps("saveText")}
+              />
+              {widgetColor("saveColor", "Link colour", !s.saveLink)}
+              <div className="sp-opt-grid__check">
+                <s-checkbox
+                  label="Show the save link"
+                  checked={s.saveLink}
+                  onChange={(e) => save("saveLink", checkedOf(e))}
+                />
+              </div>
+            </div>
           </s-stack>
-        </s-section>
-      </s-grid>
+          <s-divider />
+          <s-stack gap="base">
+            <s-heading>Reset link</s-heading>
+            <div className="sp-opt-grid sp-three">
+              <s-text-field
+                label="Link text"
+                maxLength={200}
+                disabled={!s.reset}
+                {...textProps("resetText")}
+              />
+              {widgetColor("resetColor", "Link colour", !s.reset)}
+              <div className="sp-opt-grid__check">
+                <s-checkbox
+                  label="Show the reset link"
+                  checked={s.reset}
+                  onChange={(e) => save("reset", checkedOf(e))}
+                />
+              </div>
+            </div>
+          </s-stack>
+        </s-stack>
+      </s-section>
+      <s-section accessibilityLabel="Dropdown fields">
+        <SectionTitle icon="info" gap>
+          Dropdown fields
+        </SectionTitle>
+        <s-stack direction="inline" gap="small-200" alignItems="center">
+          <s-text color="subdued">
+            Dropdowns and their placeholder text come from your search fields:
+          </s-text>
+          {config.fields.map((f) => (
+            <s-chip key={f.id}>{f.label}</s-chip>
+          ))}
+          <s-link
+            onClick={() => void leave(() => navigate("/app/search-setup"))}
+          >
+            Edit fields
+          </s-link>
+        </s-stack>
+      </s-section>
     </>
   );
 
@@ -1150,6 +1258,11 @@ export default function StorefrontPage() {
             <p className="sp-grp-t">Display</p>
             {!inTabs && (
               <>
+                <s-text-field
+                  label="Title"
+                  maxLength={200}
+                  {...textProps("tableTitle")}
+                />
                 <Select
                   label="Show as"
                   value={s.tableStyle}
@@ -1160,31 +1273,15 @@ export default function StorefrontPage() {
                   <Option value="collapsible">Collapsible row</Option>
                   <Option value="open">Open table</Option>
                 </Select>
-                <s-text-field
-                  label="Title"
-                  maxLength={200}
-                  {...textProps("tableTitle")}
-                />
                 {s.tableStyle === "collapsible" && (
                   <s-checkbox
-                    label="Start expanded"
+                    label="Open by default"
                     checked={s.tableOpen}
                     onChange={(e) => save("tableOpen", checkedOf(e))}
                   />
                 )}
               </>
             )}
-            <Select
-              label="Table style"
-              value={s.tableLook}
-              onChange={(v) =>
-                save("tableLook", v as StorefrontSettings["tableLook"])
-              }
-            >
-              <Option value="lines">Lines between rows</Option>
-              <Option value="striped">Striped rows</Option>
-              <Option value="plain">Plain</Option>
-            </Select>
             {inTabs && (
               <s-text color="subdued">
                 The shortcode shows just the table. Add a heading above it in
@@ -1251,6 +1348,17 @@ export default function StorefrontPage() {
                 <Option value="5">5</Option>
                 <Option value="10">10</Option>
                 <Option value="all">All</Option>
+              </Select>
+              <Select
+                label="Colour style"
+                value={s.tableLook}
+                onChange={(v) =>
+                  save("tableLook", v as StorefrontSettings["tableLook"])
+                }
+              >
+                <Option value="lines">Lines between rows</Option>
+                <Option value="striped">Striped rows</Option>
+                <Option value="plain">Plain</Option>
               </Select>
             </s-grid>
           </s-stack>
@@ -1483,33 +1591,64 @@ export default function StorefrontPage() {
   const [fTags, setFTags] = useState<string[]>([]);
   const [fErrors, setFErrors] = useState<{ label?: string; tags?: string }>({});
   const [deleting, setDeleting] = useState<ResultsFilter | null>(null);
-  // The store's tags for the picker (/api/storefront-tags), searched as the merchant types.
-  const [tagQuery, setTagQuery] = useState("");
-  const [storeTagList, setStoreTagList] = useState<
-    { tag: string; products: number }[] | null
-  >(null);
-  const [tagsFailed, setTagsFailed] = useState(false);
-  const tagRun = useRef(0);
-  const loadTags = useCallback((q: string) => {
-    const run = ++tagRun.current;
-    setTagsFailed(false);
-    fetch(`/api/storefront-tags?q=${encodeURIComponent(q)}`)
-      .then((res) => res.json() as Promise<{ tags?: StoreTagRow[] }>)
-      .then((body) => {
-        if (run !== tagRun.current) return;
-        setStoreTagList(body.tags ?? []);
-      })
-      .catch(() => {
-        if (run === tagRun.current) setTagsFailed(true);
-      });
-  }, []);
-  useEffect(() => {
-    if (storeTagList === null) return;
-    const t = setTimeout(() => loadTags(tagQuery), 250);
-    return () => clearTimeout(t);
-    // Search again as the merchant types (the first load happens when the modal opens).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagQuery]);
+  // A new key per modal opening gives the tag picker a fresh search.
+  const [pickerKey, setPickerKey] = useState(0);
+  // Badges from tags: one badge per modal (add / edit), like filter groups.
+  const [editBadge, setEditBadge] = useState<BadgeTag | null>(null);
+  const [badgeDraft, setBadgeDraft] = useState<BadgeTag>({
+    tag: "",
+    ...BADGE_TAG_COLORS,
+    active: true,
+    label: "",
+  });
+  /** Editing the colours of a built-in badge (no tag to pick). */
+  const [editBuiltin, setEditBuiltin] = useState<"soldOut" | "sale" | null>(
+    null,
+  );
+  const [badgeError, setBadgeError] = useState("");
+  const [deletingBadge, setDeletingBadge] = useState<BadgeTag | null>(null);
+  /** A colour field that only takes #RRGGBB (empty only where `empty` allows it). */
+  const colorField = (
+    label: string,
+    value: string,
+    set: (v: string) => void,
+    placeholder: string,
+    empty = false,
+    disabled = false,
+  ) => (
+    <s-color-field
+      label={label}
+      placeholder={placeholder}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => {
+        const v = valueOf(e).trim();
+        if (!v && empty) set("");
+        else if (/^#[0-9a-fA-F]{6}$/.test(v)) set(v.toUpperCase());
+        else e.currentTarget.value = value;
+      }}
+    />
+  );
+  /** Desktop / mobile icon in front of a field whose label is hidden (its pair has a title). */
+  const deviceIcon = (device: "desktop" | "mobile") => (
+    <span
+      className="sp-dev__icon"
+      title={device === "desktop" ? "Desktop" : "Mobile"}
+    >
+      <s-icon type={device} tone="neutral" />
+    </span>
+  );
+  const shapeOptions = (
+    [
+      ["square", "Square"],
+      ["rounded", "Rounded"],
+      ["pill", "Pill"],
+    ] as const
+  ).map(([value, label]) => (
+    <Option key={value} value={value}>
+      {label}
+    </Option>
+  ));
   const setRpKey = <K extends keyof ResultsPageSettings>(
     key: K,
     value: ResultsPageSettings[K],
@@ -1520,25 +1659,113 @@ export default function StorefrontPage() {
     setFLabel(f?.label ?? "");
     setFTags(f?.tags ?? []);
     setFErrors({});
-    setTagQuery("");
-    loadTags("");
-    if (storeTagList === null) setStoreTagList([]);
+    setPickerKey((k) => k + 1);
     void shopify.modal.show(FILTER_MODAL);
   };
-  const hasPicked = (tag: string) =>
-    fTags.some((t) => t.toLowerCase() === tag.toLowerCase());
-  /** Puts a tag in the group or takes it out (idempotent: a repeated event changes nothing). */
-  const setTagPicked = (tag: string, on: boolean) =>
-    setFTags((cur) => {
-      const has = cur.some((t) => t.toLowerCase() === tag.toLowerCase());
-      if (on === has) return cur;
-      return on
-        ? cur.length < MAX_GROUP_TAGS
-          ? [...cur, tag]
-          : cur
-        : cur.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+  /** Badges are found by their tag (unique, any case), not by object: the list may be rebuilt. */
+  const sameTag = (a: BadgeTag, b: BadgeTag | null) =>
+    !!b && a.tag.toLowerCase() === b.tag.toLowerCase();
+  const openBadge = (b: BadgeTag | null) => {
+    setEditBadge(b);
+    setEditBuiltin(null);
+    setBadgeDraft(
+      b ?? { tag: "", ...BADGE_TAG_COLORS, active: true, label: "" },
+    );
+    setBadgeError("");
+    setPickerKey((k) => k + 1);
+    void shopify.modal.show(BADGE_MODAL);
+  };
+  const openBuiltin = (kind: "soldOut" | "sale") => {
+    setEditBadge(null);
+    setEditBuiltin(kind);
+    setBadgeDraft({
+      tag: kind === "soldOut" ? "Sold out" : "Sale",
+      bg: kind === "soldOut" ? rp.soldOutBg : rp.saleBg,
+      color: kind === "soldOut" ? rp.soldOutColor : rp.saleColor,
+      active: true,
+      label: kind === "soldOut" ? rp.soldOutLabel : rp.saleLabel,
     });
-  const typedTag = tagQuery.trim().slice(0, TAG_MAX);
+    setBadgeError("");
+    void shopify.modal.show(BADGE_MODAL);
+  };
+  const saveBadge = () => {
+    if (editBuiltin) {
+      setRp((cur) => ({
+        ...cur,
+        ...(editBuiltin === "soldOut"
+          ? {
+              soldOutBg: badgeDraft.bg,
+              soldOutColor: badgeDraft.color,
+              soldOutLabel: badgeDraft.label.trim(),
+            }
+          : {
+              saleBg: badgeDraft.bg,
+              saleColor: badgeDraft.color,
+              saleLabel: badgeDraft.label.trim(),
+            }),
+      }));
+      void shopify.modal.hide(BADGE_MODAL);
+      return;
+    }
+    const tag = badgeDraft.tag.trim();
+    const taken = rp.badgeTags.some(
+      (b) =>
+        !sameTag(b, editBadge) && b.tag.toLowerCase() === tag.toLowerCase(),
+    );
+    const error = !tag
+      ? "Pick a tag"
+      : taken
+        ? "This tag already has a badge"
+        : "";
+    setBadgeError(error);
+    if (error) return;
+    const next = { ...badgeDraft, tag, label: badgeDraft.label.trim() };
+    setRp((cur) => ({
+      ...cur,
+      badgeTags: editBadge
+        ? cur.badgeTags.map((b) => (sameTag(b, editBadge) ? next : b))
+        : [...cur.badgeTags, next],
+    }));
+    void shopify.modal.hide(BADGE_MODAL);
+  };
+  /** Tag badges only: their order is the order badges show in (3 at most per card). */
+  const moveBadge = (i: number, by: number) =>
+    setRp((cur) => {
+      const badgeTags = [...cur.badgeTags];
+      const [b] = badgeTags.splice(i, 1);
+      badgeTags.splice(i + by, 0, b);
+      return { ...cur, badgeTags };
+    });
+  const askDeleteBadge = (b: BadgeTag) => {
+    setDeletingBadge(b);
+    void shopify.modal.show(BADGE_DELETE_MODAL);
+  };
+  const deleteBadge = () => {
+    if (deletingBadge) {
+      setRp((cur) => ({
+        ...cur,
+        badgeTags: cur.badgeTags.filter((b) => !sameTag(b, deletingBadge)),
+      }));
+    }
+    void shopify.modal.hide(BADGE_DELETE_MODAL);
+  };
+  /** A badge as shoppers see it: its label, or the tag (or built-in name) without one. */
+  const badgePill = (
+    b: Pick<BadgeTag, "tag" | "bg" | "color"> & { label?: string },
+  ) => (
+    <span
+      className="sp-rp-badgepill"
+      style={{
+        background: b.bg,
+        color: b.color,
+        borderRadius: SHAPE_RADIUS[rp.badgeShape],
+        fontSize: rp.badgeSize ? `${rp.badgeSize}px` : undefined,
+        fontWeight: Number(rp.badgeWeight),
+      }}
+    >
+      {b.label?.trim() || b.tag}
+    </span>
+  );
   const saveFilter = () => {
     const label = fLabel.trim();
     const errors: { label?: string; tags?: string } = {};
@@ -1584,13 +1811,67 @@ export default function StorefrontPage() {
     void shopify.modal.hide(FILTER_DELETE_MODAL);
   };
 
+  // The badges table: the two built-in badges first, then the tag badges.
+  const badgeRows = [
+    {
+      key: "soldOut",
+      badge: {
+        tag: "Sold out",
+        bg: rp.soldOutBg,
+        color: rp.soldOutColor,
+        label: rp.soldOutLabel,
+      },
+      when: "The product can't be bought",
+      active: rp.cardSoldOut,
+      toggle: (on: boolean) => setRpKey("cardSoldOut", on),
+      edit: () => openBuiltin("soldOut"),
+      remove: null,
+      up: null,
+      down: null,
+    },
+    {
+      key: "sale",
+      badge: {
+        tag: "Sale",
+        bg: rp.saleBg,
+        color: rp.saleColor,
+        label: rp.saleLabel,
+      },
+      when: "Compare-at price is higher than the price",
+      active: rp.badgeSale,
+      toggle: (on: boolean) => setRpKey("badgeSale", on),
+      edit: () => openBuiltin("sale"),
+      remove: null,
+      up: null,
+      down: null,
+    },
+    ...rp.badgeTags.map((b, i) => ({
+      key: `tag:${b.tag}`,
+      badge: b,
+      when: `Tag: ${b.tag}`,
+      active: b.active !== false,
+      toggle: (on: boolean) =>
+        setRp((cur) => ({
+          ...cur,
+          badgeTags: cur.badgeTags.map((x) =>
+            sameTag(x, b) ? { ...x, active: on } : x,
+          ),
+        })),
+      edit: () => openBadge(b),
+      remove: (() => askDeleteBadge(b)) as (() => void) | null,
+      up: (i > 0 ? () => moveBadge(i, -1) : null) as (() => void) | null,
+      down: (i < rp.badgeTags.length - 1 ? () => moveBadge(i, 1) : null) as
+        (() => void) | null,
+    })),
+  ];
+
   const resultsTab = (
     <>
       {s.results !== "app" && (
         <s-banner tone="info" heading="Shoppers don't see this page yet">
           Results open on your store&apos;s search page. To use this page, set
-          Show results on to SpareFit&apos;s results page in the Search widget
-          tab.
+          the search button&apos;s Button action to Open SpareFit&apos;s results
+          page in the Search widget tab.
           <s-button slot="secondary-actions" onClick={() => showTab("widget")}>
             Go to Search widget
           </s-button>
@@ -1603,372 +1884,961 @@ export default function StorefrontPage() {
           few minutes.
         </s-banner>
       )}
-      <div className="sp-rp-top">
-        <s-section accessibilityLabel="Filters">
-          <div className="sp-rp-head">
-            <SectionTitle icon="filter">Filters</SectionTitle>
+      <div className="sp-rpside">
+        <nav className="sp-rpside__nav" aria-label="Results page settings">
+          <div role="tablist" aria-orientation="vertical">
+            {RP_SECTIONS.map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={rpSection === k}
+                onClick={() => setRpSection(k)}
+              >
+                <Icon name={RP_ICON[k]} size={18} />
+                {label}
+              </button>
+            ))}
           </div>
-          <s-text color="subdued">
-            Group product tags under a name. Shoppers pick a tag to filter. Up
-            to {MAX_FILTERS} groups.
-          </s-text>
-          {rp.filters.length > 0 ? (
-            <div className="sp-rp-list">
-              <div className="sp-rp-row sp-rp-row--head" aria-hidden="true">
-                <span className="sp-rp-row__n">#</span>
-                <span className="sp-rp-row__t">Filter group</span>
-                <span className="sp-rp-row__a">Actions</span>
-              </div>
-              {rp.filters.map((f, i) => (
-                <div className="sp-rp-row" key={f.id}>
-                  <span className="sp-rp-row__n">
-                    <s-badge>{i + 1}</s-badge>
-                  </span>
-                  <div className="sp-rp-row__t">
-                    <s-text type="strong">{f.label}</s-text>
-                    <s-text color="subdued">
-                      {f.tags.length
-                        ? `${f.tags.slice(0, 4).join(", ")}${f.tags.length > 4 ? ` +${f.tags.length - 4} more` : ""}`
-                        : "No tags yet: edit to pick some"}
-                    </s-text>
-                  </div>
-                  <div className="sp-rp-row__a">
-                    <s-button
-                      variant="tertiary"
-                      icon="arrow-up"
-                      accessibilityLabel={`Move ${f.label} up`}
-                      disabled={i === 0}
-                      onClick={() => moveFilter(i, -1)}
-                    />
-                    <s-button
-                      variant="tertiary"
-                      icon="arrow-down"
-                      accessibilityLabel={`Move ${f.label} down`}
-                      disabled={i === rp.filters.length - 1}
-                      onClick={() => moveFilter(i, 1)}
-                    />
-                    <s-button
-                      variant="tertiary"
-                      icon="edit"
-                      accessibilityLabel={`Edit ${f.label}`}
-                      onClick={() => openFilter(f)}
-                    />
-                    <s-button
-                      variant="tertiary"
-                      tone="critical"
-                      icon="delete"
-                      accessibilityLabel={`Delete ${f.label}`}
-                      onClick={() => askDelete(f)}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <s-box paddingBlockStart="base">
-              <s-text color="subdued">
-                No filter groups yet: shoppers see the {things} without a filter
-                bar.
-              </s-text>
-            </s-box>
-          )}
-          <s-box paddingBlockStart="base">
-            <s-button
-              icon="plus"
-              disabled={rp.filters.length >= MAX_FILTERS}
-              onClick={() => openFilter(null)}
-            >
-              Add filter group
-            </s-button>
-          </s-box>
-        </s-section>
-        <s-section accessibilityLabel="Preview">
-          <s-stack gap="small-100">
-            <div className="sp-rp-head">
-              <SectionTitle icon="view">Preview</SectionTitle>
-              <s-button
-                variant="tertiary"
-                icon="view"
-                accessibilityLabel="Preview page"
-                onClick={() => void shopify.modal.show(RESULTS_PREVIEW_MODAL)}
-              />
-            </div>
-            <s-text color="subdued">
-              The page as shoppers see it. Unsaved changes show too.
-            </s-text>
-          </s-stack>
           <button
             type="button"
-            className="sp-rp-thumb"
-            aria-label="Open the full preview"
+            className="sp-rpside__preview"
             onClick={() => void shopify.modal.show(RESULTS_PREVIEW_MODAL)}
           >
-            <ResultsPreview
-              config={previewConfig}
-              settings={rp}
-              sample={data.results.sample}
-              label={data.exampleLabel}
-              picks={sample.selections[0] ?? {}}
-              widgetCss={
-                data.previewAssets.embedCss + data.previewAssets.searchCss
-              }
-              device="desktop"
-              thumb
-            />
+            <Icon name="eye" size={18} />
+            Preview
           </button>
-        </s-section>
-      </div>
-
-      <div className="sp-rp-settings">
-        <s-section accessibilityLabel="Filter settings">
-          <SectionTitle icon="settings" gap>
-            Filter settings
-          </SectionTitle>
-          {rp.filters.length === 0 && (
-            <s-box paddingBlockEnd="base">
-              <s-banner tone="info">
-                Add a filter above to see these settings on the page and in the
-                preview. Without filters, the products take the full width.
-              </s-banner>
-            </s-box>
-          )}
-          <div className="sp-opt-grid">
-            <Select
-              label="Filter layout"
-              details="On mobile it opens as a drawer."
-              value={rp.filterLayout}
-              onChange={(v) =>
-                setRpKey(
-                  "filterLayout",
-                  v as ResultsPageSettings["filterLayout"],
-                )
-              }
-            >
-              <Option value="vertical">Vertical (sidebar)</Option>
-              <Option value="horizontal">Horizontal (dropdowns)</Option>
-              <Option value="drawer">Drawer</Option>
-            </Select>
-            {rp.filterLayout === "vertical" && (
-              <Select
-                label="Sidebar position"
-                value={rp.filterSide}
-                onChange={(v) =>
-                  setRpKey("filterSide", v as ResultsPageSettings["filterSide"])
-                }
-              >
-                <Option value="left">Left</Option>
-                <Option value="right">Right</Option>
-              </Select>
-            )}
-            <s-text-field
-              label="Filter bar title"
-              details="Shown above the filters, and on the filter button on mobile."
-              value={rp.filterTitle}
-              maxLength={FILTER_LABEL_MAX}
-              onInput={(e) => setRpKey("filterTitle", valueOf(e))}
-              onBlur={() =>
-                setRpKey("filterTitle", rp.filterTitle.trim() || "Filters")
-              }
-            />
-            {rp.filterLayout !== "horizontal" && (
-              <Select
-                label="Values shown per filter"
-                value={rp.valuesShown}
-                onChange={(v) =>
-                  setRpKey(
-                    "valuesShown",
-                    v as ResultsPageSettings["valuesShown"],
-                  )
-                }
-              >
-                <Option value="5">First 5, then Show more</Option>
-                <Option value="10">First 10, then Show more</Option>
-                <Option value="all">All</Option>
-              </Select>
-            )}
-            {rp.filterLayout !== "horizontal" && (
-              <Select
-                label="Filter groups start"
-                details="A group with a picked tag is always open."
-                value={rp.groupsOpen}
-                onChange={(v) =>
-                  setRpKey("groupsOpen", v as ResultsPageSettings["groupsOpen"])
-                }
-              >
-                <Option value="all">All open</Option>
-                <Option value="first">First open, the rest closed</Option>
-                <Option value="none">All closed</Option>
-              </Select>
-            )}
-          </div>
-          <s-box paddingBlockStart="base">
-            <s-stack gap="small-200">
-              <s-checkbox
-                label="Show how many products have each value"
-                checked={rp.showCounts}
-                onChange={(e) => setRpKey("showCounts", checkedOf(e))}
-              />
-            </s-stack>
-          </s-box>
-        </s-section>
-
-        <s-section accessibilityLabel="Page settings">
-          <SectionTitle icon="layout-columns-3" gap>
-            Page settings
-          </SectionTitle>
-          <s-box paddingBlockEnd="base">
-            <s-stack gap="small-300">
-              <s-checkbox
-                label="Show the page title"
-                checked={rp.showTitle}
-                onChange={(e) => setRpKey("showTitle", checkedOf(e))}
-              />
-              {rp.showTitle && (
-                <>
-                  <s-text-field
-                    label="Page title"
-                    details="Leave it empty to use the title for your store type."
-                    placeholder={defaultPageTitle(config)}
-                    value={rp.pageTitle}
-                    maxLength={PAGE_TITLE_MAX}
-                    onInput={(e) => setRpKey("pageTitle", valueOf(e))}
+        </nav>
+        <div className="sp-rpside__main">
+          {rpSection === "page" && (
+            <s-section accessibilityLabel="Page settings">
+              <SectionTitle icon="page" gap>
+                Page
+              </SectionTitle>
+              <s-stack gap="large">
+                <s-stack gap="base">
+                  <s-heading>Page width</s-heading>
+                  <Select
+                    label="Page width"
+                    labelAccessibilityVisibility="exclusive"
+                    value={rp.pageWidth}
+                    onChange={(v) =>
+                      setRpKey(
+                        "pageWidth",
+                        v as ResultsPageSettings["pageWidth"],
+                      )
+                    }
+                  >
+                    <Option value="theme">Theme width</Option>
+                    <Option value="full">Full width</Option>
+                    <Option value="custom">Custom width</Option>
+                  </Select>
+                  {rp.pageWidth === "custom" && (
+                    <s-number-field
+                      label="Maximum width"
+                      suffix="px"
+                      details={`${PAGE_WIDTH_MIN}–${PAGE_WIDTH_MAX} px. Narrower screens use their full width.`}
+                      min={PAGE_WIDTH_MIN}
+                      max={PAGE_WIDTH_MAX}
+                      step={10}
+                      value={String(rp.pageMaxWidth)}
+                      onChange={(e) => {
+                        const n = Math.round(Number(valueOf(e)));
+                        setRpKey(
+                          "pageMaxWidth",
+                          Number.isFinite(n) && n > 0
+                            ? Math.min(
+                                PAGE_WIDTH_MAX,
+                                Math.max(PAGE_WIDTH_MIN, n),
+                              )
+                            : defaultResultsPage().pageMaxWidth,
+                        );
+                      }}
+                    />
+                  )}
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Search widget</s-heading>
+                  <s-checkbox
+                    label="Show the search widget at the top of the page"
+                    details="Prefilled with the shopper's selection, so they can change it without leaving the page."
+                    checked={rp.showWidget}
+                    onChange={(e) => setRpKey("showWidget", checkedOf(e))}
                   />
-                  <div className="sp-rp-trio">
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Results page title</s-heading>
+                  <s-checkbox
+                    label="Show the page title"
+                    checked={rp.showTitle}
+                    onChange={(e) => setRpKey("showTitle", checkedOf(e))}
+                  />
+                  {rp.showTitle && (
+                    <>
+                      <s-text-field
+                        label="Page title"
+                        details="Leave it empty to use the title for your store type."
+                        placeholder={defaultPageTitle(config)}
+                        value={rp.pageTitle}
+                        maxLength={PAGE_TITLE_MAX}
+                        onInput={(e) => setRpKey("pageTitle", valueOf(e))}
+                      />
+                      <div className="sp-rp-trio">
+                        <Select
+                          label="Alignment"
+                          value={rp.titleAlign}
+                          onChange={(v) =>
+                            setRpKey(
+                              "titleAlign",
+                              v as ResultsPageSettings["titleAlign"],
+                            )
+                          }
+                        >
+                          <Option value="left">Left</Option>
+                          <Option value="center">Center</Option>
+                          <Option value="right">Right</Option>
+                        </Select>
+                        <Select
+                          label="Weight"
+                          value={rp.titleWeight}
+                          onChange={(v) =>
+                            setRpKey(
+                              "titleWeight",
+                              v as ResultsPageSettings["titleWeight"],
+                            )
+                          }
+                        >
+                          <Option value="">Theme</Option>
+                          <Option value="400">Regular</Option>
+                          <Option value="500">Medium</Option>
+                          <Option value="600">Semibold</Option>
+                          <Option value="700">Bold</Option>
+                          <Option value="800">Extra bold</Option>
+                        </Select>
+                        <s-color-field
+                          label="Colour"
+                          placeholder="Theme"
+                          value={rp.titleColor}
+                          onChange={(e) => {
+                            const v = valueOf(e).trim();
+                            if (!v) setRpKey("titleColor", "");
+                            else if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+                              setRpKey("titleColor", v.toUpperCase());
+                            } else e.currentTarget.value = rp.titleColor;
+                          }}
+                        />
+                      </div>
+                      <div className="sp-dev">
+                        <span className="sp-dev__label">Font size</span>
+                        <div className="sp-rp-trio">
+                          <div className="sp-dev__field">
+                            {deviceIcon("desktop")}
+                            <s-number-field
+                              label="Title size on desktop"
+                              labelAccessibilityVisibility="exclusive"
+                              suffix="px"
+                              placeholder={"Theme"}
+                              min={TITLE_SIZE_MIN}
+                              max={TITLE_SIZE_MAX}
+                              step={1}
+                              value={rp.titleSize ? String(rp.titleSize) : ""}
+                              onChange={(e) => {
+                                const v = valueOf(e).trim();
+                                const n = Math.round(Number(v));
+                                setRpKey(
+                                  "titleSize",
+                                  !v || !Number.isFinite(n)
+                                    ? 0
+                                    : Math.min(
+                                        TITLE_SIZE_MAX,
+                                        Math.max(TITLE_SIZE_MIN, n),
+                                      ),
+                                );
+                              }}
+                            />
+                          </div>
+                          <div className="sp-dev__field">
+                            {deviceIcon("mobile")}
+                            <s-number-field
+                              label="Title size on mobile"
+                              labelAccessibilityVisibility="exclusive"
+                              suffix="px"
+                              placeholder={"Same as desktop"}
+                              min={TITLE_SIZE_MIN}
+                              max={TITLE_SIZE_MAX}
+                              step={1}
+                              value={
+                                rp.titleSizeMobile
+                                  ? String(rp.titleSizeMobile)
+                                  : ""
+                              }
+                              onChange={(e) => {
+                                const v = valueOf(e).trim();
+                                const n = Math.round(Number(v));
+                                setRpKey(
+                                  "titleSizeMobile",
+                                  !v || !Number.isFinite(n)
+                                    ? 0
+                                    : Math.min(
+                                        TITLE_SIZE_MAX,
+                                        Math.max(TITLE_SIZE_MIN, n),
+                                      ),
+                                );
+                              }}
+                            />
+                          </div>
+                          <span aria-hidden="true" />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>When no products are found</s-heading>
+                  <s-text-field
+                    label="Message"
+                    placeholder={config.s.noResults}
+                    details="Leave it empty to use the search widget's No results text."
+                    value={rp.emptyText}
+                    maxLength={EMPTY_TEXT_MAX}
+                    onInput={(e) => setRpKey("emptyText", valueOf(e))}
+                  />
+                  <div className="sp-rp-pair">
+                    <s-text-field
+                      label="Button text"
+                      placeholder="e.g. Browse all products"
+                      details="Leave it empty for no button."
+                      value={rp.emptyButton}
+                      maxLength={CART_TEXT_MAX}
+                      onInput={(e) => setRpKey("emptyButton", valueOf(e))}
+                    />
+                    <s-text-field
+                      label="Button link"
+                      placeholder="/collections/all"
+                      value={rp.emptyUrl}
+                      maxLength={500}
+                      error={
+                        rp.emptyUrl && !SAFE_LINK.test(rp.emptyUrl)
+                          ? "Enter a link that starts with / or https://"
+                          : undefined
+                      }
+                      onInput={(e) => setRpKey("emptyUrl", valueOf(e).trim())}
+                    />
+                  </div>
+                </s-stack>
+              </s-stack>
+            </s-section>
+          )}
+
+          {rpSection === "grid" && (
+            <s-section accessibilityLabel="Product grid settings">
+              <SectionTitle icon="layout-columns-3" gap>
+                Product grid
+              </SectionTitle>
+              <s-stack gap="large">
+                <s-stack gap="base">
+                  <s-heading>Results count and sorting</s-heading>
+                  <s-checkbox
+                    label="Show the number of results"
+                    details="Above the products, e.g. 24 results."
+                    checked={rp.showCount}
+                    onChange={(e) => setRpKey("showCount", checkedOf(e))}
+                  />
+                  <s-checkbox
+                    label="Show the Sort by menu"
+                    checked={rp.showSort}
+                    onChange={(e) => setRpKey("showSort", checkedOf(e))}
+                  />
+                  <Select
+                    label="Sort by default"
+                    value={rp.sort}
+                    onChange={(v) =>
+                      setRpKey("sort", v as ResultsPageSettings["sort"])
+                    }
+                  >
+                    {SORTS.map(([value, label]) => (
+                      <Option key={value} value={value}>
+                        {label}
+                      </Option>
+                    ))}
+                  </Select>
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Layout</s-heading>
+                  <div className="sp-dev">
+                    <span className="sp-dev__label">Products per row</span>
+                    <div className="sp-rp-pair">
+                      <div className="sp-dev__field">
+                        {deviceIcon("desktop")}
+                        <Select
+                          label="Products per row on desktop"
+                          labelAccessibilityVisibility="exclusive"
+                          value={rp.columns}
+                          onChange={(v) =>
+                            // Rows that no longer fit the page are trimmed (20 products at most).
+                            setRp((cur) => ({
+                              ...cur,
+                              columns: v as ResultsPageSettings["columns"],
+                              rowsPerPage: Math.min(
+                                cur.rowsPerPage,
+                                maxRows(Number(v)),
+                              ),
+                            }))
+                          }
+                        >
+                          <Option value="2">2</Option>
+                          <Option value="3">3</Option>
+                          <Option value="4">4</Option>
+                          <Option value="5">5</Option>
+                        </Select>
+                      </div>
+                      <div className="sp-dev__field">
+                        {deviceIcon("mobile")}
+                        <Select
+                          label="Products per row on mobile"
+                          labelAccessibilityVisibility="exclusive"
+                          value={rp.mobileColumns}
+                          onChange={(v) =>
+                            setRpKey(
+                              "mobileColumns",
+                              v as ResultsPageSettings["mobileColumns"],
+                            )
+                          }
+                        >
+                          <Option value="1">1</Option>
+                          <Option value="2">2</Option>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="sp-dev">
+                    <span className="sp-dev__label">Space between cards</span>
+                    <div className="sp-rp-pair">
+                      <div className="sp-dev__field">
+                        {deviceIcon("desktop")}
+                        <s-number-field
+                          label="Space between cards on desktop"
+                          labelAccessibilityVisibility="exclusive"
+                          suffix="px"
+                          min={0}
+                          max={CARD_GAP_MAX}
+                          step={1}
+                          value={String(rp.cardGap)}
+                          onChange={(e) => {
+                            const n = Math.round(Number(valueOf(e)));
+                            setRpKey(
+                              "cardGap",
+                              Number.isFinite(n)
+                                ? Math.min(CARD_GAP_MAX, Math.max(0, n))
+                                : defaultResultsPage().cardGap,
+                            );
+                          }}
+                        />
+                      </div>
+                      <div className="sp-dev__field">
+                        {deviceIcon("mobile")}
+                        <s-number-field
+                          label="Space between cards on mobile"
+                          labelAccessibilityVisibility="exclusive"
+                          suffix="px"
+                          min={0}
+                          max={CARD_GAP_MAX}
+                          step={1}
+                          value={String(rp.cardGapMobile)}
+                          onChange={(e) => {
+                            const n = Math.round(Number(valueOf(e)));
+                            setRpKey(
+                              "cardGapMobile",
+                              Number.isFinite(n)
+                                ? Math.min(CARD_GAP_MAX, Math.max(0, n))
+                                : defaultResultsPage().cardGapMobile,
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <s-text color="subdued">
+                      {`0–${CARD_GAP_MAX} px, between rows and columns. Mobile: screens under 750 px.`}
+                    </s-text>
+                  </div>
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Paging</s-heading>
+                  <div className="sp-rp-pair">
                     <Select
-                      label="Alignment"
-                      value={rp.titleAlign}
+                      label="Rows per page"
+                      value={String(
+                        Math.min(rp.rowsPerPage, maxRows(Number(rp.columns))),
+                      )}
+                      onChange={(v) => setRpKey("rowsPerPage", Number(v))}
+                    >
+                      {Array.from(
+                        { length: maxRows(Number(rp.columns)) },
+                        (_, i) => (
+                          <Option key={i + 1} value={String(i + 1)}>
+                            {`${i + 1} ${i ? "rows" : "row"} (${(i + 1) * Number(rp.columns)} products)`}
+                          </Option>
+                        ),
+                      )}
+                    </Select>
+                    <Select
+                      label="Paging style"
+                      value={rp.paging}
+                      onChange={(v) =>
+                        setRpKey("paging", v as ResultsPageSettings["paging"])
+                      }
+                    >
+                      <Option value="pages">Page numbers</Option>
+                      <Option value="more">Load more button</Option>
+                    </Select>
+                  </div>
+                </s-stack>
+              </s-stack>
+            </s-section>
+          )}
+
+          {rpSection === "filters" && (
+            <s-section accessibilityLabel="Filter settings">
+              <SectionTitle icon="filter" gap>
+                Filter settings
+              </SectionTitle>
+              <s-stack gap="large">
+                <s-stack gap="base">
+                  <s-heading>Filter bar</s-heading>
+                  {rp.filters.length === 0 && (
+                    <s-banner tone="info">
+                      Add a filter group below to see these settings on the page
+                      and in the preview. Without filters, the products take the
+                      full width.
+                    </s-banner>
+                  )}
+                  <div className="sp-opt-grid">
+                    <s-text-field
+                      label="Filter bar title"
+                      details="Shown above the filters, and on the filter button on mobile."
+                      value={rp.filterTitle}
+                      maxLength={FILTER_LABEL_MAX}
+                      onInput={(e) => setRpKey("filterTitle", valueOf(e))}
+                      onBlur={() =>
+                        setRpKey(
+                          "filterTitle",
+                          rp.filterTitle.trim() || "Filters",
+                        )
+                      }
+                    />
+                    <Select
+                      label="Filter layout"
+                      details="On mobile it opens as a drawer."
+                      value={rp.filterLayout}
                       onChange={(v) =>
                         setRpKey(
-                          "titleAlign",
-                          v as ResultsPageSettings["titleAlign"],
+                          "filterLayout",
+                          v as ResultsPageSettings["filterLayout"],
+                        )
+                      }
+                    >
+                      <Option value="vertical">Vertical (sidebar)</Option>
+                      <Option value="horizontal">Horizontal (dropdowns)</Option>
+                      <Option value="drawer">Drawer</Option>
+                    </Select>
+                    {rp.filterLayout === "vertical" && (
+                      <Select
+                        label="Sidebar position"
+                        value={rp.filterSide}
+                        onChange={(v) =>
+                          setRpKey(
+                            "filterSide",
+                            v as ResultsPageSettings["filterSide"],
+                          )
+                        }
+                      >
+                        <Option value="left">Left</Option>
+                        <Option value="right">Right</Option>
+                      </Select>
+                    )}
+                    {rp.filterLayout === "vertical" && (
+                      <div className="sp-opt-grid__check sp-dev__field">
+                        {deviceIcon("desktop")}
+                        <s-checkbox
+                          label="Keep the sidebar in view while scrolling"
+                          checked={rp.stickySide}
+                          onChange={(e) => setRpKey("stickySide", checkedOf(e))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Filter groups</s-heading>
+                  <div>
+                    <s-text color="subdued">
+                      Group product tags under a name. Shoppers pick a tag to
+                      filter. Up to {MAX_FILTERS} groups.
+                    </s-text>
+                    {rp.filters.length > 0 ? (
+                      <div className="sp-rp-list">
+                        <div
+                          className="sp-rp-row sp-rp-row--head"
+                          aria-hidden="true"
+                        >
+                          <span className="sp-rp-row__n">#</span>
+                          <span className="sp-rp-row__t">Filter group</span>
+                          <span className="sp-rp-row__a">Actions</span>
+                        </div>
+                        {rp.filters.map((f, i) => (
+                          <div className="sp-rp-row" key={f.id}>
+                            <span className="sp-rp-row__n">
+                              <s-badge>{i + 1}</s-badge>
+                            </span>
+                            <div className="sp-rp-row__t">
+                              <s-text type="strong">{f.label}</s-text>
+                              <s-text color="subdued">
+                                {f.tags.length
+                                  ? `${f.tags.slice(0, 4).join(", ")}${f.tags.length > 4 ? ` +${f.tags.length - 4} more` : ""}`
+                                  : "No tags yet: edit to pick some"}
+                              </s-text>
+                            </div>
+                            <div className="sp-rp-row__a">
+                              <s-button
+                                variant="tertiary"
+                                icon="arrow-up"
+                                accessibilityLabel={`Move ${f.label} up`}
+                                disabled={i === 0}
+                                onClick={() => moveFilter(i, -1)}
+                              />
+                              <s-button
+                                variant="tertiary"
+                                icon="arrow-down"
+                                accessibilityLabel={`Move ${f.label} down`}
+                                disabled={i === rp.filters.length - 1}
+                                onClick={() => moveFilter(i, 1)}
+                              />
+                              <s-button
+                                variant="tertiary"
+                                icon="edit"
+                                accessibilityLabel={`Edit ${f.label}`}
+                                onClick={() => openFilter(f)}
+                              />
+                              <s-button
+                                variant="tertiary"
+                                tone="critical"
+                                icon="delete"
+                                accessibilityLabel={`Delete ${f.label}`}
+                                onClick={() => askDelete(f)}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <s-box paddingBlockStart="base">
+                        <s-text color="subdued">
+                          No filter groups yet: shoppers see the {things}{" "}
+                          without a filter bar.
+                        </s-text>
+                      </s-box>
+                    )}
+                    <s-box paddingBlockStart="base">
+                      <s-button
+                        icon="plus"
+                        disabled={rp.filters.length >= MAX_FILTERS}
+                        onClick={() => openFilter(null)}
+                      >
+                        Add filter group
+                      </s-button>
+                    </s-box>
+                  </div>
+                  <div className="sp-opt-grid">
+                    {rp.filterLayout !== "horizontal" && (
+                      <Select
+                        label="Groups when the page loads"
+                        details="A group with a picked tag is always open."
+                        value={rp.groupsOpen}
+                        onChange={(v) =>
+                          setRpKey(
+                            "groupsOpen",
+                            v as ResultsPageSettings["groupsOpen"],
+                          )
+                        }
+                      >
+                        <Option value="all">All open</Option>
+                        <Option value="first">First open</Option>
+                        <Option value="none">All closed</Option>
+                      </Select>
+                    )}
+                    {rp.filterLayout !== "horizontal" && (
+                      <Select
+                        label="Values shown per filter"
+                        value={rp.valuesShown}
+                        onChange={(v) =>
+                          setRpKey(
+                            "valuesShown",
+                            v as ResultsPageSettings["valuesShown"],
+                          )
+                        }
+                      >
+                        <Option value="5">First 5, then Show more</Option>
+                        <Option value="10">First 10, then Show more</Option>
+                        <Option value="all">All</Option>
+                      </Select>
+                    )}
+                  </div>
+                  <s-checkbox
+                    label="Show product count with filter values"
+                    checked={rp.showCounts}
+                    onChange={(e) => setRpKey("showCounts", checkedOf(e))}
+                  />
+                </s-stack>
+              </s-stack>
+            </s-section>
+          )}
+
+          {rpSection === "cards" && (
+            <s-section accessibilityLabel="Product cards">
+              <SectionTitle icon="product" gap>
+                Product cards
+              </SectionTitle>
+              <s-stack gap="large">
+                <s-stack gap="base">
+                  <s-heading>Image</s-heading>
+                  <div className="sp-rp-pair">
+                    <Select
+                      label="Image shape"
+                      value={rp.cardImage}
+                      onChange={(v) =>
+                        setRpKey(
+                          "cardImage",
+                          v as ResultsPageSettings["cardImage"],
+                        )
+                      }
+                    >
+                      <Option value="square">Square</Option>
+                      <Option value="portrait">Portrait (3:4)</Option>
+                      <Option value="natural">
+                        Natural (the image&apos;s own shape)
+                      </Option>
+                    </Select>
+                    <Select
+                      label="Image fit"
+                      value={rp.imageFit}
+                      onChange={(v) =>
+                        setRpKey(
+                          "imageFit",
+                          v as ResultsPageSettings["imageFit"],
+                        )
+                      }
+                    >
+                      <Option value="cover">Fill (crop the edges)</Option>
+                      <Option value="contain">Whole image on white</Option>
+                    </Select>
+                  </div>
+                  <s-checkbox
+                    label="Show the second image on hover"
+                    details="On desktop, for products with more than one image."
+                    checked={rp.imageHover}
+                    onChange={(e) => setRpKey("imageHover", checkedOf(e))}
+                  />
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Badges</s-heading>
+                  <div className="sp-rp-trio">
+                    <Select
+                      label="Shape"
+                      value={rp.badgeShape}
+                      onChange={(v) => setRpKey("badgeShape", v as Shape)}
+                    >
+                      {shapeOptions}
+                    </Select>
+                    <s-number-field
+                      label="Font size"
+                      suffix="px"
+                      placeholder="Auto"
+                      min={BADGE_SIZE_MIN}
+                      max={BADGE_SIZE_MAX}
+                      step={1}
+                      value={rp.badgeSize ? String(rp.badgeSize) : ""}
+                      onChange={(e) => {
+                        const v = valueOf(e).trim();
+                        const n = Math.round(Number(v));
+                        setRpKey(
+                          "badgeSize",
+                          !v || !Number.isFinite(n)
+                            ? 0
+                            : Math.min(
+                                BADGE_SIZE_MAX,
+                                Math.max(BADGE_SIZE_MIN, n),
+                              ),
+                        );
+                      }}
+                    />
+                    <Select
+                      label="Font weight"
+                      value={rp.badgeWeight}
+                      onChange={(v) =>
+                        setRpKey(
+                          "badgeWeight",
+                          v as ResultsPageSettings["badgeWeight"],
+                        )
+                      }
+                    >
+                      <Option value="400">Regular</Option>
+                      <Option value="500">Medium</Option>
+                      <Option value="600">Semibold</Option>
+                      <Option value="700">Bold</Option>
+                      <Option value="800">Extra bold</Option>
+                    </Select>
+                  </div>
+                  <s-stack gap="small-200">
+                    <div className="sp-rp-list">
+                      <div
+                        className="sp-rp-row sp-rp-brow sp-rp-row--head"
+                        aria-hidden="true"
+                      >
+                        <span>#</span>
+                        <span>Badge</span>
+                        <span>Shows when</span>
+                        <span>Status</span>
+                        <span className="sp-rp-brow__a">Actions</span>
+                      </div>
+                      {badgeRows.map((row, i) => (
+                        <div className="sp-rp-row sp-rp-brow" key={row.key}>
+                          <span>
+                            <s-badge>{i + 1}</s-badge>
+                          </span>
+                          <span className="sp-rp-brow__cell">
+                            {badgePill(row.badge)}
+                          </span>
+                          <span className="sp-rp-brow__cell">
+                            <s-text color="subdued">{row.when}</s-text>
+                          </span>
+                          <span>
+                            <s-badge tone={row.active ? "success" : "neutral"}>
+                              {row.active ? "Active" : "Inactive"}
+                            </s-badge>
+                          </span>
+                          <span className="sp-rp-brow__a">
+                            <s-button
+                              variant="tertiary"
+                              icon="arrow-up"
+                              accessibilityLabel={`Move ${row.badge.tag} up`}
+                              disabled={!row.up}
+                              onClick={row.up ?? undefined}
+                            />
+                            <s-button
+                              variant="tertiary"
+                              icon="arrow-down"
+                              accessibilityLabel={`Move ${row.badge.tag} down`}
+                              disabled={!row.down}
+                              onClick={row.down ?? undefined}
+                            />
+                            <s-switch
+                              label={`Show the ${row.badge.tag} badge`}
+                              labelAccessibilityVisibility="exclusive"
+                              checked={row.active}
+                              onChange={(e) => row.toggle(checkedOf(e))}
+                            />
+                            <s-button
+                              variant="tertiary"
+                              icon="edit"
+                              accessibilityLabel={`Edit ${row.badge.tag}`}
+                              onClick={row.edit}
+                            />
+                            <s-button
+                              variant="tertiary"
+                              tone="critical"
+                              icon="delete"
+                              accessibilityLabel={
+                                row.remove
+                                  ? `Delete ${row.badge.tag}`
+                                  : `${row.badge.tag} is built in and can't be deleted`
+                              }
+                              disabled={!row.remove}
+                              onClick={row.remove ?? undefined}
+                            />
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <s-stack direction="inline">
+                      <s-button
+                        icon="plus"
+                        disabled={rp.badgeTags.length >= MAX_BADGE_TAGS}
+                        onClick={() => openBadge(null)}
+                      >
+                        Add badge
+                      </s-button>
+                    </s-stack>
+                    <div className="sp-rp-note">
+                      <s-text>
+                        <strong>Note:</strong> badges show on the product image,
+                        and each card shows{" "}
+                        <strong>the first 3 badges that apply</strong>, in the
+                        order of this table. <strong>Sold out</strong> and{" "}
+                        <strong>Sale</strong> are built in and always come
+                        first; move tag badges up or down to choose the rest.
+                        Add a badge for any product tag (up to {MAX_BADGE_TAGS}
+                        ), and turn one off to hide it without deleting it.
+                      </s-text>
+                    </div>
+                  </s-stack>
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Card details</s-heading>
+                  <div className="sp-rp-pairs">
+                    <Select
+                      label="Title length"
+                      value={rp.titleLines}
+                      onChange={(v) =>
+                        setRpKey(
+                          "titleLines",
+                          v as ResultsPageSettings["titleLines"],
+                        )
+                      }
+                    >
+                      <Option value="1">1 line</Option>
+                      <Option value="2">2 lines</Option>
+                      <Option value="full">Full title</Option>
+                    </Select>
+                    <div className="sp-opt-grid__check">
+                      <s-checkbox
+                        label="Show the brand (vendor)"
+                        checked={rp.cardVendor}
+                        onChange={(e) => setRpKey("cardVendor", checkedOf(e))}
+                      />
+                    </div>
+                    <s-checkbox
+                      label="Show the SKU"
+                      checked={rp.cardSku}
+                      onChange={(e) => setRpKey("cardSku", checkedOf(e))}
+                    />
+                    <s-checkbox
+                      label={`Show the "${s.fitsText}" badge`}
+                      checked={rp.cardFit}
+                      onChange={(e) => setRpKey("cardFit", checkedOf(e))}
+                    />
+                    <s-checkbox
+                      label="Show the price"
+                      checked={rp.cardPrice}
+                      onChange={(e) => setRpKey("cardPrice", checkedOf(e))}
+                    />
+                    <s-checkbox
+                      label="Show the compare-at price on sale"
+                      checked={rp.cardCompare}
+                      onChange={(e) => setRpKey("cardCompare", checkedOf(e))}
+                    />
+                    {colorField(
+                      "Price colour",
+                      rp.priceColor,
+                      (v) => setRpKey("priceColor", v),
+                      "#1A1A1A",
+                      false,
+                      !rp.cardPrice,
+                    )}
+                    {colorField(
+                      "Compare-at price colour",
+                      rp.comparePriceColor,
+                      (v) => setRpKey("comparePriceColor", v),
+                      "#1A1A1A",
+                      false,
+                      !rp.cardPrice || !rp.cardCompare,
+                    )}
+                    <Select
+                      label="Text alignment"
+                      value={rp.cardAlign}
+                      onChange={(v) =>
+                        setRpKey(
+                          "cardAlign",
+                          v as ResultsPageSettings["cardAlign"],
                         )
                       }
                     >
                       <Option value="left">Left</Option>
                       <Option value="center">Center</Option>
-                      <Option value="right">Right</Option>
                     </Select>
-                    <s-number-field
-                      label="Size"
-                      suffix="px"
-                      placeholder="Theme"
-                      min={TITLE_SIZE_MIN}
-                      max={TITLE_SIZE_MAX}
-                      step={1}
-                      value={rp.titleSize ? String(rp.titleSize) : ""}
-                      onChange={(e) => {
-                        const v = valueOf(e).trim();
-                        const n = Math.round(Number(v));
-                        setRpKey(
-                          "titleSize",
-                          !v || !Number.isFinite(n)
-                            ? 0
-                            : Math.min(
-                                TITLE_SIZE_MAX,
-                                Math.max(TITLE_SIZE_MIN, n),
-                              ),
-                        );
-                      }}
-                    />
-                    <s-color-field
-                      label="Colour"
-                      placeholder="Theme"
-                      value={rp.titleColor}
-                      onChange={(e) => {
-                        const v = valueOf(e).trim();
-                        if (!v) setRpKey("titleColor", "");
-                        else if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                          setRpKey("titleColor", v.toUpperCase());
-                        } else e.currentTarget.value = rp.titleColor;
-                      }}
-                    />
+                    <span aria-hidden="true" />
                   </div>
-                </>
-              )}
-            </s-stack>
-          </s-box>
-          <s-box paddingBlockEnd="base">
-            <s-stack gap="small-200">
-              <s-checkbox
-                label="Show the search widget at the top of the page"
-                details="Prefilled with the shopper's selection, so they can change it without leaving the page."
-                checked={rp.showWidget}
-                onChange={(e) => setRpKey("showWidget", checkedOf(e))}
-              />
-              <s-checkbox
-                label="Show the number of results"
-                details="Above the products, e.g. 24 results."
-                checked={rp.showCount}
-                onChange={(e) => setRpKey("showCount", checkedOf(e))}
-              />
-              <s-checkbox
-                label="Show the Sort by menu"
-                checked={rp.showSort}
-                onChange={(e) => setRpKey("showSort", checkedOf(e))}
-              />
-            </s-stack>
-          </s-box>
-          <div className="sp-opt-grid">
-            <Select
-              label="Sort by default"
-              value={rp.sort}
-              onChange={(v) =>
-                setRpKey("sort", v as ResultsPageSettings["sort"])
-              }
-            >
-              {SORTS.map(([value, label]) => (
-                <Option key={value} value={value}>
-                  {label}
-                </Option>
-              ))}
-            </Select>
-            <div className="sp-rp-pair">
-              <Select
-                label="Products per row"
-                value={rp.columns}
-                onChange={(v) =>
-                  // Rows that no longer fit the page are trimmed (20 products at most).
-                  setRp((cur) => ({
-                    ...cur,
-                    columns: v as ResultsPageSettings["columns"],
-                    rowsPerPage: Math.min(cur.rowsPerPage, maxRows(Number(v))),
-                  }))
-                }
-              >
-                <Option value="2">2</Option>
-                <Option value="3">3</Option>
-                <Option value="4">4</Option>
-                <Option value="5">5</Option>
-              </Select>
-              <Select
-                label="Products per row on mobile"
-                value={rp.mobileColumns}
-                onChange={(v) =>
-                  setRpKey(
-                    "mobileColumns",
-                    v as ResultsPageSettings["mobileColumns"],
-                  )
-                }
-              >
-                <Option value="1">1</Option>
-                <Option value="2">2</Option>
-              </Select>
-            </div>
-            <Select
-              label="Rows per page"
-              value={String(
-                Math.min(rp.rowsPerPage, maxRows(Number(rp.columns))),
-              )}
-              onChange={(v) => setRpKey("rowsPerPage", Number(v))}
-            >
-              {Array.from({ length: maxRows(Number(rp.columns)) }, (_, i) => (
-                <Option key={i + 1} value={String(i + 1)}>
-                  {`${i + 1} ${i ? "rows" : "row"} (${(i + 1) * Number(rp.columns)} products)`}
-                </Option>
-              ))}
-            </Select>
-          </div>
-        </s-section>
+                </s-stack>
+                <s-divider />
+                <s-stack gap="base">
+                  <s-heading>Add to cart button</s-heading>
+                  <s-checkbox
+                    label="Show the Add to cart button"
+                    details="Products with options show Choose options; sold-out ones a disabled Sold out."
+                    checked={rp.cardCart}
+                    onChange={(e) => setRpKey("cardCart", checkedOf(e))}
+                  />
+                  {rp.cardCart && (
+                    <>
+                      <div className="sp-rp-trio">
+                        <s-text-field
+                          label="Button text"
+                          placeholder="Add to cart"
+                          value={rp.cartText}
+                          maxLength={CART_TEXT_MAX}
+                          onInput={(e) => setRpKey("cartText", valueOf(e))}
+                        />
+                        <Select
+                          label="Shape"
+                          value={rp.cartShape}
+                          onChange={(v) => setRpKey("cartShape", v as Shape)}
+                        >
+                          {shapeOptions}
+                        </Select>
+                        <Select
+                          label="Style"
+                          value={rp.cartStyle}
+                          onChange={(v) =>
+                            setRpKey(
+                              "cartStyle",
+                              v as ResultsPageSettings["cartStyle"],
+                            )
+                          }
+                        >
+                          <Option value="filled">Filled</Option>
+                          <Option value="outline">Outlined</Option>
+                        </Select>
+                      </div>
+                      <div className="sp-rp-trio">
+                        {colorField(
+                          rp.cartStyle === "outline"
+                            ? "Outline and text colour"
+                            : "Background colour",
+                          rp.cartBg,
+                          (v) => setRpKey("cartBg", v),
+                          config.s.btn,
+                          true,
+                        )}
+                        {colorField(
+                          rp.cartStyle === "outline"
+                            ? "Text colour on hover"
+                            : "Text colour",
+                          rp.cartColor,
+                          (v) => setRpKey("cartColor", v),
+                          "#FFFFFF",
+                          true,
+                        )}
+                        <span aria-hidden="true" />
+                      </div>
+                      <s-text color="subdued">
+                        {rp.cartStyle === "outline"
+                          ? "The colour is used for the outline and text, and fills the button on hover."
+                          : "Empty colours use the search widget's button colour and white text. The button darkens a little on hover."}
+                      </s-text>
+                    </>
+                  )}
+                </s-stack>
+              </s-stack>
+            </s-section>
+          )}
+        </div>
       </div>
 
       <s-modal
@@ -2018,6 +2888,110 @@ export default function StorefrontPage() {
       </s-modal>
 
       <s-modal
+        id={BADGE_MODAL}
+        heading={
+          editBuiltin
+            ? `Edit the ${badgeDraft.tag} badge`
+            : editBadge
+              ? "Edit badge"
+              : "Add badge"
+        }
+      >
+        <s-stack gap="base">
+          {editBuiltin ? (
+            <s-text color="subdued">
+              {editBuiltin === "soldOut"
+                ? "Shows when the product can't be bought."
+                : "Shows when the compare-at price is higher than the price."}
+            </s-text>
+          ) : (
+            <TagPicker
+              key={pickerKey}
+              picked={badgeDraft.tag ? [badgeDraft.tag] : []}
+              onChange={(tags) =>
+                setBadgeDraft((cur) => ({ ...cur, tag: tags[0] ?? "" }))
+              }
+              max={1}
+              error={badgeError || undefined}
+              note="Tags of your active products, most used first (number of products). One tag per badge."
+            />
+          )}
+          {badgeError && badgeDraft.tag && (
+            <s-text tone="critical">{badgeError}</s-text>
+          )}
+          <s-text-field
+            label="Label"
+            placeholder={badgeDraft.tag || "Tag"}
+            details={
+              editBuiltin
+                ? `Shown on the card instead of "${badgeDraft.tag}". Leave it empty to show "${badgeDraft.tag}".`
+                : "Shown on the card instead of the tag. Leave it empty to show the tag."
+            }
+            value={badgeDraft.label}
+            maxLength={BADGE_LABEL_MAX}
+            onInput={(e) => {
+              // Read the value now: the event is gone when the update runs.
+              const label = valueOf(e);
+              setBadgeDraft((cur) => ({ ...cur, label }));
+            }}
+          />
+          <div className="sp-rp-pair">
+            {colorField(
+              "Background",
+              badgeDraft.bg,
+              (v) => setBadgeDraft((cur) => ({ ...cur, bg: v })),
+              BADGE_TAG_COLORS.bg,
+            )}
+            {colorField(
+              "Text colour",
+              badgeDraft.color,
+              (v) => setBadgeDraft((cur) => ({ ...cur, color: v })),
+              BADGE_TAG_COLORS.color,
+            )}
+          </div>
+          <s-stack direction="inline" gap="small-200" alignItems="center">
+            <s-text color="subdued">Preview</s-text>
+            {badgePill({ ...badgeDraft, tag: badgeDraft.tag || "Tag" })}
+          </s-stack>
+        </s-stack>
+        <s-button slot="primary-action" variant="primary" onClick={saveBadge}>
+          {editBadge || editBuiltin ? "Done" : "Add badge"}
+        </s-button>
+        <s-button
+          slot="secondary-actions"
+          commandFor={BADGE_MODAL}
+          command="--hide"
+        >
+          Cancel
+        </s-button>
+      </s-modal>
+
+      <s-modal
+        id={BADGE_DELETE_MODAL}
+        heading={`Delete the ${deletingBadge?.tag ?? ""} badge?`}
+        size="small"
+      >
+        <s-paragraph>
+          Products keep the tag; the badge no longer shows on their cards.
+        </s-paragraph>
+        <s-button
+          slot="primary-action"
+          variant="primary"
+          tone="critical"
+          onClick={deleteBadge}
+        >
+          Delete badge
+        </s-button>
+        <s-button
+          slot="secondary-actions"
+          commandFor={BADGE_DELETE_MODAL}
+          command="--hide"
+        >
+          Cancel
+        </s-button>
+      </s-modal>
+
+      <s-modal
         id={FILTER_MODAL}
         heading={editFilter ? "Edit filter group" : "Add filter group"}
       >
@@ -2030,75 +3004,14 @@ export default function StorefrontPage() {
             error={fErrors.label}
             onInput={(e) => setFLabel(valueOf(e))}
           />
-          <s-stack gap="small-200">
-            <s-search-field
-              label="Tags"
-              placeholder="Search your product tags or type one"
-              value={tagQuery}
-              onInput={(e) => setTagQuery(valueOf(e))}
-            />
-            {fErrors.tags && fTags.length === 0 && (
-              <s-text tone="critical">{fErrors.tags}</s-text>
-            )}
-            {fTags.length > 0 && (
-              <div className="sp-rp-chips">
-                {fTags.map((tag) => (
-                  <s-clickable-chip
-                    key={tag}
-                    removable
-                    accessibilityLabel={`Remove ${tag}`}
-                    onRemove={() => setTagPicked(tag, false)}
-                  >
-                    {tag}
-                  </s-clickable-chip>
-                ))}
-              </div>
-            )}
-            <div className="sp-rp-taglist">
-              {typedTag &&
-                !hasPicked(typedTag) &&
-                !storeTagList?.some(
-                  (t) => t.tag.toLowerCase() === typedTag.toLowerCase(),
-                ) && (
-                  <s-button
-                    icon="plus"
-                    variant="tertiary"
-                    onClick={() => {
-                      setTagPicked(typedTag, true);
-                      setTagQuery("");
-                    }}
-                  >
-                    {`Add "${typedTag}"`}
-                  </s-button>
-                )}
-              {tagsFailed ? (
-                <s-text color="subdued">
-                  Your tags couldn&apos;t be loaded. You can still type a tag.
-                </s-text>
-              ) : storeTagList && storeTagList.length > 0 ? (
-                storeTagList.map((t) => (
-                  <s-checkbox
-                    key={t.tag}
-                    label={`${t.tag} (${t.products.toLocaleString("en-US")})`}
-                    checked={hasPicked(t.tag)}
-                    disabled={
-                      !hasPicked(t.tag) && fTags.length >= MAX_GROUP_TAGS
-                    }
-                    onChange={(e) => setTagPicked(t.tag, checkedOf(e))}
-                  />
-                ))
-              ) : (
-                <s-text color="subdued">
-                  {tagQuery.trim()
-                    ? "No product has a tag like that."
-                    : "Your products have no tags yet. You can still type one."}
-                </s-text>
-              )}
-            </div>
-            <s-text color="subdued">
-              {`Tags of your active products, most used first (number of products). Up to ${MAX_GROUP_TAGS} tags per group.`}
-            </s-text>
-          </s-stack>
+          <TagPicker
+            key={pickerKey}
+            picked={fTags}
+            onChange={setFTags}
+            max={MAX_GROUP_TAGS}
+            error={fErrors.tags}
+            note={`Tags of your active products, most used first (number of products). Up to ${MAX_GROUP_TAGS} tags per group.`}
+          />
         </s-stack>
         <s-button slot="primary-action" variant="primary" onClick={saveFilter}>
           {editFilter ? "Done" : "Add group"}

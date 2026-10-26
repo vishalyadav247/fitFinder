@@ -152,7 +152,7 @@ body {
   color: #303030;
 }
 .sp-tabs button[aria-selected="true"] {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgb(126 184 234 / 40%);
   color: #1a1a1a;
   font-weight: 650;
 }

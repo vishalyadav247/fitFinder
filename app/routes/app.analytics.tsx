@@ -1,6 +1,6 @@
 // Analytics: how shoppers use the search on the storefront, from the daily counts the app proxy
 // records (services/analytics/record.server.ts). Read-only.
-// Spec: .claude/specs/analytics.md · Prototype: .claude/design/scripts/screens/analytics.js
+// Spec: .claude/specs/analytics.md
 import { useState } from "react";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate, useSearchParams } from "react-router";

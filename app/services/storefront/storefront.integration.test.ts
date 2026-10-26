@@ -162,6 +162,11 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       1,
     );
     expect(r.products.map((p) => p.handle)).toEqual(["product-2", "product-3"]);
+    // The page's products come with their tags (tag badges on the cards).
+    expect(Object.keys(r.tagsByHandle ?? {}).sort()).toEqual([
+      "product-2",
+      "product-3",
+    ]);
   });
 
   it("serves cached options until the data version changes", async () => {
@@ -233,6 +238,16 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
       1,
     );
     expect(none.products).toEqual([{ handle: "product-3", universal: true }]);
+    // Newest / oldest by product id.
+    const audi = await picks(
+      `${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`,
+    );
+    const order = async (sort: "newest" | "oldest") =>
+      (await q.searchResults(s, audi, 1, { sort })).products.map(
+        (p) => p.handle,
+      );
+    expect(await order("newest")).toEqual(["product-3", "product-1"]);
+    expect(await order("oldest")).toEqual(["product-1", "product-3"]);
   });
 
   it("filters results by the tags of each group and counts them", async () => {
@@ -297,6 +312,37 @@ describe.skipIf(!process.env.DATABASE_URL)("storefront (Postgres)", () => {
     });
     expect(desc.products.map((p) => p.handle)).toEqual(["product-3"]);
     expect(desc.pageCount).toBe(2);
+  });
+
+  it("keeps when Shopify created each product and sorts Newest / Oldest by it", async () => {
+    // The sync stores the date (a later read without one keeps it).
+    await catalog.replaceCatalog(
+      otherId,
+      [{ ...product(8, "D"), createdAt: "2020-05-01T10:00:00Z" }],
+      await catalog.dbNow(),
+    );
+    const [stored] = await prisma.$queryRaw<{ c: Date | null }[]>`
+      SELECT shopify_created_at AS c FROM catalog_products
+      WHERE shop_id = ${otherId} AND product_id = ${P(8)}`;
+    expect(stored.c?.toISOString()).toBe("2020-05-01T10:00:00.000Z");
+
+    // Product 1 created after product 3, though its id is lower: the date wins over the id.
+    await prisma.$executeRaw`UPDATE catalog_products SET shopify_created_at = '2024-01-01'
+      WHERE shop_id = ${shopId} AND product_id = ${P(1)}`;
+    await prisma.$executeRaw`UPDATE catalog_products SET shopify_created_at = '2021-01-01'
+      WHERE shop_id = ${shopId} AND product_id = ${P(3)}`;
+    const s = await search();
+    const audi = await picks(
+      `${ids.make}=AUDI&${ids.year}=2009&${ids.model}=A6`,
+    );
+    const order = async (sort: "newest" | "oldest") =>
+      (await q.searchResults(s, audi, 1, { sort })).products.map(
+        (p) => p.handle,
+      );
+    expect(await order("newest")).toEqual(["product-1", "product-3"]);
+    expect(await order("oldest")).toEqual(["product-3", "product-1"]);
+    await prisma.$executeRaw`UPDATE catalog_products SET shopify_created_at = NULL
+      WHERE shop_id = ${shopId}`;
   });
 
   it("lists the shop's active product tags, most used first, searchable", async () => {

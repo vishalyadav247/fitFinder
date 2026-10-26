@@ -26,5 +26,9 @@ describe("tabs in the URL", () => {
     expect(run("?tab=a", "?tab=a")).toBe(true); // explicit reload
     expect(run("?tab=a&page=2", "?tab=b&page=3")).toBe(true);
     expect(run("?tab=a", "?tab=b", "POST")).toBe(true);
+    // Tabs inside a tab (?section=) don't load either.
+    expect(run("?tab=r&section=filters", "?tab=r&section=product-cards")).toBe(
+      false,
+    );
   });
 });

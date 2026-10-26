@@ -109,9 +109,12 @@ export function enhance(sel) {
     list.style.left = r.left + "px";
     list.style.width = r.width + "px";
     list.style.top = (up ? r.top - h : r.bottom + 4) + "px";
+    const cs = getComputedStyle(btn);
     list.style.borderRadius =
-      Math.min(parseFloat(getComputedStyle(btn).borderTopLeftRadius) || 0, 10) +
-      "px";
+      Math.min(parseFloat(cs.borderTopLeftRadius) || 0, 10) + "px";
+    // The list sits outside the widget: it copies the dropdown's colours.
+    list.style.background = cs.backgroundColor;
+    list.style.color = cs.color;
   };
 
   const onOutside = (e) => {

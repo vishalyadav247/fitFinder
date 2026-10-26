@@ -32,7 +32,7 @@ Source of truth: `design/scripts/data/store-types.js`.
 - **Continue** creates the search config + fields for the shop, then opens the Dashboard.
 - **Replace my setup** (changing type) opens a confirmation `s-modal` "Replace your setup?": "Your {n} search fields and {rows} filter rows are deleted, and the {Store type} fields are added. Export your filter data first if you want to keep it. This can't be undone." Red primary **Replace my setup** + **Cancel**. It deletes the fields, filter rows and the saved import column mapping (it points at the old fields); product links and universal products are kept.
 - Entry points for changing type: Search setup (secondary action **Change store type**) and Settings › Store type (**Change**). The current type is preselected.
-- Errors are toasts (`isError`): invalid form "Choose a store type."; already set up without confirming "This store is already set up. Confirm replacing the setup."; unexpected "Your setup couldn't be saved. Try again.". Choosing the current type again and replacing is allowed (a reset), as in the prototype.
+- Errors are toasts (`isError`): invalid form "Choose a store type."; already set up without confirming "This store is already set up. Confirm replacing the setup."; unexpected "Your setup couldn't be saved. Try again.". Choosing the current type again and replacing is allowed (a reset).
 - A shop without a store type is sent to onboarding from any app page; the `s-app-nav` menu is not rendered on this page.
 
 ## Data / backend

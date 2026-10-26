@@ -335,6 +335,39 @@ describe("search widget: first dropdown", () => {
     fetched.length = 0;
   });
 
+  it("writes the dropdown and search button looks; leaves unset ones to the stylesheet", () => {
+    const looks = {
+      ddBg: "#111111",
+      ddText: "#EEEEEE",
+      ddCorners: "pill",
+      btnText: "#000000",
+      btnCorners: "square",
+      headColor: "#222222",
+    };
+    Object.assign(config.s, looks);
+    const { el } = fakeWidget({ f: "make", v: [] });
+    search.initSearch(el);
+    for (const v of [
+      "--sp-ddb:#111111;",
+      "--sp-ddt:#EEEEEE;",
+      "--sp-ddr:999px;",
+      "--sp-bt:#000000;",
+      "--sp-btr:2px;",
+      "--sp-rb:10px;",
+      "--sp-ht:#222222;",
+    ])
+      expect(el.innerHTML).toContain(v);
+    // "Same as the widget" corners and settings published before these existed: not written.
+    Object.assign(config.s, { ddCorners: "", btnCorners: "" });
+    for (const k of ["ddBg", "ddText", "btnText", "headColor"])
+      delete (config.s as Record<string, unknown>)[k];
+    const plain = fakeWidget({ f: "make", v: [] });
+    search.initSearch(plain.el);
+    expect(plain.el.innerHTML).not.toContain("--sp-dd");
+    expect(plain.el.innerHTML).not.toContain("--sp-bt");
+    expect(plain.el.innerHTML).not.toContain("--sp-ht");
+  });
+
   it("fills the first dropdown from the page and asks the app nothing", async () => {
     const { el, selects } = fakeWidget({ f: "make", v: ["AUDI", "BMW"] });
     search.initSearch(el);

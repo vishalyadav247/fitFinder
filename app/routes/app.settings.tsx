@@ -1,5 +1,5 @@
 // Settings: store type, custom CSS for the storefront, what SpareFit stores, help, feedback.
-// Spec: .claude/specs/settings.md · Prototype: .claude/design/scripts/screens/settings.js
+// Spec: .claude/specs/settings.md
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";

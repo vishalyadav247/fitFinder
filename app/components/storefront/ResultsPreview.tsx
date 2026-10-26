@@ -6,12 +6,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StorefrontConfig } from "../../services/storefront/config";
 import {
+  cardParts,
+  tagBadgeHtml,
   escapeLiquidText as esc,
   resultsBody,
   STYLE,
   type ResultsState,
 } from "../../services/storefront/results-page";
 import {
+  defaultResultsPage,
   facetsFor,
   productsPerPage,
   type FilterPicks,
@@ -19,8 +22,6 @@ import {
 } from "../../services/storefront/results-settings";
 
 const DESKTOP_WIDTH = 1200;
-/** Height of the small picture in the Preview card. */
-const THUMB_HEIGHT = 200;
 const MOBILE_WIDTH = 375;
 
 // Page look around the results (the theme's own font and colours aren't known here).
@@ -34,6 +35,23 @@ a{cursor:pointer}
 const BARE_CSS = `<style>html{scrollbar-width:none}html::-webkit-scrollbar{display:none}</style>`;
 
 const RADIUS = { square: 2, rounded: 10, pill: 999 } as const;
+
+/** Dropdown and search button looks, as the widget script writes them (storefront-src/search.js). */
+const widgetLooks = (s: StorefrontConfig["s"]) =>
+  [
+    s.ddBg && `--sp-ddb:${s.ddBg}`,
+    s.ddText && `--sp-ddt:${s.ddText}`,
+    s.ddCorners && `--sp-ddr:${RADIUS[s.ddCorners]}px`,
+    s.btnText && `--sp-bt:${s.btnText}`,
+    s.btnCorners && `--sp-btr:${RADIUS[s.btnCorners]}px`,
+    s.headColor && `--sp-ht:${s.headColor}`,
+    s.labelColor && `--sp-lt:${s.labelColor}`,
+    s.saveColor && `--sp-st:${s.saveColor}`,
+    s.resetColor && `--sp-rc:${s.resetColor}`,
+  ]
+    .filter(Boolean)
+    .map((v) => `;${v}`)
+    .join("");
 
 /**
  * The search widget as shoppers see it on a mouse or trackpad screen: the block's markup
@@ -53,7 +71,7 @@ function widgetHtml(config: StorefrontConfig, picks: Record<string, string>) {
     s.saveLink || s.reset
       ? `<div class="sp-sfw__links">${s.saveLink ? `<button type="button" class="sp-sfw__save"><i class="sp-sfw__star" aria-hidden="true"></i> <span>${esc(s.saveText)}</span></button>` : "<span></span>"}${s.reset ? `<button type="button" class="sp-sfw__reset">${esc(s.resetText)}</button>` : ""}</div>`
       : "";
-  return `<div class="sp-search-wrap"><div class="sp-sfw sp-sfw--${s.layout === "card" ? "v" : "h"}" style="--sp-b:${s.btn};--sp-bg:${s.bg};--sp-t:${s.text};--sp-r:${Math.min(r, 14)}px;--sp-rb:${r}px">${s.showHeading ? `<p class="sp-sfw__h">${esc(config.heading)}</p>` : ""}<div class="sp-sfw__row">${fields}<button type="button" class="sp-sfw__go">${esc(s.button)}</button></div>${links}</div></div>`;
+  return `<div class="sp-search-wrap"><div class="sp-sfw sp-sfw--${s.layout === "card" ? "v" : "h"}" style="--sp-b:${s.btn};--sp-bg:${s.bg};--sp-t:${s.text};--sp-r:${Math.min(r, 14)}px;--sp-rb:${r}px${widgetLooks(s)}">${s.showHeading ? `<p class="sp-sfw__h">${esc(config.heading)}</p>` : ""}<div class="sp-sfw__row">${fields}<button type="button" class="sp-sfw__go">${esc(s.button)}</button></div>${links}</div></div>`;
 }
 
 export function ResultsPreview({
@@ -65,11 +83,10 @@ export function ResultsPreview({
   widgetCss,
   device,
   bare = false,
-  thumb = false,
 }: {
   config: StorefrontConfig;
   settings: ResultsPageSettings;
-  sample: { title: string; tags: string[] }[];
+  sample: { title: string; tags: string[]; sku?: string }[];
   /** The example selection shown under the title. */
   label: string;
   /** The example selection by field id: fills the widget's dropdowns. */
@@ -79,8 +96,6 @@ export function ResultsPreview({
   device: "desktop" | "mobile";
   /** No border, corners or spacing around the page (the preview modal). */
   bare?: boolean;
-  /** A small, still picture of the top of the page (the Preview card). */
-  thumb?: boolean;
 }) {
   const [state, setState] = useState<ResultsState>({
     filterPicks: {},
@@ -142,7 +157,16 @@ export function ResultsPreview({
     };
     const card = (p: { handle: string }) => {
       const product = shown[Number(p.handle)];
-      return `<li class="sp-card"><a><span class="sp-card__img sp-card__img--none"></span><span class="sp-card__t">${esc(product?.title ?? "")}</span><span class="sp-card__fit">&#10003; ${esc(config.s.fitsText)}</span><span class="sp-card__p sp-card__p--ph"></span></a></li>`;
+      const parts = cardParts(
+        { ...defaultResultsPage(), ...settings },
+        { [p.handle]: product?.tags ?? [] },
+      );
+      // Tag badges only: Sold out and Sale need live store data.
+      const badges = parts
+        .tagBadges(p.handle)
+        .map((b) => tagBadgeHtml(b, esc))
+        .join("");
+      return `<li class="sp-card"><a><span class="sp-card__media"><span class="sp-card__img sp-card__img--none"></span><span class="sp-card__badges">${badges}</span></span>${parts.vendor ? `<span class="sp-card__v sp-card__p--ph"></span>` : ""}<span class="sp-card__t">${esc(product?.title ?? "")}</span>${parts.sku && product?.sku ? `<span class="sp-card__sku">SKU ${esc(product.sku)}</span>` : ""}${parts.fit ? `<span class="sp-card__fit">&#10003; ${esc(config.s.fitsText)}</span>` : ""}${parts.price ? `<span class="sp-card__p sp-card__p--ph"></span>` : ""}</a>${parts.cart ? `<span class="sp-card__btn">${esc(parts.cartText)}</span>` : ""}</li>`;
     };
     return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>${widgetCss}</style>${STYLE}${PAGE_CSS}${bare ? BARE_CSS : ""}</head><body>${resultsBody(view, card, false, widgetHtml(config, picks))}</body></html>`;
     // filterPicks is derived from state and settings.
@@ -202,20 +226,11 @@ export function ResultsPreview({
   };
 
   return (
-    <div
-      ref={box}
-      className={`sp-rp-pv${bare ? " is-bare" : ""}${thumb ? " is-thumb" : ""}`}
-    >
+    <div ref={box} className={`sp-rp-pv${bare ? " is-bare" : ""}`}>
       <div
         className="sp-rp-pv__clip"
         style={{
-          height: bare
-            ? "100%"
-            : thumb
-              ? THUMB_HEIGHT
-              : scale
-                ? height * scale
-                : 0,
+          height: bare ? "100%" : scale ? height * scale : 0,
           width: scale ? width * scale : "100%",
         }}
       >

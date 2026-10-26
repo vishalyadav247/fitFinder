@@ -1,6 +1,6 @@
 # Data model and API (suggested)
 
-See also `.claude/archive/BUILD-PLAN.md` (section 3, historical) for the full table list. The prototype keeps everything in one browser object (`design/scripts/core/state.js`). This is the suggested shape for the real multi-shop app. Names are suggestions.
+See also `.claude/archive/BUILD-PLAN.md` (section 3, historical) for the full table list. This is the suggested shape for the real multi-shop app. Names are suggestions.
 
 ## Prototype shape (for reference)
 ```js

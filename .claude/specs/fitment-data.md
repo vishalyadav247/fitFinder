@@ -8,7 +8,7 @@ Everything about the filter rows on one page, in two tabs (2026-10-22, product o
 ## Layout
 `s-page heading="Filter data"`, no header actions (Import data is its own tab; removed from the header 2026-10-22, product owner). **Export data** (primary, black; opens the export modal) sits in the rows section, right of **Add row**, because it exports the table's data.
 
-**Tabs** (the app's shared page tabs `.sp-tabs`, Shopify admin look): **Filter data** (icon rows, with the row count in a pill) · **Import data** (icon upload). The page opens on Filter data, or on Import data when `?tab=import-data` / `?import=1` is given, when the store has no rows yet, or while an import is checking or running. `?import=1` is dropped from the URL once used; `?tab=` stays and follows every switch.
+**Tabs** (the app's shared page tabs `.sp-tabs`, Shopify admin look, the open tab Sky-tinted): **Filter data** (icon rows, with the row count in a pill) · **Import data** (icon upload). The page opens on Filter data, or on Import data when `?tab=import-data` / `?import=1` is given, when the store has no rows yet, or while an import is checking or running. `?import=1` is dropped from the URL once used; `?tab=` stays and follows every switch.
 
 **Import data tab:** the Import filter data card, the Import CSV card and Import history exactly as described in `search-setup.md` › Layout 2–3 and › Import (the spec text stays there). After an import closes, the counts and the rows reload.
 
@@ -27,7 +27,7 @@ Everything about the filter rows on one page, in two tabs (2026-10-22, product o
 - Add/edit follows the import's rules: values are cleaned like imported cells, the Year range is read like a range cell, the SKU and every required field must be filled. Problems show on the fields: "Enter {field}", "Enter a SKU", "Enter a year or a range like 2015-2020 or 2019-", "Use 255 characters or fewer". A row equal to another one is refused with an error toast ("This row already exists." / "Another row already has these values.").
 - Selection is kept across pages and searches, up to 5,000 rows ("You can select up to 5,000 rows at a time.").
 - Footer: the standard table footer (see Product mapping): "Showing {from}–{to} of {n} rows" (while searching "… of {x} matching rows") · previous · "Page {x} of {y}" · next · **Rows per page** 10 / 25 / 50 (default 10; back to page 1). Deleting the last rows of the last page steps back a page.
-- Empty state: "No rows yet" + **Import CSV** (→ Search setup import card). The prototype also shows **Restore sample rows (prototype only)**; the app leaves it out.
+- Empty state: "No rows yet" + **Import CSV** (→ Search setup import card).
 - **Clean up** card: **Remove duplicates**: rows that are the same as an older row apart from upper/lower case and spaces in the values and the SKU (same years); the oldest of each is kept (decided 2026-10-05: exact copies can't exist because rows are unique per shop by their content hash). Card text: "Deletes rows that are the same apart from upper/lower case and spaces, keeping one of each." The button counts first (loading), then opens the confirmation. **Delete all rows** (critical, confirms first; disabled when there are no rows).
 
 ### Import

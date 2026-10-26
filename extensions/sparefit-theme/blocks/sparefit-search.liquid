@@ -17,8 +17,29 @@
       elsif sp.s.corners == 'pill'
         assign sp_r = 999
       endif
+      comment
+        Dropdown and button corners: their own, or the widget's when not set.
+      endcomment
+      assign sp_ddr = sp_r
+      case sp.s.ddCorners
+        when 'square'
+          assign sp_ddr = 2
+        when 'rounded'
+          assign sp_ddr = 10
+        when 'pill'
+          assign sp_ddr = 999
+      endcase
+      assign sp_btr = sp_r
+      case sp.s.btnCorners
+        when 'square'
+          assign sp_btr = 2
+        when 'rounded'
+          assign sp_btr = 10
+        when 'pill'
+          assign sp_btr = 999
+      endcase
     -%}
-    <div class="sp-sfw sp-sfw--{% if sp.s.layout == 'card' %}v{% else %}h{% endif %}" style="--sp-b:{{ sp.s.btn }};--sp-bg:{{ sp.s.bg }};--sp-t:{{ sp.s.text }};--sp-r:{{ sp_r | at_most: 14 }}px;--sp-rb:{{ sp_r }}px">
+    <div class="sp-sfw sp-sfw--{% if sp.s.layout == 'card' %}v{% else %}h{% endif %}" style="--sp-b:{{ sp.s.btn }};--sp-bg:{{ sp.s.bg }};--sp-t:{{ sp.s.text }};--sp-r:{{ sp_r | at_most: 14 }}px;--sp-rb:{{ sp_r }}px;--sp-ddr:{{ sp_ddr }}px;--sp-btr:{{ sp_btr }}px{% if sp.s.ddBg != blank %};--sp-ddb:{{ sp.s.ddBg }}{% endif %}{% if sp.s.ddText != blank %};--sp-ddt:{{ sp.s.ddText }}{% endif %}{% if sp.s.btnText != blank %};--sp-bt:{{ sp.s.btnText }}{% endif %}{% if sp.s.headColor != blank %};--sp-ht:{{ sp.s.headColor }}{% endif %}{% if sp.s.labelColor != blank %};--sp-lt:{{ sp.s.labelColor }}{% endif %}{% if sp.s.saveColor != blank %};--sp-st:{{ sp.s.saveColor }}{% endif %}{% if sp.s.resetColor != blank %};--sp-rc:{{ sp.s.resetColor }}{% endif %}">
       {%- comment -%} Banner image: set in the theme editor only (block settings below). {%- endcomment -%}
       {%- assign sp_img = block.settings.banner_image -%}
       {%- if sp_img != blank -%}

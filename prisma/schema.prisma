@@ -318,6 +318,8 @@ model CatalogProduct {
   status    String
   // Product tags as Shopify returns them (results page filters)
   tags      String[] @default([])
+  // When Shopify created the product (results page sort Newest / Oldest); null until read
+  shopifyCreatedAt DateTime? @map("shopify_created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)

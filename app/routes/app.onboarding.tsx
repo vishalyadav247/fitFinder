@@ -1,5 +1,4 @@
 // Onboarding: pick the store type. Spec: .claude/specs/onboarding.md
-// Prototype: .claude/design/scripts/screens/onboarding.js
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type {
   ActionFunctionArgs,

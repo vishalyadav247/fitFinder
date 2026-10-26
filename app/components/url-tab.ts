@@ -23,33 +23,38 @@ export function tabFromParam<K extends string>(
   );
 }
 
+/** URL parameters that only pick a tab: changing them doesn't load the page's data again. */
+const TAB_PARAMS = ["tab", "section"];
+
 /**
  * The open tab and a function to switch it. Without a (known) ?tab=, `fallback` opens (default:
- * the first tab), and the URL is updated to its slug in place.
+ * the first tab), and the URL is updated to its slug in place. Tabs inside a tab use another
+ * parameter (`param: "section"`) and write it only while their tab is open (`active`).
  */
 export function useUrlTab<K extends string>(
   tabs: readonly UrlTab<K>[],
   fallback?: K,
+  { param = "tab", active = true }: { param?: string; active?: boolean } = {},
 ): [K, (key: K) => void] {
   const [params, setParams] = useSearchParams();
-  const raw = params.get("tab");
+  const raw = params.get(param);
   const key = tabFromParam(tabs, raw) ?? fallback ?? tabs[0].key;
   const slugOf = (k: K) => tabs.find((t) => t.key === k)!.slug;
   const show = (k: K) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        next.set("tab", slugOf(k));
+        next.set(param, slugOf(k));
         return next;
       },
       { replace: true, preventScrollReset: true },
     );
   const slug = slugOf(key);
   useEffect(() => {
-    if (raw !== slug) show(key);
+    if (active && raw !== slug) show(key);
     // show only writes the URL; run when the URL's tab differs from the open one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raw, slug]);
+  }, [raw, slug, active]);
   return [key, show];
 }
 
@@ -73,7 +78,7 @@ export const skipTabOnlyChanges: ShouldRevalidateFunction = ({
   }
   const strip = (url: URL) => {
     const p = new URLSearchParams(url.search);
-    p.delete("tab");
+    for (const name of TAB_PARAMS) p.delete(name);
     p.sort();
     return p.toString();
   };

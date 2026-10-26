@@ -24,6 +24,20 @@ export interface StorefrontSettings {
   btn: string;
   bg: string;
   text: string;
+  /** Dropdowns: background, text colour and corners ("" = the widget's corners). */
+  ddBg: string;
+  ddText: string;
+  ddCorners: "" | "square" | "rounded" | "pill";
+  /** Search button: text colour and corners ("" = the widget's corners); its colour is btn. */
+  btnText: string;
+  btnCorners: "" | "square" | "rounded" | "pill";
+  /** Own colours for the heading, the dropdown labels and the save link ("" = the widget's
+   *  text colour, which the admin no longer shows: set before 2026-10-26). */
+  headColor: string;
+  labelColor: string;
+  saveColor: string;
+  /** Reset link colour ("" = the search button colour). */
+  resetColor: string;
   labels: boolean;
   showHeading: boolean;
   button: string;
@@ -93,6 +107,15 @@ export function defaultSettings({
     btn: "#1D4ED8",
     bg: "#FFFFFF",
     text: "#1A1A1A",
+    ddBg: "#FFFFFF",
+    ddText: "#1A1A1A",
+    ddCorners: "",
+    btnText: "#FFFFFF",
+    btnCorners: "",
+    headColor: "",
+    labelColor: "",
+    saveColor: "",
+    resetColor: "",
     labels: false,
     showHeading: true,
     button: `Show ${things}`,
@@ -182,6 +205,8 @@ const CHOICES: Record<string, string[]> = {
   layout: ["bar", "card"],
   results: ["theme", "app"],
   corners: ["square", "rounded", "pill"],
+  ddCorners: ["", "square", "rounded", "pill"],
+  btnCorners: ["", "square", "rounded", "pill"],
   tablePlace: ["block", "tabs"],
   tableStyle: ["collapsible", "open"],
   tableLook: ["lines", "striped", "plain"],
@@ -204,7 +229,20 @@ const CHOICES: Record<string, string[]> = {
   maxSaved: ["3", "5", "10"],
 };
 
-const COLOR_KEYS = new Set(["btn", "bg", "text", "savedBg", "savedText"]);
+const COLOR_KEYS = new Set([
+  "btn",
+  "bg",
+  "text",
+  "ddBg",
+  "ddText",
+  "btnText",
+  "headColor",
+  "labelColor",
+  "saveColor",
+  "resetColor",
+  "savedBg",
+  "savedText",
+]);
 
 function isHttpsUrl(value: string) {
   try {
@@ -218,7 +256,7 @@ export const TEXT_MAX = 200;
 
 /**
  * Settings the Storefront page edits one at a time (specs/storefront.md). The other texts
- * (Reset, Show all {n}, hint texts …) stay fixed in the MVP; savedIconUrl is set by the icon
+ * (Show all {n}, hint texts …) stay fixed in the MVP; savedIconUrl is set by the icon
  * upload and can only be cleared here.
  */
 export const EDITABLE_KEYS = [
@@ -227,6 +265,16 @@ export const EDITABLE_KEYS = [
   "btn",
   "bg",
   "text",
+  "ddBg",
+  "ddText",
+  "ddCorners",
+  "btnText",
+  "btnCorners",
+  "headColor",
+  "labelColor",
+  "saveColor",
+  "resetColor",
+  "resetText",
   "labels",
   "showHeading",
   "button",

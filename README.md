@@ -3,7 +3,7 @@
 A Shopify app that adds a "find products that fit" search (Year / Make / Model style, with any fields) to a store.
 
 Stack: React Router, Polaris web components, Prisma + PostgreSQL, pg-boss jobs, theme app extension.
-Specs, prototype and launch docs live in `.claude/` (`.claude/archive/` holds the original proposal and build plan).
+Specs and launch docs live in `.claude/` (`.claude/archive/` holds the original proposal and build plan).
 
 ## Requirements
 

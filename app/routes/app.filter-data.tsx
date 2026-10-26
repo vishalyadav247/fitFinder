@@ -1,6 +1,6 @@
 // Filter data, in two tabs: Filter data (browse, search, add, edit, delete and export filter rows;
 // clean up) and Import (the Import CSV card and Import history, moved here from Search setup).
-// Spec: .claude/specs/fitment-data.md · Prototype: .claude/design/scripts/screens/fitment-data.js
+// Spec: .claude/specs/fitment-data.md
 // Rows come from /api/fitment (paged, searched as you type); the counts from this loader.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {

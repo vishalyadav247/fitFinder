@@ -1,7 +1,7 @@
 // Plans: the current plan with usage meters, and the plans set up in the backoffice. A paid plan
 // creates a Billing API charge and opens Shopify's approval page; a free plan cancels the charge
 // after a confirm modal.
-// Spec: .claude/specs/plans.md · Prototype: .claude/design/scripts/screens/plans.js
+// Spec: .claude/specs/plans.md
 import { useEffect, useState } from "react";
 import type {
   ActionFunctionArgs,

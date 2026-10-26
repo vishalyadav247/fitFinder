@@ -206,58 +206,6 @@
   margin-inline-end: -44px;
 }
 
-/* Results page tab: Filter settings (narrower, left) and Page settings (right) side by side; the
-   fields inside each card in one column. Stacked on narrow screens. */
-.sp-rp-settings {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: var(--p-space-400, 16px);
-  align-items: start;
-}
-.sp-rp-settings .sp-opt-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-@media (max-width: 760px) {
-  .sp-rp-settings {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Results page tab, first row: Filters (as wide as Page settings) and Preview with a small,
-   clickable picture of the page. Stacked on narrow screens. */
-.sp-rp-top {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: var(--p-space-400, 16px);
-  align-items: start;
-}
-@media (max-width: 760px) {
-  .sp-rp-top {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.sp-rp-thumb {
-  display: block;
-  width: 100%;
-  margin: 12px 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: zoom-in;
-  border-radius: 10px;
-}
-.sp-rp-thumb:focus-visible {
-  outline: 2px solid var(--sp-p);
-  outline-offset: 2px;
-}
-.sp-rp-pv.is-thumb {
-  margin-top: 0;
-  pointer-events: none;
-}
-.sp-rp-pv.is-thumb .sp-rp-pv__clip {
-  width: 100% !important;
-}
-
 /* Add / Edit filter group: picked tags as chips, the store's tags in a short scrolling list. */
 .sp-rp-chips {
   display: flex;
@@ -294,4 +242,244 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
+}
+
+/* Results page tab side menu (agreed 2026-10-23, product owner; a custom area, like Shopify's
+   Settings menu): Page, Filters, Product grid, Product cards, then Preview (opens the full
+   preview); the open section's card on the right. On narrow screens the menu becomes a row. */
+.sp-rpside {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--p-space-400, 16px);
+  align-items: start;
+}
+.sp-rpside__nav {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 8px 24px -12px rgba(2, 132, 199, 0.18);
+}
+.sp-rpside__nav [role="tablist"] {
+  display: grid;
+  gap: 2px;
+}
+.sp-rpside__nav button {
+  appearance: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-weight: 550;
+  text-align: start;
+  color: var(--p-color-text-secondary, #616161);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.sp-rpside__nav button:hover {
+  background: #f4f5f6;
+  color: var(--p-color-text, #303030);
+}
+.sp-rpside__nav button[aria-selected="true"] {
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 650;
+}
+.sp-rpside__nav button:focus-visible {
+  outline: 2px solid var(--p-color-border-focus, #005bd3);
+  outline-offset: -2px;
+}
+/* Preview: always gently alive — a soft Sky ring pulses out and the eye blinks now and then
+   (off for merchants who ask for reduced motion). */
+.sp-rpside__nav .sp-rpside__preview {
+  position: relative;
+  justify-content: center;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #e0f2fe, #ede9fe);
+  color: #075985;
+  font-weight: 650;
+  animation: sp-pv-pulse 2.4s ease-out infinite;
+}
+.sp-rpside__nav .sp-rpside__preview:hover {
+  background: linear-gradient(135deg, #bae6fd, #ddd6fe);
+  color: #0c4a6e;
+}
+.sp-rpside__preview svg {
+  transform-origin: center;
+  animation: sp-pv-blink 4s ease-in-out infinite;
+}
+@keyframes sp-pv-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.35);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px rgba(2, 132, 199, 0);
+  }
+}
+@keyframes sp-pv-blink {
+  0%,
+  44%,
+  52%,
+  100% {
+    transform: scaleY(1);
+  }
+  48% {
+    transform: scaleY(0.1);
+  }
+}
+.sp-rpside__main {
+  display: grid;
+  gap: var(--p-space-400, 16px);
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .sp-rpside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-rpside__nav {
+    position: static;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .sp-rpside__nav [role="tablist"] {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sp-rpside__nav button {
+    width: auto;
+    white-space: nowrap;
+  }
+  .sp-rpside__nav .sp-rpside__preview {
+    margin-top: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-rpside__nav button,
+  .sp-rpside__preview svg {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* A tag badge drawn in its colours (Badges from tags list, the badge modal's preview). */
+.sp-rp-badgepill {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Product cards › Badges table: # · badge · shows when · status · up, down, switch, edit, delete. */
+.sp-rp-brow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1.4fr) 76px 176px;
+  justify-content: stretch;
+}
+.sp-rp-brow__cell {
+  min-width: 0;
+  display: flex;
+  overflow-wrap: anywhere;
+}
+.sp-rp-brow__a {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+}
+@media (max-width: 760px) {
+  .sp-rp-brow {
+    grid-template-columns: 28px minmax(0, 1fr) 76px 176px;
+  }
+  .sp-rp-brow > :nth-child(3) {
+    display: none;
+  }
+}
+
+/* A desktop / mobile pair: one title, then each field behind its device icon. */
+.sp-dev {
+  display: grid;
+  gap: 4px;
+}
+.sp-dev__label {
+  font-size: 13px;
+  font-weight: 450;
+  color: var(--p-color-text, #303030);
+}
+.sp-dev__field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.sp-dev__field > :last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sp-dev__icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f1f2f4;
+}
+.sp-dev .sp-rp-pair {
+  align-items: center;
+}
+
+/* A checkbox in a field grid, lined up with the field next to it (below that field's label). */
+.sp-opt-grid__check {
+  padding-top: 26px;
+}
+@media (max-width: 760px) {
+  .sp-opt-grid__check {
+    padding-top: 0;
+  }
+}
+
+/* A short note under a settings list, set apart with a Sky tint (Badges). */
+.sp-rp-note {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  box-shadow: inset 3px 0 0 #0284c7;
+  line-height: 1.5;
+}
+.sp-rp-note strong {
+  font-weight: 650;
+  color: #075985;
+}
+
+/* Card details: one two-column grid; a checkbox next to a field lines up with its input. */
+.sp-rp-pairs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .sp-rp-pairs {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

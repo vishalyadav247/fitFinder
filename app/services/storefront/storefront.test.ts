@@ -12,6 +12,9 @@ import {
   parseResultsPage,
   maxRows,
   productsPerPage,
+  RESULTS_KEY,
+  SAFE_LINK,
+  storedResultsPage,
 } from "./results-settings";
 import { buildStorefrontConfig, byPosition, PROXY_PATH } from "./config";
 import {
@@ -128,6 +131,44 @@ const searchConfig = {
   noun: "vehicle",
   thingsWord: "parts",
 };
+
+describe("search widget looks", () => {
+  it("defaults the dropdowns and the button, and keeps only valid choices", () => {
+    const wording = {
+      storeType: "automotive" as const,
+      noun: "vehicle",
+      things: "parts",
+    };
+    const d = defaultSettings(wording);
+    expect([d.ddBg, d.ddText, d.ddCorners, d.btnText, d.btnCorners]).toEqual([
+      "#FFFFFF",
+      "#1A1A1A",
+      "",
+      "#FFFFFF",
+      "",
+    ]);
+    const s = resolveSettings(
+      {
+        ddBg: "#123abc",
+        ddCorners: "pill",
+        btnCorners: "huge",
+        btnText: "red",
+      },
+      wording,
+    );
+    // Heading, label and save link colours: unset by default (the widget's text colour).
+    expect([d.headColor, d.labelColor, d.saveColor]).toEqual(["", "", ""]);
+    expect(resolveSettings({ saveColor: "#00AA00" }, wording).saveColor).toBe(
+      "#00AA00",
+    );
+    expect([s.ddBg, s.ddCorners, s.btnCorners, s.btnText]).toEqual([
+      "#123abc",
+      "pill",
+      "",
+      "#FFFFFF",
+    ]);
+  });
+});
 
 describe("storefront config (app metafield)", () => {
   it("orders fields, fills default placeholders and maps types", () => {
@@ -518,7 +559,7 @@ describe("results page (Liquid)", () => {
     expect(side).toContain("Show 9 more"); // default: first 5
     // The picked value is in the rest: that part starts open, and so does the group.
     expect(side).toContain('<details class="sp-rp__more" open>');
-    expect(side).toContain("Sort by");
+    expect(side).toContain('<span class="sp-rp__sorttxt">Sort by</span>');
     expect(page({ filterSide: "right" })).toContain("sp-rp--right");
     expect(page({ valuesShown: "all" })).not.toContain("more</summary>");
     expect(page({ valuesShown: "10" })).toContain("Show 4 more");
@@ -537,8 +578,13 @@ describe("results page (Liquid)", () => {
 
     const drawer = page({ filterLayout: "drawer", showSort: false });
     expect(drawer).toContain('class="sp-rp__drawer"');
-    expect(drawer).toContain('class="sp-rp__fbtn">Filters (1)</label>');
-    expect(drawer).not.toContain("Sort by");
+    // The filter icon: its name for screen readers, the number of picked tags as a badge.
+    expect(drawer).toContain('class="sp-rp__fbtn" title="Filters (1)"');
+    expect(drawer).toContain('<span class="sp-rp-vh">Filters (1)</span>');
+    expect(drawer).toContain(
+      '<span class="sp-rp__fbadge" aria-hidden="true">1</span>',
+    );
+    expect(drawer).not.toContain('<span class="sp-rp__sorttxt">Sort by</span>');
   });
 
   it("fills whole rows: products per page = products per row × rows, at most 20", () => {
@@ -552,6 +598,389 @@ describe("results page (Liquid)", () => {
     expect(maxRows(5)).toBe(4);
   });
 
+  it("shows the fits badge, price and SKU on cards as set", () => {
+    const page = (over: Partial<ResultsView["settings"]>) =>
+      resultsLiquid(view({ settings: { ...defaultResultsPage(), ...over } }));
+    const base = page({});
+    expect(base).toContain('<span class="sp-card__fit">');
+    expect(base).toContain("{{ sp_p.price | money }}");
+    expect(base).not.toContain('<span class="sp-card__sku">');
+    const custom = page({ cardFit: false, cardPrice: false, cardSku: true });
+    expect(custom).not.toContain('<span class="sp-card__fit">');
+    expect(custom).not.toContain("sp_p.price | money");
+    expect(custom).toContain("{%- assign sp_sku = sp_sv.sku -%}");
+  });
+
+  it("shows sale prices, Sold out and the brand, and shapes the images", () => {
+    const page = (over: Partial<ResultsView["settings"]>) =>
+      resultsLiquid(view({ settings: { ...defaultResultsPage(), ...over } }));
+    const base = page({});
+    expect(base).toContain("sp_sv.compare_at_price > sp_sv.price");
+    expect(base).toContain("{%- unless sp_p.available -%}");
+    expect(base).not.toContain("sp_p.vendor");
+    expect(base).toContain("--sp-ar:1");
+    const custom = page({
+      cardCompare: false,
+      cardSoldOut: false,
+      cardVendor: true,
+      cardImage: "portrait",
+    });
+    expect(custom).not.toContain("compare_at_price");
+    expect(custom).not.toContain("sp_p.available");
+    expect(custom).toContain("{{ sp_p.vendor | escape }}");
+    expect(custom).toContain("--sp-ar:3 / 4");
+  });
+
+  it("shows Sale and the picked tags as badges", () => {
+    const html = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          badgeSale: true,
+          badgeTags: [
+            {
+              tag: "New",
+              bg: "#FFEE00",
+              color: "#111111",
+              active: true,
+              label: "",
+            },
+            {
+              tag: "<b>Hot</b>",
+              bg: "#FFFFFF",
+              color: "#1A1A1A",
+              active: true,
+              label: "",
+            },
+            // Turned off: never shows.
+            {
+              tag: "Old",
+              bg: "#FFFFFF",
+              color: "#1A1A1A",
+              active: false,
+              label: "",
+            },
+          ],
+        },
+        results: {
+          products: [
+            { handle: "a", universal: false },
+            { handle: "b", universal: false },
+          ],
+          tagsByHandle: { a: ["new", "<b>hot</b>"], b: ["Old"] },
+          total: 2,
+          page: 1,
+          pageCount: 1,
+          facets: [],
+        },
+      }),
+    );
+    expect(html).toContain('<span class="sp-card__sale">Sale</span>');
+    expect(html.match(/class="sp-card__tb"/g)).toHaveLength(2);
+    // Each tag badge in its own colours; Sold out, Sale, shapes and the gap as page variables.
+    expect(html).toContain(
+      '<span class="sp-card__tb" style="background:#FFEE00;color:#111111">New</span>',
+    );
+    expect(html).toMatch(
+      /--sp-badge-r:999px;--sp-badge-fw:600;--sp-so-bg:#1A1A1A/,
+    );
+    expect(html).toContain("--sp-gap:20px");
+    expect(html).not.toContain("<b>Hot</b></span>");
+    const plain = resultsLiquid(view({ settings: defaultResultsPage() }));
+    expect(plain).not.toContain('sp-card__sale">Sale');
+    expect(plain).not.toContain('<span class="sp-card__tb">');
+  });
+
+  it("shows the Add to cart button only when set, from Shopify's availability", () => {
+    const off = resultsLiquid(view({ settings: defaultResultsPage() }));
+    expect(off).not.toContain('class="sp-card__cart"');
+    const on = resultsLiquid(
+      view({ settings: { ...defaultResultsPage(), cardCart: true } }),
+    );
+    expect(on).toContain('action="{{ routes.cart_add_url }}"');
+    expect(on).toContain("{%- if sp_p.available -%}");
+    expect(on).toContain(
+      "sp_p.variants_count == 1 and sp_p.requires_selling_plan == false",
+    );
+    expect(on).toContain(">Choose options</a>");
+    expect(on).toContain("disabled>Sold out</button>");
+    // The button sits outside the product link (no form inside an <a>).
+    expect(on).toMatch(/<\/a>\s*\{%- if sp_p\.available/);
+  });
+
+  it("applies the page width, card looks, button text and sticky sidebar", () => {
+    const base = resultsLiquid(view({ settings: defaultResultsPage() }));
+    expect(base).toContain('<div class="page-width sp-results-outer">');
+    expect(base).not.toMatch(
+      /class="sp-rp [^"]*sp-rp--(contain|t1|tfull|center|outline|static)/,
+    );
+    expect(base).not.toContain("sp_p.images[1]");
+    const html = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          pageWidth: "full",
+          imageFit: "contain",
+          imageHover: true,
+          titleLines: "1",
+          cardAlign: "center",
+          cardCart: true,
+          cartText: "Buy <now>",
+          cartStyle: "outline",
+          stickySide: false,
+        },
+      }),
+    );
+    expect(html).toContain(
+      '<div class="sp-results-outer"><div class="sp-results sp-results--full"',
+    );
+    for (const c of ["contain", "hover", "t1", "center", "outline", "static"])
+      expect(html).toMatch(new RegExp(`class="sp-rp [^"]*sp-rp--${c}`));
+    expect(html).toContain("{%- if sp_p.images[1] -%}");
+    const custom = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          pageWidth: "custom",
+          pageMaxWidth: 1100,
+        },
+      }),
+    );
+    expect(custom).toContain(
+      'class="sp-results sp-results--full" style="--sp-pw:1100px"',
+    );
+    expect(html).toContain('class="sp-card__btn">Buy &#60;now&#62;</button>');
+  });
+
+  it("shows the no-results message and button, and Load more", () => {
+    const results = (over: Partial<NonNullable<ResultsView["results"]>>) => ({
+      products: [],
+      total: 0,
+      page: 1,
+      pageCount: 1,
+      facets: [],
+      ...over,
+    });
+    const empty = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          emptyText: "Nothing for this one",
+          emptyButton: "Browse all",
+          emptyUrl: "/collections/all",
+        },
+        results: results({}),
+      }),
+    );
+    expect(empty).toContain("Nothing for this one");
+    expect(empty).toContain('href="/collections/all">Browse all</a>');
+    const unsafe = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          emptyButton: "Go",
+          emptyUrl: "javascript:alert(1)",
+        },
+        results: results({}),
+      }),
+    );
+    expect(unsafe).not.toContain("javascript:");
+    const products = Array.from({ length: 4 }, (_, i) => ({
+      handle: `p-${i}`,
+      universal: false,
+    }));
+    const more = resultsLiquid(
+      view({
+        settings: { ...defaultResultsPage(), paging: "more" },
+        results: results({ products, total: 10, pageCount: 3 }),
+      }),
+    );
+    expect(more).toContain("Showing 4 of 10");
+    expect(more).toContain('rel="next" data-sp-more>Load more</a>');
+    expect(more).not.toContain('<nav class="sp-pager"');
+  });
+
+  it("rejects a no-results link that isn't a path or http(s)", () => {
+    const doc = (emptyUrl: string) =>
+      parseResultsPage({ ...defaultResultsPage(), emptyUrl });
+    expect(doc("/collections/all")).not.toBeNull();
+    expect(doc("https://example.com/a")).not.toBeNull();
+    expect(doc("")).not.toBeNull();
+    expect(doc("javascript:alert(1)")).toBeNull();
+    expect(doc("//evil.test")).toBeNull();
+  });
+
+  it("reads tag badges saved as plain tags, and sets the button and badge looks", () => {
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), badgeTags: ["New"] })
+        ?.badgeTags,
+    ).toEqual([
+      { tag: "New", bg: "#FFFFFF", color: "#1A1A1A", active: true, label: "" },
+    ]);
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), cartBg: "red" }),
+    ).toBeNull();
+    const html = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          cartShape: "square",
+          cartBg: "#112233",
+          cartColor: "#FFEEDD",
+          badgeShape: "rounded",
+          badgeSize: 13,
+          badgeWeight: "700",
+          cardGap: 32,
+          cardGapMobile: 8,
+        },
+      }),
+    );
+    expect(html).toContain(
+      "--sp-gap:32px;--sp-mgap:8px;--sp-cbtn-r:0;--sp-cbtn-bg:#112233;--sp-cbtn-fg:#FFEEDD;--sp-badge-r:6px;--sp-badge-fs:13px;--sp-badge-fw:700",
+    );
+    // Without own colours the button keeps the search widget's colour.
+    expect(
+      resultsLiquid(view({ settings: defaultResultsPage() })),
+    ).not.toContain(";--sp-cbtn-bg:");
+  });
+
+  it("shows badge labels instead of the tag, and colours the prices", () => {
+    const html = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          badgeSale: true,
+          soldOutLabel: "Uitverkocht",
+          saleLabel: "",
+          priceColor: "#B42318",
+          comparePriceColor: "#777777",
+          badgeTags: [
+            {
+              tag: "new",
+              bg: "#FFFFFF",
+              color: "#1A1A1A",
+              active: true,
+              label: "Fresh",
+            },
+            {
+              tag: "oem",
+              bg: "#FFFFFF",
+              color: "#1A1A1A",
+              active: true,
+              label: "",
+            },
+          ],
+        },
+        results: {
+          products: [{ handle: "a", universal: false }],
+          tagsByHandle: { a: ["new", "oem"] },
+          total: 1,
+          page: 1,
+          pageCount: 1,
+          facets: [],
+        },
+      }),
+    );
+    expect(html).toContain('<span class="sp-card__so">Uitverkocht</span>');
+    expect(html).toContain('<span class="sp-card__sale">Sale</span>');
+    expect(html).toContain('color:#1A1A1A">Fresh</span>');
+    expect(html).toContain('color:#1A1A1A">oem</span>');
+    expect(html).toContain("--sp-price:#B42318;--sp-was:#777777");
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), priceColor: "black" }),
+    ).toBeNull();
+  });
+
+  it("prints every merchant text as text: no HTML, no Liquid", () => {
+    const evil = '{{ shop.name }}<b x="1">{% render x %}';
+    const html = resultsLiquid(
+      view({
+        settings: {
+          ...defaultResultsPage(),
+          pageTitle: evil,
+          filterTitle: evil.slice(0, 40),
+          cardCart: true,
+          cartText: evil.slice(0, 40),
+          badgeSale: true,
+          soldOutLabel: evil.slice(0, 40),
+          saleLabel: evil.slice(0, 40),
+          emptyText: evil,
+          emptyButton: evil.slice(0, 40),
+          emptyUrl: "/collections/all",
+          badgeTags: [
+            {
+              tag: "new",
+              bg: "#FFFFFF",
+              color: "#1A1A1A",
+              active: true,
+              label: evil.slice(0, 40),
+            },
+          ],
+        },
+        results: {
+          products: [{ handle: "a", universal: false }],
+          tagsByHandle: { a: ["new"] },
+          total: 1,
+          page: 1,
+          pageCount: 1,
+          facets: [],
+        },
+      }),
+    );
+    expect(html).not.toContain("{{ shop.name }}");
+    expect(html).not.toContain("{% render x %}");
+    expect(html).not.toContain('<b x="1">');
+    expect(html).toContain("&#123;&#123; shop.name &#125;&#125;");
+  });
+
+  it("accepts store paths and http(s) links only for the no-results button", () => {
+    for (const ok of [
+      "/collections/all",
+      "/pages/contact?x=1",
+      "https://shop.example/a",
+    ])
+      expect(SAFE_LINK.test(ok)).toBe(true);
+    for (const bad of [
+      "//evil.test",
+      "/\\evil.test",
+      "javascript:alert(1)",
+      'https://x" onmouseover="a',
+      "https://a b",
+      "mailto:a@b.c",
+    ])
+      expect(SAFE_LINK.test(bad)).toBe(false);
+  });
+
+  it("reads older saved settings, and keeps the rest when one field is no longer valid", () => {
+    const stored = (doc: object) => storedResultsPage({ [RESULTS_KEY]: doc });
+    // A sort removed later, plain-tag badges, a boolean for groups open.
+    const old = stored({
+      sort: "sku-asc",
+      badgeTags: ["New"],
+      groupsOpen: false,
+    });
+    expect(old.sort).toBe("match");
+    expect(old.badgeTags).toEqual([
+      { tag: "New", bg: "#FFFFFF", color: "#1A1A1A", active: true, label: "" },
+    ]);
+    expect(old.groupsOpen).toBe("none");
+    // Too many badges (or duplicates in any case) are refused when saved…
+    const many = Array.from({ length: 11 }, (_, i) => `t${i}`);
+    expect(
+      parseResultsPage({ ...defaultResultsPage(), badgeTags: many }),
+    ).toBeNull();
+    expect(
+      parseResultsPage({
+        ...defaultResultsPage(),
+        badgeTags: ["Sale", "sale"],
+      }),
+    ).toBeNull();
+    // …and when read, only that field goes back to its default.
+    const kept = stored({ badgeTags: many, columns: "3", pageTitle: "Mine" });
+    expect(kept.badgeTags).toEqual([]);
+    expect([kept.columns, kept.pageTitle]).toEqual(["3", "Mine"]);
+  });
+
   it("styles the page title, or leaves it out", () => {
     const page = (over: Partial<ResultsView["settings"]>) =>
       resultsLiquid(view({ settings: { ...defaultResultsPage(), ...over } }));
@@ -561,6 +990,12 @@ describe("results page (Liquid)", () => {
     expect(
       page({ titleAlign: "center", titleSize: 44, titleColor: "#123ABC" }),
     ).toContain('style="text-align:center;font-size:44px;color:#123ABC"');
+    expect(page({ titleSize: 44, titleSizeMobile: 28 })).toContain(
+      'style="text-align:left;font-size:44px;--sp-tsm:28px"',
+    );
+    expect(page({ titleWeight: "700" })).toContain(
+      'style="text-align:left;font-weight:700"',
+    );
     expect(page({ showTitle: false })).not.toContain("<h1");
     // Sizes saved as words before px still read; a colour that isn't #RRGGBB never reaches the page.
     expect(

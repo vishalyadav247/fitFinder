@@ -1,5 +1,5 @@
 // Dashboard: banner, setup guide and overview cards, from the shop's real state.
-// Spec: .claude/specs/dashboard.md · Prototype: .claude/design/scripts/screens/dashboard.js
+// Spec: .claude/specs/dashboard.md
 import { Suspense, useEffect, useState } from "react";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
 import { Await, useLoaderData, useNavigate } from "react-router";

@@ -13,7 +13,7 @@ const RETRY_AFTER_MS = 60 * 60_000;
 
 export interface ResultsAdminData {
   settings: ResultsPageSettings;
-  sample: { title: string; tags: string[] }[];
+  sample: { title: string; tags: string[]; sku: string }[];
   /** Tags are still being read from Shopify (catalog filled before tags were kept, or never). */
   tagsLoading: boolean;
 }
@@ -23,10 +23,15 @@ export async function resultsAdminData(
 ): Promise<ResultsAdminData> {
   const [settings, sample, sync] = await Promise.all([
     getResultsPage(shopId),
-    prisma.$queryRaw<{ title: string; tags: string[] }[]>`
-      SELECT title, tags FROM catalog_products
-      WHERE shop_id = ${shopId} AND status = 'ACTIVE'
-      ORDER BY cardinality(tags) > 0 DESC, title, product_id
+    // With each product's first SKU, for the cards' "SKU" line.
+    prisma.$queryRaw<{ title: string; tags: string[]; sku: string }[]>`
+      SELECT p.title, p.tags,
+             coalesce((SELECT v.sku FROM catalog_variants v
+                       WHERE v.shop_id = p.shop_id AND v.product_id = p.product_id AND v.sku <> ''
+                       ORDER BY v.variant_id LIMIT 1), '') AS sku
+      FROM catalog_products p
+      WHERE p.shop_id = ${shopId} AND p.status = 'ACTIVE'
+      ORDER BY cardinality(p.tags) > 0 DESC, p.title, p.product_id
       LIMIT ${PREVIEW_PRODUCTS}`,
     prisma.catalogSync.findUnique({
       where: { shopId },

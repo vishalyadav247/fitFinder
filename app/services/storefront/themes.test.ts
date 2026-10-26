@@ -193,9 +193,7 @@ describe("themes and links", () => {
     expect(l.add.badge).toBe(
       `${base}?template=product&addAppBlockId=KEY%2Fsparefit-fits-badge&target=mainSection`,
     );
-    expect(l.add.table).toContain(
-      "addAppBlockId=KEY%2Fsparefit-fitment-table",
-    );
+    expect(l.add.table).toContain("addAppBlockId=KEY%2Fsparefit-fitment-table");
     expect(l.view("product.alt")).toBe(`${base}?template=product.alt`);
     expect(l.view("")).toBe(base);
   });

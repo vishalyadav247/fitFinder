@@ -309,6 +309,8 @@ export interface ResultsPage {
   pageCount: number;
   /** One per results page filter, in the filters' order (empty without filters). */
   facets: Facet[];
+  /** The tags of this page's products by handle (tag badges on the cards). */
+  tagsByHandle?: Record<string, string[]>;
 }
 
 export interface ResultsOptions {
@@ -324,11 +326,17 @@ const hasTagSql = (tags: string[]) =>
   Prisma.sql`EXISTS (SELECT 1 FROM unnest(p.tags) t
     WHERE lower(t) IN (SELECT lower(x) FROM unnest(${tags}::text[]) x))`;
 
-const SORT_SQL: Record<ResultsPageSettings["sort"], Prisma.Sql> = {
-  match: Prisma.sql`universal, title, product_id`,
-  "title-asc": Prisma.sql`title, product_id`,
-  "title-desc": Prisma.sql`title DESC, product_id`,
-};
+// Newest/oldest: when Shopify created the product; caches read before that date was kept
+// fall back to the number in the product GID (Shopify ids grow with creation).
+const CREATED = Prisma.sql`(substring(product_id from '[0-9]+$'))::bigint`;
+const sortSql = (sort: ResultsPageSettings["sort"]): Prisma.Sql =>
+  ({
+    match: Prisma.sql`universal, title, product_id`,
+    "title-asc": Prisma.sql`title, product_id`,
+    "title-desc": Prisma.sql`title DESC, product_id`,
+    newest: Prisma.sql`shopify_created_at DESC NULLS LAST, ${CREATED} DESC NULLS LAST, product_id`,
+    oldest: Prisma.sql`shopify_created_at NULLS LAST, ${CREATED} NULLS LAST, product_id`,
+  })[sort] ?? Prisma.sql`universal, title, product_id`;
 
 /**
  * Products that fit the picks (linked rows), then universal products; A–Z by title. With results
@@ -373,14 +381,14 @@ export async function searchResults(
         " UNION ALL ",
       )
     : null;
+  const order = sortSql(sort);
   return timedRead(async (tx) => {
     const [row] = await tx.$queryRaw<
       {
         products: { handle: string; universal: boolean }[] | null;
+        tags: Record<string, string[]> | null;
         total: number;
-        facets:
-          | { g: string; k: string; n: number }[]
-          | null;
+        facets: { g: string; k: string; n: number }[] | null;
       }[]
     >`
         WITH m AS (${matching}),
@@ -390,17 +398,21 @@ export async function searchResults(
           WHERE l.shop_id = ${shopId} AND l.product_id IS NOT NULL
           ${universalHits(search, false)}),
         p AS MATERIALIZED (
-          SELECT c.handle, c.title, c.product_id, c.tags, bool_and(h.universal) AS universal
+          SELECT c.handle, c.title, c.product_id, c.tags, c.shopify_created_at,
+                 bool_and(h.universal) AS universal
           FROM hits h JOIN catalog_products c
             ON c.shop_id = ${shopId} AND c.product_id = h.product_id
           WHERE c.status = 'ACTIVE'
-          GROUP BY c.handle, c.title, c.product_id, c.tags),
-        f AS MATERIALIZED (SELECT * FROM p ${allBut(null)})
+          GROUP BY c.handle, c.title, c.product_id, c.tags, c.shopify_created_at),
+        f AS MATERIALIZED (SELECT * FROM p ${allBut(null)}),
+        -- This page's products, sorted once: their order and their tags (badges).
+        pg AS (SELECT handle, universal, tags, row_number() OVER (ORDER BY ${order}) AS n
+               FROM f ORDER BY ${order}
+               LIMIT ${size} OFFSET ${(page - 1) * size})
         SELECT
           (SELECT json_agg(json_build_object('handle', handle, 'universal', universal) ORDER BY n)
-           FROM (SELECT handle, universal, row_number() OVER (ORDER BY ${SORT_SQL[sort]}) AS n
-                 FROM f ORDER BY ${SORT_SQL[sort]}
-                 LIMIT ${size} OFFSET ${(page - 1) * size}) x) AS products,
+           FROM pg) AS products,
+          (SELECT json_object_agg(handle, tags) FROM pg) AS tags,
           (SELECT count(*)::int FROM f) AS total,
           ${facetSql ? Prisma.sql`(SELECT json_agg(y) FROM (${facetSql}) y)` : Prisma.sql`NULL::json`} AS facets`;
     const total = row?.total ?? 0;
@@ -426,6 +438,7 @@ export async function searchResults(
     });
     return {
       products: row?.products ?? [],
+      tagsByHandle: row?.tags ?? {},
       total,
       page,
       pageCount: Math.max(1, Math.ceil(total / size)),

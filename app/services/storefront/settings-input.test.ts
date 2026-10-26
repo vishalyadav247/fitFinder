@@ -29,7 +29,9 @@ describe("parseSettingValue", () => {
   });
 
   it("refuses keys the page doesn't edit and icon URLs set by hand", () => {
-    expect(parseSettingValue("resetText", "Clear")).toBeNull();
+    expect(parseSettingValue("hintTitle", "Clear")).toBeNull();
+    // The reset link text is edited on the page since 2026-10-26.
+    expect(parseSettingValue("resetText", " Clear ")).toBe("Clear");
     expect(parseSettingValue("__proto__", {})).toBeNull();
     expect(
       parseSettingValue("savedIconUrl", "https://evil.example/x.svg"),

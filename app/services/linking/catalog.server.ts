@@ -23,6 +23,8 @@ export interface CatalogProductInput {
   status: string;
   /** Product tags as Shopify returns them (results page filters); missing = none. */
   tags?: string[];
+  /** When Shopify created it (ISO 8601; results page sort Newest / Oldest); missing = unknown. */
+  createdAt?: string;
   variants: { variantId: string; sku: string }[];
 }
 
@@ -89,7 +91,7 @@ export async function gqlData<T>(
 // variants carry __parentId).
 export const BULK_PRODUCTS_QUERY = `{
   products {
-    edges { node { id title handle status tags variants { edges { node { id sku } } } } }
+    edges { node { id title handle status tags createdAt variants { edges { node { id sku } } } } }
   }
 }`;
 
@@ -183,6 +185,7 @@ const bulkLineSchema = z.object({
   handle: z.string().optional(),
   status: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  createdAt: z.string().optional(),
   sku: z.string().nullable().optional(),
   __parentId: z.string().optional(),
 });
@@ -210,6 +213,7 @@ export async function collectBulkLines(
         handle: (n.handle ?? "").toLowerCase(),
         status: (n.status ?? "ACTIVE").toUpperCase(),
         tags: cleanTags(n.tags),
+        createdAt: n.createdAt,
         variants: existing?.variants ?? [],
       });
     } else if (
@@ -258,7 +262,7 @@ export async function* fetchJsonlLines(url: string): AsyncGenerator<string> {
 const PRODUCT_VARIANTS = `#graphql
   query ProductVariantsPage($id: ID!, $after: String) {
     product(id: $id) {
-      id title handle status tags
+      id title handle status tags createdAt
       variants(first: 250, after: $after) { pageInfo { hasNextPage endCursor } nodes { id sku } }
     }
   }`;
@@ -278,6 +282,7 @@ export async function fetchProduct(
         handle: string;
         status: string;
         tags: string[];
+        createdAt: string;
         variants: {
           pageInfo: { hasNextPage: boolean; endCursor: string | null };
           nodes: { id: string; sku: string | null }[];
@@ -292,6 +297,7 @@ export async function fetchProduct(
       handle: p.handle.toLowerCase(),
       status: p.status.toUpperCase(),
       tags: cleanTags(p.tags),
+      createdAt: p.createdAt,
       variants: [],
     };
     for (const v of p.variants.nodes) {
@@ -305,7 +311,7 @@ export async function fetchProduct(
 const PICKED = `#graphql
   query PickedResources($ids: [ID!]!) {
     nodes(ids: $ids) {
-      ... on Product { id title handle status tags variants(first: 1) { nodes { id sku } } }
+      ... on Product { id title handle status tags createdAt variants(first: 1) { nodes { id sku } } }
     }
   }`;
 
@@ -343,6 +349,7 @@ async function fetchResourceBatch(
       handle?: string;
       status?: string;
       tags?: string[];
+      createdAt?: string;
       variants?: { nodes: { id: string; sku: string | null }[] };
     } | null)[];
   }>(gql, PICKED, { ids });
@@ -355,6 +362,7 @@ async function fetchResourceBatch(
         handle: n.handle.toLowerCase(),
         status: (n.status ?? "ACTIVE").toUpperCase(),
         tags: cleanTags(n.tags),
+        createdAt: n.createdAt,
         variants: (n.variants?.nodes ?? []).map((v) => ({
           variantId: v.id,
           sku: v.sku ?? "",
@@ -393,6 +401,10 @@ export function deletedProductId(rawBody: string): string | null {
 
 type Tx = Prisma.TransactionClient;
 
+/** An ISO date Postgres can read, or null (missing or malformed: stored as unknown). */
+const validDate = (value: string | undefined) =>
+  value && !Number.isNaN(Date.parse(value)) ? value : null;
+
 async function insertProducts(
   tx: Tx,
   shopId: string,
@@ -403,16 +415,21 @@ async function insertProducts(
     // Tags are a list per product: one JSON text per product, unnested with the other columns
     // (a whole-batch JSON parsed per row is quadratic under a generic plan).
     await tx.$executeRaw`
-      INSERT INTO catalog_products (shop_id, product_id, title, handle, status, tags, updated_at)
+      INSERT INTO catalog_products
+        (shop_id, product_id, title, handle, status, tags, shopify_created_at, updated_at)
       SELECT ${shopId}, p.id, p.title, p.handle, p.status,
-             ARRAY(SELECT jsonb_array_elements_text(p.tj::jsonb)), now()
+             ARRAY(SELECT jsonb_array_elements_text(p.tj::jsonb)),
+             p.ca::timestamptz AT TIME ZONE 'UTC', now()
       FROM unnest(${b.map((p) => p.productId)}::text[], ${b.map((p) => p.title)}::text[],
                   ${b.map((p) => p.handle)}::text[], ${b.map((p) => p.status)}::text[],
-                  ${b.map((p) => JSON.stringify(p.tags ?? []))}::text[])
-        AS p(id, title, handle, status, tj)
+                  ${b.map((p) => JSON.stringify(p.tags ?? []))}::text[],
+                  ${b.map((p) => validDate(p.createdAt))}::text[])
+        AS p(id, title, handle, status, tj, ca)
       ON CONFLICT (shop_id, product_id) DO UPDATE SET
         title = EXCLUDED.title, handle = EXCLUDED.handle, status = EXCLUDED.status,
-        tags = EXCLUDED.tags, updated_at = now()`;
+        tags = EXCLUDED.tags,
+        shopify_created_at = COALESCE(EXCLUDED.shopify_created_at, catalog_products.shopify_created_at),
+        updated_at = now()`;
   }
 }
 
